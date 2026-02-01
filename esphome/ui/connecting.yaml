@@ -1,0 +1,145 @@
+# =============================================================================
+# UI Screen: Connecting Screen
+# Purpose: Display connection progress during WiFi and Home Assistant API setup
+# Dependencies: packages/lvgl.yaml (LVGL framework, theme, fonts, icons)
+#               packages/state_machine.yaml (system_state global variable)
+# Exposes: ui_connecting_screen (LVGL page/screen component)
+# Display: WiFi icon, progress spinner, and status text on dark background
+# =============================================================================
+
+lvgl:
+  # =============================================================================
+  # Connecting Screen Definition
+  # =============================================================================
+  # This screen is displayed when the device is establishing network connections
+  # - During WiFi association
+  # - During Home Assistant API connection
+  # Constitution reference: §1.1.4 UI must display valid Connecting state
+
+  pages:
+    - id: ui_connecting_screen
+      # Apply base screen style (dark background #121212, white text)
+      styles: style_screen
+
+      # Screen layout configuration
+      layout:
+        type: FLEX
+        flex_flow: COLUMN_WRAP
+        flex_align_main: CENTER       # Center vertically
+        flex_align_cross: CENTER      # Center horizontally
+
+      # =============================================================================
+      # Screen Widgets
+      # =============================================================================
+
+      widgets:
+        # -------------------------------------------------------------------------
+        # WiFi Icon
+        # -------------------------------------------------------------------------
+        # Material Design WiFi icon (24pt) - static display
+        # Using icons_24 font with WiFi glyph U+F06E8
+
+        - label:
+            id: ui_connecting_icon_wifi
+            text: "\U000F06E8"          # mdi:wifi icon
+            text_font: icons_24         # Material Design Icons 24pt
+            text_color: 0x00D1FF        # Vibrant Cyan - primary accent
+            text_align: CENTER
+            bg_opa: TRANSP              # Transparent background
+            width: 48
+            height: 48
+
+        # -------------------------------------------------------------------------
+        # Progress Spinner
+        # -------------------------------------------------------------------------
+        # Animated circular spinner to indicate ongoing activity
+        # LVGL spinner widget provides built-in rotation animation
+
+        - spinner:
+            id: ui_connecting_spinner_progress
+            width: 64
+            height: 64
+            # Spinner appearance
+            arc_length: 60              # Arc segment size (degrees)
+            spin_time: 1000ms           # One full rotation per second
+            # Styling
+            arc_color: 0x00D1FF         # Vibrant Cyan
+            arc_opa: COVER              # Fully opaque
+            bg_color: 0x1E1E1E          # Background Secondary - track color
+            bg_opa: COVER
+            border_width: 0
+
+        # -------------------------------------------------------------------------
+        # "Connecting..." Main Label
+        # -------------------------------------------------------------------------
+        # Primary status message using roboto_24 font
+
+        - label:
+            id: ui_connecting_lbl_message
+            text: "Connecting..."
+            styles: style_label_primary # White text, 24pt Roboto, centered
+            text_align: CENTER
+            align: CENTER
+            text_color: 0xFFFFFF        # White text
+            bg_opa: TRANSP              # Transparent background
+            # Spacing from spinner
+            y_ofs: 20
+
+        # -------------------------------------------------------------------------
+        # Connection Status Detail Label
+        # -------------------------------------------------------------------------
+        # Secondary text showing current connection phase
+        # Updated by state machine based on WiFi/API connection state
+        # Examples: "Connecting to WiFi...", "Connecting to Home Assistant..."
+
+        - label:
+            id: ui_connecting_lbl_status
+            text: "Establishing connection..."
+            styles: style_label_secondary # Gray text, 16pt Roboto, centered
+            text_align: CENTER
+            align: CENTER
+            text_color: 0xB3B3B3        # Secondary gray text
+            bg_opa: TRANSP              # Transparent background
+            # Spacing from main message
+            y_ofs: 50
+
+        # -------------------------------------------------------------------------
+        # Technical Details Label (Optional)
+        # -------------------------------------------------------------------------
+        # Small text for additional info if needed (e.g., SSID, IP address)
+        # Hidden by default, can be shown programmatically
+
+        - label:
+            id: ui_connecting_lbl_details
+            text: ""
+            styles: style_label_small   # Gray text, 12pt Roboto, centered
+            text_align: CENTER
+            align: CENTER
+            text_color: 0x666666        # Inactive gray - subtle
+            bg_opa: TRANSP              # Transparent background
+            # Spacing from status label
+            y_ofs: 80
+            hidden: true                # Hidden by default
+
+  # =============================================================================
+  # Update Logic (via on_value triggers in state_machine.yaml)
+  # =============================================================================
+  # The connecting screen status labels are updated by monitoring:
+  # - WiFi connection events (wifi.on_connect, wifi.on_disconnect)
+  # - Home Assistant API events (api.on_client_connected, api.on_client_disconnected)
+  # - System state transitions (system_state global variable)
+  #
+  # Example updates to implement in state_machine.yaml or separate script:
+  #
+  # When entering Connecting state:
+  #   - Show this screen: lv_disp_load_scr(ui_connecting_screen)
+  #   - Update status: ui_connecting_lbl_status->set_text("Connecting to WiFi...")
+  #
+  # When WiFi connects but API pending:
+  #   - Update status: ui_connecting_lbl_status->set_text("Connecting to Home Assistant...")
+  #
+  # When WiFi fails:
+  #   - Update status: ui_connecting_lbl_status->set_text("WiFi connection failed")
+  #   - Consider transitioning to Offline screen
+  #
+  # =============================================================================

@@ -1,0 +1,34 @@
+# =============================================================================
+# Git Ignore Configuration
+# =============================================================================
+
+# ESPHome secrets - NEVER commit credentials
+esphome/secrets.yaml
+secrets.yaml
+
+# ESPHome build artifacts
+.esphome/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

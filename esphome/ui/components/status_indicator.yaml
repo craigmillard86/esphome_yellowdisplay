@@ -1,0 +1,308 @@
+# =============================================================================
+# UI Component: Visual State Indicator
+# Purpose: Reusable LVGL status indicator showing system state with icon and text
+# Dependencies: packages/lvgl.yaml (LVGL framework, theme, fonts, icons)
+#               packages/state_machine.yaml (system_state global variable)
+# Exposes: ui_status_icon, ui_status_label (LVGL widgets)
+# Display: Header area status indicator (44px height max) with state-based colors
+# =============================================================================
+
+lvgl:
+  # =============================================================================
+  # Status Indicator Component
+  # =============================================================================
+  # Visual indicator component for system state display in header area.
+  # Updates automatically when system_state global variable changes.
+  # Constitution reference: §1.1.4 UI must display valid state
+  #
+  # States and color coding:
+  #   0 = Booting:    Gray (#666666)    - wifi icon
+  #   1 = Connecting: Yellow (#FF6B35)  - wifi icon
+  #   2 = Ready:      Cyan (#00D1FF)    - check icon
+  #   3 = Offline:    Red (#FF0000)     - wifi_off icon
+  #   4 = Error:      Red (#FF0000)     - alert icon
+
+  widgets:
+    # ===========================================================================
+    # Status Container
+    # ===========================================================================
+    # Container widget to group icon and label together
+    # Positioned in header area with flex layout for horizontal alignment
+
+    - obj:
+        id: ui_status_container
+        # Size constraints for header bar
+        width: 120                      # Wide enough for icon + text
+        height: 44                      # Maximum header height
+
+        # Transparent background to inherit from parent
+        styles:
+          bg_opa: TRANSP
+          border_width: 0
+          pad_all: 4
+
+        # Horizontal flex layout: [icon] [text]
+        layout:
+          type: FLEX
+          flex_flow: ROW
+          flex_align_main: START        # Align to left within container
+          flex_align_cross: CENTER      # Center vertically
+
+        widgets:
+          # =====================================================================
+          # Status Icon
+          # =====================================================================
+          # Material Design Icons showing current system state
+
+          - label:
+              id: ui_status_icon
+              # Default icon: wifi (Booting state)
+              text: "\U000F06E8"        # mdi:wifi
+
+              # Icon styling
+              text_font: icons_24       # Material Design Icons 24pt
+              text_color: 0x666666      # Default: Gray (Booting)
+
+              # Size and positioning
+              width: 32
+              height: 32
+              text_align: CENTER
+              align: LEFT_MID
+
+              # Background and padding
+              bg_opa: TRANSP
+              border_width: 0
+              pad_all: 0
+              pad_right: 8              # Space between icon and label
+
+              # Update icon and color based on system_state
+              # Polls every update_interval (250ms from lvgl.yaml)
+              on_value:
+                - lambda: |-
+                    // Read current system state
+                    int state = id(system_state);
+
+                    // Update icon and color based on state
+                    switch (state) {
+                      case 0:  // Booting - gray wifi icon
+                        it.set_text("\U000F06E8");  // mdi:wifi
+                        it.set_style_text_color(lv_color_hex(0x666666), LV_PART_MAIN);
+                        break;
+
+                      case 1:  // Connecting - orange wifi icon
+                        it.set_text("\U000F06E8");  // mdi:wifi
+                        it.set_style_text_color(lv_color_hex(0xFF6B35), LV_PART_MAIN);
+                        break;
+
+                      case 2:  // Ready - cyan check icon
+                        it.set_text("\U000F0140");  // mdi:check
+                        it.set_style_text_color(lv_color_hex(0x00D1FF), LV_PART_MAIN);
+                        break;
+
+                      case 3:  // Offline - red wifi_off icon
+                        it.set_text("\U000F0783");  // mdi:wifi-off
+                        it.set_style_text_color(lv_color_hex(0xFF0000), LV_PART_MAIN);
+                        break;
+
+                      case 4:  // Error - red alert icon
+                        it.set_text("\U000F02DC");  // mdi:alert
+                        it.set_style_text_color(lv_color_hex(0xFF0000), LV_PART_MAIN);
+                        break;
+
+                      default:  // Unknown state - gray alert icon
+                        it.set_text("\U000F02DC");  // mdi:alert
+                        it.set_style_text_color(lv_color_hex(0x666666), LV_PART_MAIN);
+                        break;
+                    }
+
+          # =====================================================================
+          # Status Text Label
+          # =====================================================================
+          # Text label showing state name (e.g., "Ready", "Offline")
+
+          - label:
+              id: ui_status_label
+              # Default text: "Booting" (initial state)
+              text: "Booting"
+
+              # Text styling
+              text_font: roboto_12      # Small font for compact header
+              text_color: 0x666666      # Default: Gray (Booting)
+
+              # Size and positioning
+              text_align: LEFT
+              align: LEFT_MID
+
+              # Background and padding
+              bg_opa: TRANSP
+              border_width: 0
+              pad_all: 0
+
+              # Update text and color based on system_state
+              # Polls every update_interval (250ms from lvgl.yaml)
+              on_value:
+                - lambda: |-
+                    // Read current system state
+                    int state = id(system_state);
+
+                    // Update text and color based on state
+                    switch (state) {
+                      case 0:  // Booting - gray
+                        it.set_text("Booting");
+                        it.set_style_text_color(lv_color_hex(0x666666), LV_PART_MAIN);
+                        break;
+
+                      case 1:  // Connecting - orange
+                        it.set_text("Connecting");
+                        it.set_style_text_color(lv_color_hex(0xFF6B35), LV_PART_MAIN);
+                        break;
+
+                      case 2:  // Ready - cyan
+                        it.set_text("Ready");
+                        it.set_style_text_color(lv_color_hex(0x00D1FF), LV_PART_MAIN);
+                        break;
+
+                      case 3:  // Offline - red
+                        it.set_text("Offline");
+                        it.set_style_text_color(lv_color_hex(0xFF0000), LV_PART_MAIN);
+                        break;
+
+                      case 4:  // Error - red
+                        it.set_text("Error");
+                        it.set_style_text_color(lv_color_hex(0xFF0000), LV_PART_MAIN);
+                        break;
+
+                      default:  // Unknown state - gray
+                        it.set_text("Unknown");
+                        it.set_style_text_color(lv_color_hex(0x666666), LV_PART_MAIN);
+                        break;
+                    }
+
+# =============================================================================
+# State Update Automation
+# =============================================================================
+# Interval sensor to trigger status indicator updates
+# This ensures the indicator updates when system_state changes
+# Constitution reference: §1.2.5 Rate limit dynamic elements to 2-4Hz
+
+interval:
+  # Poll system state every 250ms (4Hz) to update status indicator
+  # Matches LVGL update_interval from lvgl.yaml for consistent refresh rate
+  - interval: 250ms
+    then:
+      - lambda: |-
+          // Trigger update of status indicator widgets
+          // This reads system_state and updates icon and label colors/text
+          // LVGL will handle actual rendering during next display update cycle
+
+          // Read current state
+          int state = id(system_state);
+
+          // Update icon widget
+          auto icon = id(ui_status_icon);
+          if (icon != nullptr) {
+            switch (state) {
+              case 0:  // Booting
+                icon->set_text("\U000F06E8");  // wifi
+                icon->set_style_text_color(lv_color_hex(0x666666), LV_PART_MAIN);
+                break;
+              case 1:  // Connecting
+                icon->set_text("\U000F06E8");  // wifi
+                icon->set_style_text_color(lv_color_hex(0xFF6B35), LV_PART_MAIN);
+                break;
+              case 2:  // Ready
+                icon->set_text("\U000F0140");  // check
+                icon->set_style_text_color(lv_color_hex(0x00D1FF), LV_PART_MAIN);
+                break;
+              case 3:  // Offline
+                icon->set_text("\U000F0783");  // wifi-off
+                icon->set_style_text_color(lv_color_hex(0xFF0000), LV_PART_MAIN);
+                break;
+              case 4:  // Error
+                icon->set_text("\U000F02DC");  // alert
+                icon->set_style_text_color(lv_color_hex(0xFF0000), LV_PART_MAIN);
+                break;
+              default:
+                icon->set_text("\U000F02DC");  // alert
+                icon->set_style_text_color(lv_color_hex(0x666666), LV_PART_MAIN);
+                break;
+            }
+          }
+
+          // Update label widget
+          auto label = id(ui_status_label);
+          if (label != nullptr) {
+            switch (state) {
+              case 0:  // Booting
+                label->set_text("Booting");
+                label->set_style_text_color(lv_color_hex(0x666666), LV_PART_MAIN);
+                break;
+              case 1:  // Connecting
+                label->set_text("Connecting");
+                label->set_style_text_color(lv_color_hex(0xFF6B35), LV_PART_MAIN);
+                break;
+              case 2:  // Ready
+                label->set_text("Ready");
+                label->set_style_text_color(lv_color_hex(0x00D1FF), LV_PART_MAIN);
+                break;
+              case 3:  // Offline
+                label->set_text("Offline");
+                label->set_style_text_color(lv_color_hex(0xFF0000), LV_PART_MAIN);
+                break;
+              case 4:  // Error
+                label->set_text("Error");
+                label->set_style_text_color(lv_color_hex(0xFF0000), LV_PART_MAIN);
+                break;
+              default:
+                label->set_text("Unknown");
+                label->set_style_text_color(lv_color_hex(0x666666), LV_PART_MAIN);
+                break;
+            }
+          }
+
+          // Log state changes at INFO level per constitution §1.5
+          static int prev_state = -1;
+          if (state != prev_state) {
+            const char* state_name = "Unknown";
+            switch (state) {
+              case 0: state_name = "Booting"; break;
+              case 1: state_name = "Connecting"; break;
+              case 2: state_name = "Ready"; break;
+              case 3: state_name = "Offline"; break;
+              case 4: state_name = "Error"; break;
+            }
+            ESP_LOGI("ui", "Status indicator updated: %s", state_name);
+            prev_state = state;
+          }
+
+# =============================================================================
+# Usage Notes
+# =============================================================================
+# To use this component in other UI screens:
+#
+# 1. Include this file in your main.yaml packages section:
+#    packages:
+#      status_indicator: !include ui/components/status_indicator.yaml
+#
+# 2. The status indicator widgets will be available globally:
+#    - ui_status_container: Container widget (120x44px)
+#    - ui_status_icon: Icon widget (Material Design Icons)
+#    - ui_status_label: Text label widget
+#
+# 3. The indicator updates automatically every 250ms based on system_state
+#    No manual intervention required
+#
+# 4. To position the indicator in a parent screen/page:
+#    - Add ui_status_container as a child widget
+#    - Set alignment and position using LVGL properties
+#    - Example:
+#      - obj:
+#          widgets:
+#            - ui_status_container
+#
+# State mapping (from packages/state_machine.yaml):
+#   0 = Booting    - system initializing
+#   1 = Connecting - WiFi/API connection in progress
+#   2 = Ready      - fully operational
+#   3 = Offline    - network unavailable
+#   4 = Error      - unrecoverable fault

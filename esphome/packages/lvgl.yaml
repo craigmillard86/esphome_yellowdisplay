@@ -1,0 +1,209 @@
+# =============================================================================
+# Package: LVGL Graphics Library Configuration
+# Purpose: LVGL initialization and UI framework for CYD display
+# Dependencies: packages/display.yaml (main_display), packages/touch.yaml (touch_controller)
+# Exposes: lvgl component with style definitions
+# Display: 320x240 ILI9341 in landscape orientation
+# =============================================================================
+
+# =============================================================================
+# Font Definitions (must be at root level, not inside lvgl)
+# =============================================================================
+
+font:
+  # Primary text font - 24pt for titles
+  - file: "gfonts://Roboto@500"
+    id: roboto_24
+    size: 24
+    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+
+  # Body text font - 16pt for buttons, labels
+  - file: "gfonts://Roboto"
+    id: roboto_16
+    size: 16
+    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+
+  # Small text font - 12pt for metadata, time
+  - file: "gfonts://Roboto"
+    id: roboto_12
+    size: 12
+    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+
+  # Material Design Icons for UI controls
+  - file: "https://github.com/Templarian/MaterialDesign-Webfont/raw/master/fonts/materialdesignicons-webfont.ttf"
+    id: icons_24
+    size: 24
+    glyphs:
+      - "\U000F040A"  # mdi:play
+      - "\U000F03E4"  # mdi:pause
+      - "\U000F04AD"  # mdi:skip-previous
+      - "\U000F04AE"  # mdi:skip-next
+      - "\U000F057E"  # mdi:volume-high
+      - "\U000F0580"  # mdi:volume-low
+      - "\U000F0581"  # mdi:volume-mute
+      - "\U000F0493"  # mdi:shuffle
+      - "\U000F0456"  # mdi:repeat
+
+# =============================================================================
+# LVGL Configuration
+# =============================================================================
+
+lvgl:
+  # Display and touch bindings
+  displays:
+    - main_display
+  touchscreens:
+    - touch_controller
+
+  # Color depth - 16-bit RGB565 for ILI9341
+  color_depth: 16
+
+  # Buffer configuration for ESP32 RAM constraints
+  buffer_size: 25%
+
+  # Update interval for LVGL tasks (4Hz update rate)
+  update_interval: 250ms
+
+  # Log level for LVGL debugging
+  log_level: INFO
+
+  # Idle timeout handling
+  on_idle:
+    timeout: 60s
+    then:
+      - logger.log:
+          tag: "ui"
+          level: INFO
+          format: "UI idle detected after 60 seconds"
+
+  # =============================================================================
+  # Style Definitions
+  # =============================================================================
+  style_definitions:
+    # Base screen style - dark background
+    - id: style_screen
+      bg_color: 0x121212
+      bg_opa: COVER
+      border_width: 0
+      pad_all: 0
+      radius: 0
+      text_color: 0xFFFFFF
+
+    # Primary buttons (play/pause, main actions)
+    - id: style_btn_primary
+      radius: 8
+      bg_color: 0x00D1FF
+      bg_opa: COVER
+      border_width: 0
+      text_color: 0x121212
+      pad_all: 12
+
+    # Secondary buttons
+    - id: style_btn_secondary
+      radius: 8
+      bg_color: 0x1E1E1E
+      bg_opa: COVER
+      border_width: 2
+      border_color: 0x00D1FF
+      text_color: 0xFFFFFF
+      pad_all: 12
+
+    # Icon buttons (circular)
+    - id: style_btn_icon
+      radius: 24
+      bg_color: 0x1E1E1E
+      bg_opa: COVER
+      border_width: 0
+      pad_all: 16
+
+    # Primary text (song title)
+    - id: style_label_primary
+      text_color: 0xFFFFFF
+      bg_opa: TRANSP
+      border_width: 0
+      pad_all: 4
+
+    # Secondary text (artist, metadata)
+    - id: style_label_secondary
+      text_color: 0xB3B3B3
+      bg_opa: TRANSP
+      border_width: 0
+      pad_all: 4
+
+    # Small text (time indicators)
+    - id: style_label_small
+      text_color: 0xB3B3B3
+      bg_opa: TRANSP
+      border_width: 0
+      pad_all: 2
+
+    # Error text
+    - id: style_label_error
+      text_color: 0xFF6B35
+      bg_opa: TRANSP
+      border_width: 0
+      pad_all: 4
+
+    # Progress bar
+    - id: style_bar_progress
+      bg_color: 0x1E1E1E
+      bg_opa: COVER
+      radius: 4
+      border_width: 0
+
+    # Container card style
+    - id: style_container_card
+      bg_color: 0x1E1E1E
+      bg_opa: COVER
+      radius: 12
+      border_width: 1
+      border_color: 0x2A2A2A
+      pad_all: 16
+
+    # Status bar container
+    - id: style_container_status
+      bg_color: 0x000000
+      bg_opa: 80%
+      radius: 0
+      border_width: 0
+      pad_all: 8
+
+  # =============================================================================
+  # Pages - UI Screens
+  # =============================================================================
+  pages:
+    # Boot/Loading screen
+    - id: page_boot
+      bg_color: 0x121212
+      widgets:
+        - label:
+            align: CENTER
+            text: "Music Remote"
+            text_color: 0xFFFFFF
+            text_font: roboto_24
+
+    # Main Now Playing screen (placeholder)
+    - id: page_main
+      bg_color: 0x121212
+      widgets:
+        - label:
+            id: lbl_status
+            align: TOP_MID
+            y: 10
+            text: "Ready"
+            text_color: 0x00D1FF
+            text_font: roboto_16
+        - label:
+            id: lbl_title
+            align: CENTER
+            y: -20
+            text: "No Media"
+            text_color: 0xFFFFFF
+            text_font: roboto_24
+        - label:
+            id: lbl_artist
+            align: CENTER
+            y: 20
+            text: "Select a player"
+            text_color: 0xB3B3B3
+            text_font: roboto_16

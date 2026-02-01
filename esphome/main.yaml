@@ -1,0 +1,100 @@
+# =============================================================================
+# Music Assistant Media Controller for ESP32 CYD (ESP32-2432S028R)
+# =============================================================================
+# Main ESPHome configuration file
+# Board: ESP32-2432S028R (Cheap Yellow Display)
+# Display: 2.8" ILI9341 TFT 320x240 with XPT2046 resistive touch
+# MCU: ESP32 @ 240MHz
+# =============================================================================
+
+substitutions:
+  # Device identification
+  device_name: "cyd_music_remote"
+  friendly_name: "Music Remote"
+
+  # Display configuration
+  screen_rotation: "90"  # 90 = landscape, 0 = portrait
+  default_brightness: "50"  # 0-100%
+
+# =============================================================================
+# Core ESPHome Configuration
+# =============================================================================
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+  platformio_options:
+    board_build.f_cpu: 240000000L  # 240MHz CPU frequency
+
+# ESP32 platform configuration (new format)
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# =============================================================================
+# Package Includes
+# =============================================================================
+# Modular configuration components per constitution §6.2
+
+packages:
+  wifi: !include packages/wifi.yaml
+  homeassistant: !include packages/homeassistant.yaml
+  spi: !include packages/spi.yaml
+  display: !include packages/display.yaml
+  touch: !include packages/touch.yaml
+  backlight: !include packages/backlight.yaml
+  lvgl: !include packages/lvgl.yaml
+  state_machine: !include packages/state_machine.yaml
+  connectivity: !include packages/connectivity.yaml
+  diagnostics: !include packages/diagnostics.yaml
+
+# =============================================================================
+# Logging
+# =============================================================================
+
+logger:
+  level: INFO
+  logs:
+    component: ERROR  # Reduce component verbosity
+
+# =============================================================================
+# Home Assistant Integration
+# =============================================================================
+
+api:
+  encryption:
+    key: !secret api_key
+
+  # Service callbacks for Music Assistant control
+  services:
+    - service: play_media
+      variables:
+        media_id: string
+      then:
+        - logger.log:
+            format: "Play media requested: %s"
+            args: ['media_id.c_str()']
+
+    - service: set_volume
+      variables:
+        volume: float
+      then:
+        - logger.log:
+            format: "Volume set to: %.0f%%"
+            args: ['volume']
+
+# =============================================================================
+# Over-The-Air Updates
+# =============================================================================
+
+ota:
+  platform: esphome
+  password: !secret ota_password
+
+# =============================================================================
+# Web Server (Optional - enable for debugging)
+# =============================================================================
+
+# web_server:
+#   port: 80

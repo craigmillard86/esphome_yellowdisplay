@@ -1,0 +1,22 @@
+# =============================================================================
+# Package: SPI Bus Configuration
+# Purpose: Dual SPI bus initialization for display and touch
+# Dependencies: None (hardware-level package)
+# Exposes: spi components 'tft' and 'touch'
+# Note: ESP32-2432S028R uses SEPARATE SPI buses for display and touch
+# =============================================================================
+
+spi:
+  # SPI bus for ILI9341 TFT display
+  - id: tft
+    clk_pin: 14
+    mosi_pin: 13
+    miso_pin:
+      number: 12
+      ignore_strapping_warning: true
+
+  # Separate SPI bus for XPT2046 touch controller
+  - id: touch
+    clk_pin: 25
+    mosi_pin: 32
+    miso_pin: 39

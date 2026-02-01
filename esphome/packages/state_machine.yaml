@@ -1,0 +1,257 @@
+# =============================================================================
+# Package: System State Machine
+# Purpose: Event-driven state management for device lifecycle
+# Dependencies: None (core package)
+# Exposes: global 'system_state', select 'system_state_control',
+#          text_sensor 'system_state_display'
+# =============================================================================
+
+# State machine implementation using global variable and template select
+# States: Booting, Connecting, Ready, Offline, Error
+
+# =============================================================================
+# Global Variables
+# =============================================================================
+
+globals:
+  # Current system state - centralized state tracking
+  # 0 = Booting, 1 = Connecting, 2 = Ready, 3 = Offline, 4 = Error
+  - id: system_state
+    type: int
+    restore_value: no
+    initial_value: '0'  # Start in Booting state
+
+  # Error message for Error state
+  - id: system_error_message
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+# =============================================================================
+# Template Select for State Control
+# =============================================================================
+
+select:
+  # System state selector - allows programmatic state changes
+  # This component provides the state machine control interface
+  - platform: template
+    id: system_state_control
+    name: "System State"
+    optimistic: true
+    options:
+      - "Booting"
+      - "Connecting"
+      - "Ready"
+      - "Offline"
+      - "Error"
+    initial_option: "Booting"
+
+    # State transition handler with logging per constitution §1.5
+    set_action:
+      - lambda: |-
+          // Map string state to integer for global variable
+          int new_state = 0;
+          if (x == "Booting") new_state = 0;
+          else if (x == "Connecting") new_state = 1;
+          else if (x == "Ready") new_state = 2;
+          else if (x == "Offline") new_state = 3;
+          else if (x == "Error") new_state = 4;
+
+          // Get previous state for logging
+          const char* prev_state = "";
+          switch (id(system_state)) {
+            case 0: prev_state = "Booting"; break;
+            case 1: prev_state = "Connecting"; break;
+            case 2: prev_state = "Ready"; break;
+            case 3: prev_state = "Offline"; break;
+            case 4: prev_state = "Error"; break;
+          }
+
+          // Update global state
+          id(system_state) = new_state;
+
+          // Log state transition at INFO level per constitution §1.5
+          ESP_LOGI("ui", "State transition: %s -> %s", prev_state, x.c_str());
+
+# =============================================================================
+# Text Sensors for Home Assistant
+# =============================================================================
+
+text_sensor:
+  # Expose current system state to Home Assistant
+  # Updates whenever state changes
+  - platform: template
+    id: system_state_display
+    name: "System State"
+    icon: "mdi:state-machine"
+
+    # Poll current state and publish to HA
+    lambda: |-
+      switch (id(system_state)) {
+        case 0: return {"Booting"};
+        case 1: return {"Connecting"};
+        case 2: return {"Ready"};
+        case 3: return {"Offline"};
+        case 4: return {"Error"};
+        default: return {"Unknown"};
+      }
+
+    # Update every 5 seconds to keep HA in sync
+    update_interval: 5s
+
+  # WiFi info sensors for logging
+  - platform: wifi_info
+    ssid:
+      id: wifi_ssid_sensor
+      internal: true
+    ip_address:
+      id: wifi_ip_sensor
+      internal: true
+
+# =============================================================================
+# State Transition Event Handlers
+# =============================================================================
+
+# Boot sequence: Booting -> Connecting
+esphome:
+  on_boot:
+    priority: 600  # Run early in boot sequence
+    then:
+      # Set initial state to Booting
+      - logger.log:
+          tag: "ui"
+          level: INFO
+          format: "Device boot initiated - entering Booting state"
+
+      - select.set:
+          id: system_state_control
+          option: "Booting"
+
+      # After brief delay, transition to Connecting
+      # This gives time for display initialization
+      - delay: 2s
+
+      - logger.log:
+          tag: "ui"
+          level: INFO
+          format: "Boot complete - transitioning to Connecting state"
+
+      - select.set:
+          id: system_state_control
+          option: "Connecting"
+
+# WiFi connection events
+wifi:
+  # WiFi connected - may transition to Ready if API also connected
+  on_connect:
+    - logger.log:
+        tag: "wifi"
+        level: INFO
+        format: "WiFi connected - SSID: %s, IP: %s"
+        args: ['id(wifi_ssid_sensor).state.c_str()', 'id(wifi_ip_sensor).state.c_str()']
+
+    # Check if we should transition to Connecting or stay in current state
+    - lambda: |-
+        // Only transition to Connecting if we're in Offline state
+        if (id(system_state) == 3) {  // Offline
+          id(system_state_control)->make_call().set_option("Connecting").perform();
+        }
+
+  # WiFi disconnected - transition to Offline
+  on_disconnect:
+    - logger.log:
+        tag: "wifi"
+        level: WARN
+        format: "WiFi disconnected - entering Offline state"
+
+    - select.set:
+        id: system_state_control
+        option: "Offline"
+
+# Home Assistant API events
+api:
+  # API connected - transition to Ready state
+  on_client_connected:
+    - logger.log:
+        tag: "ha"
+        level: INFO
+        format: "Home Assistant API connected - entering Ready state"
+
+    - select.set:
+        id: system_state_control
+        option: "Ready"
+
+    # Switch to main page
+    - lvgl.page.show:
+        id: page_main
+
+  # API disconnected - transition to Offline
+  on_client_disconnected:
+    - logger.log:
+        tag: "ha"
+        level: WARN
+        format: "Home Assistant API disconnected - entering Offline state"
+
+    - select.set:
+        id: system_state_control
+        option: "Offline"
+
+# =============================================================================
+# State Query Scripts
+# =============================================================================
+# Note: To check if system is ready, use lambda condition:
+#   id(system_state) == 2  // 2 = Ready
+
+script:
+  # Helper script to set error state with message
+  - id: set_error_state
+    mode: restart
+    parameters:
+      error_msg: string
+    then:
+      - lambda: |-
+          id(system_error_message) = error_msg;
+
+      - logger.log:
+          tag: "ui"
+          level: ERROR
+          format: "Entering Error state: %s"
+          args: ['error_msg.c_str()']
+
+      - select.set:
+          id: system_state_control
+          option: "Error"
+
+  # Helper script to clear error and return to previous state
+  - id: clear_error_state
+    mode: single
+    then:
+      - lambda: |-
+          id(system_error_message) = "";
+
+      - logger.log:
+          tag: "ui"
+          level: INFO
+          format: "Clearing Error state"
+
+      # Determine appropriate state to return to
+      - if:
+          condition:
+            wifi.connected:
+          then:
+            - if:
+                condition:
+                  api.connected:
+                then:
+                  - select.set:
+                      id: system_state_control
+                      option: "Ready"
+                else:
+                  - select.set:
+                      id: system_state_control
+                      option: "Connecting"
+          else:
+            - select.set:
+                id: system_state_control
+                option: "Offline"
+
