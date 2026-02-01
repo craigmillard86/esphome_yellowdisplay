@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Music Library Hub</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Be Vietnam Pro"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Be Vietnam Pro', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        /* Specialized container for the 320x240 LCD aspect ratio */
+        .lcd-screen {
+            width: 320px;
+            height: auto;
+            min-height: 240px;
+            overflow: hidden;
+            margin: auto;
+            border: 2px solid #233648;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .filled-icon {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark flex items-center justify-center min-h-screen">
+<!-- Main Container representing the 320px width device -->
+<div class="lcd-screen relative flex flex-col bg-background-light dark:bg-background-dark shadow-2xl">
+<!-- Top App Bar / Status -->
+<div class="flex items-center bg-background-light dark:bg-background-dark px-3 py-2 justify-between">
+<div class="text-primary flex items-center">
+<span class="material-symbols-outlined text-[20px]">library_music</span>
+</div>
+<h2 class="text-gray-900 dark:text-white text-sm font-bold leading-tight tracking-tight flex-1 ml-2">Library</h2>
+<div class="flex items-center">
+<button class="flex items-center justify-center text-gray-500 dark:text-[#92adc9]">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+</button>
+</div>
+</div>
+<!-- Compact Search Bar -->
+<div class="px-3 pb-2">
+<label class="flex flex-col w-full h-9">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full overflow-hidden">
+<div class="text-[#92adc9] flex border-none bg-gray-200 dark:bg-[#233648] items-center justify-center pl-3">
+<span class="material-symbols-outlined text-[18px]">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 border-none bg-gray-200 dark:bg-[#233648] text-gray-900 dark:text-white placeholder:text-[#92adc9] px-2 text-xs font-normal focus:ring-0 focus:outline-0" placeholder="Search..." value=""/>
+</div>
+</label>
+</div>
+<!-- 2-Column Category Grid -->
+<div class="grid grid-cols-2 gap-2 px-3 pb-3 overflow-y-auto max-h-[140px]">
+<!-- Artists -->
+<div class="bg-primary/10 dark:bg-[#233648] flex flex-col gap-1 rounded-lg items-center justify-center py-3 border border-primary/20 cursor-pointer active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-primary text-[28px] filled-icon">person</span>
+<p class="text-gray-900 dark:text-white text-[11px] font-bold">Artists</p>
+</div>
+<!-- Albums -->
+<div class="bg-primary/10 dark:bg-[#233648] flex flex-col gap-1 rounded-lg items-center justify-center py-3 border border-primary/20 cursor-pointer active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-primary text-[28px] filled-icon">album</span>
+<p class="text-gray-900 dark:text-white text-[11px] font-bold">Albums</p>
+</div>
+<!-- Playlists -->
+<div class="bg-primary/10 dark:bg-[#233648] flex flex-col gap-1 rounded-lg items-center justify-center py-3 border border-primary/20 cursor-pointer active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-primary text-[28px] filled-icon">playlist_play</span>
+<p class="text-gray-900 dark:text-white text-[11px] font-bold">Playlists</p>
+</div>
+<!-- Radio -->
+<div class="bg-primary/10 dark:bg-[#233648] flex flex-col gap-1 rounded-lg items-center justify-center py-3 border border-primary/20 cursor-pointer active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-primary text-[28px] filled-icon">radio</span>
+<p class="text-gray-900 dark:text-white text-[11px] font-bold">Radio</p>
+</div>
+</div>
+<!-- Persistent Mini Media Player -->
+<div class="mt-auto border-t border-gray-200 dark:border-[#233648] bg-white dark:bg-[#192633] px-3 py-2">
+<div class="flex items-center gap-3">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-md size-9 shrink-0 shadow-sm" data-alt="Modern album cover with abstract blue neon waves" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBToG0LwWZjSQGact2GeXNookH4HeIXGR6OyF184l-dwR4NgkF74TpZpoFDQvDOhf1FeA_-e4Ozjpplo8oJJVFca8sRiK5AAc-XXJ7LK6ppDWMXGecnzdvn0vmNoFsViMgOdttnhV6EaJnk1cL4MsqZEEVKVEgvCQ0f2vhJRUnYcOu8EEl50jNsIaSFkvWXsMXD7hc3BfjW8bOhOIDddjcBvFnq1bDyEJJn-XqwlLN2JqMEHKysb5mTI4jXWKkXPPtHOqB0NE2DC22b");'></div>
+<div class="flex-1 min-w-0">
+<p class="text-gray-900 dark:text-white text-[11px] font-bold leading-tight truncate">Starlight</p>
+<p class="text-gray-500 dark:text-[#92adc9] text-[10px] font-normal leading-normal truncate">Muse</p>
+</div>
+<div class="flex items-center gap-2">
+<button class="flex shrink-0 items-center justify-center rounded-full size-8 bg-primary text-white shadow-lg">
+<span class="material-symbols-outlined text-[18px] filled-icon">play_arrow</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Navigation Tabs (Small LCD specific) -->
+<div class="flex gap-1 border-t border-gray-200 dark:border-[#233648] bg-white dark:bg-[#101922] px-2 py-1">
+<a class="flex flex-1 flex-col items-center justify-center py-1 text-gray-400 dark:text-[#92adc9]" href="#">
+<span class="material-symbols-outlined text-[20px]">home</span>
+<p class="text-[9px] font-medium leading-none mt-1">Home</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-center py-1 text-primary" href="#">
+<span class="material-symbols-outlined text-[20px] filled-icon">library_music</span>
+<p class="text-[9px] font-medium leading-none mt-1">Library</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-center py-1 text-gray-400 dark:text-[#92adc9]" href="#">
+<span class="material-symbols-outlined text-[20px]">search</span>
+<p class="text-[9px] font-medium leading-none mt-1">Search</p>
+</a>
+</div>
+</div>
+</body></html>

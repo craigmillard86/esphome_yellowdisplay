@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Be Vietnam Pro"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: "Be Vietnam Pro", sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        /* Fixed size for 320x240 landscape TFT display simulation */
+        .tft-container {
+            width: 320px;
+            height: 240px;
+            overflow: hidden;
+            position: relative;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #233648;
+            border-radius: 10px;
+        }
+        .line-clamp-1 {
+            display: -webkit-box;
+            -webkit-line-clamp: 1;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark flex items-center justify-center min-h-screen">
+<!-- 320x240 LCD Screen Simulation -->
+<div class="tft-container bg-background-light dark:bg-background-dark border border-gray-800 shadow-2xl flex flex-col">
+<!-- TopAppBar (Compact for 240px height) -->
+<div class="flex items-center bg-background-light dark:bg-background-dark px-3 py-1.5 justify-between border-b border-white/5 shrink-0">
+<button class="text-primary text-xs font-bold uppercase tracking-wider h-8 flex items-center justify-start">
+                Clear
+            </button>
+<h2 class="text-white text-sm font-bold leading-tight tracking-tight flex-1 text-center font-display">Queue</h2>
+<div class="flex w-12 items-center justify-end">
+<button class="flex items-center justify-center rounded-lg h-8 w-8 bg-transparent text-white active:bg-white/10">
+<span class="material-symbols-outlined text-[20px]">shuffle</span>
+</button>
+</div>
+</div>
+<!-- Scrollable Area -->
+<div class="flex-1 overflow-y-auto custom-scrollbar">
+<!-- Currently Playing (Highlighted) -->
+<div class="px-2 py-1">
+<div class="flex items-center gap-2 bg-primary px-3 min-h-[52px] py-1.5 rounded-lg shadow-sm">
+<div class="flex items-center gap-3 flex-1">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-md size-9 shadow-inner" data-alt="Album art of currently playing electronic track" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDcAp8TOJM3fiOFLZCItoE6bmFADi1o8uPhG8S3wPCu9KuT4MymHJLsusndPyNj4IJ-04deixZVnyZjJhuoEkb5DosNpXCRb4cgO8yCm3I2mcraKOnE8UewtkPw4qgjzhfKaEuhkmA1Wd21g8Jl2-u_uQKO60MHwKgt41Uw6iT67dTy5jlb5sZjgdWXsxXlDXStjwBxbK2N68mBSmsocS5C4WTlEQz7z_5dugOSz8db-BEFoVcklsI-_MMibLHHZGEfJ_-orGm5uSw0");'>
+</div>
+<div class="flex flex-col justify-center max-w-[160px]">
+<p class="text-white text-xs font-bold leading-none line-clamp-1">Midnight City</p>
+<p class="text-white/80 text-[10px] font-medium leading-tight mt-0.5 line-clamp-1">M83</p>
+</div>
+</div>
+<div class="shrink-0">
+<span class="material-symbols-outlined text-white text-[18px]">equalizer</span>
+</div>
+</div>
+</div>
+<!-- Section Header -->
+<div class="px-3 py-1">
+<h4 class="text-[#92adc9] text-[10px] font-bold uppercase tracking-[0.05em]">Up Next</h4>
+</div>
+<!-- List Items (Upcoming Songs) -->
+<div class="flex flex-col">
+<!-- Track 1 -->
+<div class="flex items-center gap-2 px-3 min-h-[48px] py-1 border-b border-white/5 active:bg-white/5">
+<div class="flex items-center gap-3 flex-1">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-md size-9" data-alt="Modern pop album cover art" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDWH4Q1GzXuB0VzmLZKUiWK_-bkQRZ-fX1PHZrIhRa0uj9FNqS_iIJRUbD_q3rGPDl66YL7z0Gxls23gK6rcTiHNEMQFDgUjYVQzWgqev-D8kjHZIdfNZENJoVzRKzkF5FeXlSW1opmyy344En2vgxi7DTvC17GWx3R01x8xiakKlsSJJ_Gu8BvsqHUj-M5BEKHaOFkTBM4BU9QFQ6qsjUTTDe1fDt03djYMSlGjS1ij1-BFZHzaxMSvYq1QfY0nvcpgu0jK1zqQAa-");'>
+</div>
+<div class="flex flex-col justify-center max-w-[170px]">
+<p class="text-white text-xs font-medium leading-none line-clamp-1">Starboy</p>
+<p class="text-[#92adc9] text-[10px] font-normal leading-tight mt-0.5">The Weeknd</p>
+</div>
+</div>
+<div class="shrink-0 flex items-center justify-center w-8 h-8">
+<span class="material-symbols-outlined text-[#92adc9] text-[20px]">drag_handle</span>
+</div>
+</div>
+<!-- Track 2 -->
+<div class="flex items-center gap-2 px-3 min-h-[48px] py-1 border-b border-white/5 active:bg-white/5">
+<div class="flex items-center gap-3 flex-1">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-md size-9" data-alt="Abstract colorful music cover art" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAwL7g2esbwtYYpYOT7XupCEwYlsoGb0GYyRkF-4NvOKWFEMBwhVGO4hfOx_mjK9-OAB2l4ngANiTOf7IAOOHQxVsgJFIV21kADOR7WqnPgG0ZfADsxv6iJ3OUk-AS2P7FoTMlpftf3eqmywyhLNNu_NBaYPK8qCO7vjWFgXLY1F5dtA7iR1fS9Ub5XTPQkAjhy2beg9t4nmcJ2fsY-PRyzHVeFJLw3MQG5XgIcIa_NvfyTTylH2pPHH2zNY1MhcfbFprAEtsUWDhuI");'>
+</div>
+<div class="flex flex-col justify-center max-w-[170px]">
+<p class="text-white text-xs font-medium leading-none line-clamp-1">Levitating</p>
+<p class="text-[#92adc9] text-[10px] font-normal leading-tight mt-0.5">Dua Lipa</p>
+</div>
+</div>
+<div class="shrink-0 flex items-center justify-center w-8 h-8">
+<span class="material-symbols-outlined text-[#92adc9] text-[20px]">drag_handle</span>
+</div>
+</div>
+<!-- Track 3 -->
+<div class="flex items-center gap-2 px-3 min-h-[48px] py-1 border-b border-white/5 active:bg-white/5">
+<div class="flex items-center gap-3 flex-1">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-md size-9" data-alt="Classic rock album design" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAZZ36fB5zPRohYdWetcJsA8R_xp1gIbffJM3HwMvdTzFsBIpVof0BaQJq4oXcvclfWkqdQwt5vGOLlvHwDtESNzJDOgNZ5GmgzRqpt8LOI9dbqq-xtKKg0j7mLppfiy3GpE9oBZ3-xw0NgJHIwJuiscpsYwq7rlRjQogVLIlkuJIzTeMtXfElws4M4DmCdUkLhnw7OjVpDc4Q6DHJEsBWdUuflMDKXMzWlT1uUeogj0oODBWy21yP75KZBIxSNGxwMDXLLqg9ZxTEr");'>
+</div>
+<div class="flex flex-col justify-center max-w-[170px]">
+<p class="text-white text-xs font-medium leading-none line-clamp-1">Blinding Lights</p>
+<p class="text-[#92adc9] text-[10px] font-normal leading-tight mt-0.5">The Weeknd</p>
+</div>
+</div>
+<div class="shrink-0 flex items-center justify-center w-8 h-8">
+<span class="material-symbols-outlined text-[#92adc9] text-[20px]">drag_handle</span>
+</div>
+</div>
+<!-- Track 4 -->
+<div class="flex items-center gap-2 px-3 min-h-[48px] py-1 border-b border-white/5 active:bg-white/5">
+<div class="flex items-center gap-3 flex-1">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-md size-9" data-alt="Dark aesthetic music cover" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCR-l3z7-8psmsOelnFaORr4eVmZ_4SqvUayYJfhHnSSW3KZqdtKBPMbr9hVykuKDkIP_2W-V3plOzy3EPjwJtvizYSOIJD6egACtLuH1UIiuj00o6txrLaTl3zjVKK1FwKL8CkO0a3e5kllSVQK2xJ5C9YzpqHOWBamcCJ54bf7Kmpto5d9sxZCjKik_Im52G5VVDnf1oiczPPlUR46D_kAkJQw-MQuBAzXSHCR1Yf_n6v8WT7vxsFkS-71KO64AWhZjXLKjKd744F");'>
+</div>
+<div class="flex flex-col justify-center max-w-[170px]">
+<p class="text-white text-xs font-medium leading-none line-clamp-1">Save Your Tears</p>
+<p class="text-[#92adc9] text-[10px] font-normal leading-tight mt-0.5">Ariana Grande</p>
+</div>
+</div>
+<div class="shrink-0 flex items-center justify-center w-8 h-8">
+<span class="material-symbols-outlined text-[#92adc9] text-[20px]">drag_handle</span>
+</div>
+</div>
+<!-- Spacer for bottom scrolling -->
+<div class="h-4"></div>
+</div>
+</div>
+</div>
+</body></html>

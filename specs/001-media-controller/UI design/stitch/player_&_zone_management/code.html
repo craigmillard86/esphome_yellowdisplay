@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Player &amp; Zone Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* Hide scrollbar for the small screen simulation */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-white flex items-center justify-center min-h-screen p-4">
+<!-- 320x240 LCD Screen Container -->
+<div class="relative w-[320px] h-[240px] bg-background-light dark:bg-background-dark overflow-hidden border border-white/10 rounded shadow-2xl flex flex-col">
+<!-- TopAppBar: Optimized for 320px width -->
+<div class="flex items-center bg-background-light dark:bg-background-dark p-2 px-3 justify-between border-b border-white/5 shrink-0 h-10">
+<div class="text-white flex items-center cursor-pointer">
+<span class="material-symbols-outlined text-[20px]">arrow_back</span>
+</div>
+<h2 class="text-white text-sm font-bold leading-tight tracking-tight flex-1 text-center font-display uppercase tracking-widest">Players</h2>
+<div class="flex items-center justify-end cursor-pointer">
+<p class="text-primary text-xs font-bold leading-normal tracking-tight uppercase">Group</p>
+</div>
+</div>
+<!-- Scrollable Player List -->
+<div class="flex-1 overflow-y-auto no-scrollbar pb-2">
+<!-- Player Item 1 (Active) -->
+<div class="flex flex-col bg-background-light dark:bg-background-dark border-b border-white/5 px-3 py-2">
+<div class="flex items-center justify-between mb-1">
+<div class="flex items-center gap-2">
+<div class="text-white flex items-center justify-center rounded bg-white/10 shrink-0 size-8">
+<span class="material-symbols-outlined text-[18px]">speaker_group</span>
+</div>
+<div class="flex flex-col">
+<p class="text-white text-[13px] font-medium leading-none font-display">Living Room</p>
+<p class="text-primary text-[10px] font-normal leading-none mt-0.5">Playing</p>
+</div>
+</div>
+<div class="shrink-0">
+<label class="relative flex h-[18px] w-[32px] cursor-pointer items-center rounded-full border-none bg-white/10 p-0.5 has-[:checked]:justify-end has-[:checked]:bg-primary">
+<div class="h-full w-[14px] rounded-full bg-white shadow-sm"></div>
+<input checked="" class="invisible absolute" type="checkbox"/>
+</label>
+</div>
+</div>
+<!-- Volume Slider -->
+<div class="flex items-center gap-2 mt-1">
+<span class="material-symbols-outlined text-[14px] text-white/40">volume_down</span>
+<div class="flex h-1.5 flex-1 rounded-full bg-white/10 overflow-hidden relative">
+<div class="h-full w-[45%] rounded-full bg-primary"></div>
+</div>
+<p class="text-white text-[10px] font-medium w-4 text-right">45</p>
+</div>
+</div>
+<!-- Player Item 2 (Inactive) -->
+<div class="flex flex-col bg-background-light dark:bg-background-dark border-b border-white/5 px-3 py-2">
+<div class="flex items-center justify-between mb-1">
+<div class="flex items-center gap-2 opacity-60">
+<div class="text-white flex items-center justify-center rounded bg-white/10 shrink-0 size-8">
+<span class="material-symbols-outlined text-[18px]">kitchen</span>
+</div>
+<div class="flex flex-col">
+<p class="text-white text-[13px] font-medium leading-none font-display">Kitchen</p>
+<p class="text-white/40 text-[10px] font-normal leading-none mt-0.5">Idle</p>
+</div>
+</div>
+<div class="shrink-0">
+<label class="relative flex h-[18px] w-[32px] cursor-pointer items-center rounded-full border-none bg-white/10 p-0.5 has-[:checked]:justify-end has-[:checked]:bg-primary">
+<div class="h-full w-[14px] rounded-full bg-white shadow-sm"></div>
+<input class="invisible absolute" type="checkbox"/>
+</label>
+</div>
+</div>
+<!-- Volume Slider (Muted state) -->
+<div class="flex items-center gap-2 mt-1 opacity-40">
+<span class="material-symbols-outlined text-[14px] text-white/40">volume_mute</span>
+<div class="flex h-1.5 flex-1 rounded-full bg-white/10 overflow-hidden">
+<div class="h-full w-[0%] rounded-full bg-primary"></div>
+</div>
+<p class="text-white text-[10px] font-medium w-4 text-right">0</p>
+</div>
+</div>
+<!-- Player Item 3 (Active) -->
+<div class="flex flex-col bg-background-light dark:bg-background-dark border-b border-white/5 px-3 py-2">
+<div class="flex items-center justify-between mb-1">
+<div class="flex items-center gap-2">
+<div class="text-white flex items-center justify-center rounded bg-white/10 shrink-0 size-8">
+<span class="material-symbols-outlined text-[18px]">bed</span>
+</div>
+<div class="flex flex-col">
+<p class="text-white text-[13px] font-medium leading-none font-display">Master Bed</p>
+<p class="text-primary text-[10px] font-normal leading-none mt-0.5">Playing</p>
+</div>
+</div>
+<div class="shrink-0">
+<label class="relative flex h-[18px] w-[32px] cursor-pointer items-center rounded-full border-none bg-white/10 p-0.5 has-[:checked]:justify-end has-[:checked]:bg-primary">
+<div class="h-full w-[14px] rounded-full bg-white shadow-sm"></div>
+<input checked="" class="invisible absolute" type="checkbox"/>
+</label>
+</div>
+</div>
+<!-- Volume Slider -->
+<div class="flex items-center gap-2 mt-1">
+<span class="material-symbols-outlined text-[14px] text-white/40">volume_down</span>
+<div class="flex h-1.5 flex-1 rounded-full bg-white/10 overflow-hidden">
+<div class="h-full w-[30%] rounded-full bg-primary"></div>
+</div>
+<p class="text-white text-[10px] font-medium w-4 text-right">30</p>
+</div>
+</div>
+<!-- Player Item 4 (Small spacing) -->
+<div class="flex flex-col bg-background-light dark:bg-background-dark border-b border-white/5 px-3 py-2">
+<div class="flex items-center justify-between mb-1">
+<div class="flex items-center gap-2">
+<div class="text-white flex items-center justify-center rounded bg-white/10 shrink-0 size-8">
+<span class="material-symbols-outlined text-[18px]">deck</span>
+</div>
+<div class="flex flex-col">
+<p class="text-white text-[13px] font-medium leading-none font-display">Patio</p>
+<p class="text-white/40 text-[10px] font-normal leading-none mt-0.5">Idle</p>
+</div>
+</div>
+<div class="shrink-0">
+<label class="relative flex h-[18px] w-[32px] cursor-pointer items-center rounded-full border-none bg-white/10 p-0.5 has-[:checked]:justify-end has-[:checked]:bg-primary">
+<div class="h-full w-[14px] rounded-full bg-white shadow-sm"></div>
+<input class="invisible absolute" type="checkbox"/>
+</label>
+</div>
+</div>
+<!-- Volume Slider -->
+<div class="flex items-center gap-2 mt-1 opacity-60">
+<span class="material-symbols-outlined text-[14px] text-white/40">volume_down</span>
+<div class="flex h-1.5 flex-1 rounded-full bg-white/10 overflow-hidden">
+<div class="h-full w-[15%] rounded-full bg-primary"></div>
+</div>
+<p class="text-white text-[10px] font-medium w-4 text-right">15</p>
+</div>
+</div>
+</div>
+<!-- System Bar Placeholder (Small) -->
+<div class="h-1 bg-primary/20 shrink-0"></div>
+</div>
+</body></html>

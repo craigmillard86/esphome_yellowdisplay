@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sync'd Favorites Grid</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Be Vietnam Pro"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Be Vietnam Pro', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* Optimization for small screen simulation */
+        .tft-container {
+            width: 320px;
+            height: 240px;
+            overflow: hidden;
+            position: relative;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-black flex items-center justify-center min-h-screen">
+<!-- TFT 320x240 Simulation Container -->
+<div class="tft-container bg-background-light dark:bg-background-dark shadow-2xl overflow-hidden flex flex-col border border-gray-800">
+<!-- TopAppBar: Optimized for small 320px width -->
+<div class="flex items-center bg-background-light dark:bg-background-dark px-3 py-1.5 justify-between border-b border-white/5 shrink-0">
+<div class="text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]">sync_alt</span>
+</div>
+<h2 class="text-white text-xs font-bold leading-tight tracking-tight flex-1 text-center font-display">Favorites</h2>
+<div class="flex items-center justify-end">
+<button class="flex cursor-pointer items-center justify-center text-white p-1">
+<span class="material-symbols-outlined text-[18px]">settings</span>
+</button>
+</div>
+</div>
+<!-- Main Content Area: Scrollable -->
+<div class="flex-1 overflow-y-auto hide-scrollbar">
+<!-- SectionHeader: Albums -->
+<div class="flex items-center justify-between px-3 pt-2 pb-1">
+<h3 class="text-white text-[10px] uppercase font-bold tracking-widest opacity-70">Albums</h3>
+<span class="text-primary text-[10px] font-medium">See All</span>
+</div>
+<!-- Carousel: Favorite Albums (Horizontal) -->
+<div class="flex overflow-x-auto hide-scrollbar snap-x snap-mandatory">
+<div class="flex items-stretch px-3 py-1 gap-2.5">
+<!-- Album Item 1 -->
+<div class="flex flex-col gap-1.5 snap-start shrink-0 w-24">
+<div class="relative w-24 h-24 bg-center bg-no-repeat bg-cover rounded-lg border border-white/10" data-alt="Album cover with vibrant colorful geometric shapes" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuC0bUZ3ifqHuNHniYiq16jOpzTbZpp4deq_mUKt_uJS4C3FRgrrMa_XQJzYu32TqyvI3ubYHQciV87KgjGgVhqX_5ajTkU9EX0_-zqSNIACkqUhWug_Yr8yiKWI6PCxQTSwYo-XEN-tKWMu6zUlxuPdOdHGvmQUtw6m3A-ze5zmNYivDIBfVJbSeZEbXg9tHhtyjDRpa56dOp58eU6wtaM8UtxgrtOuqxVayzSPb5ehqH5Rn7bdvw_QPcdJ1pHhxBZLlqp-StPN55VP");'>
+<div class="absolute top-1 right-1 bg-background-dark/60 backdrop-blur-md rounded-full p-1 shadow-sm">
+<span class="material-symbols-outlined text-primary text-[14px] leading-none block" style="font-variation-settings: 'FILL' 1">favorite</span>
+</div>
+</div>
+<div class="px-0.5">
+<p class="text-white text-[10px] font-bold truncate leading-none">Hurry Up, We're Dreaming</p>
+<p class="text-[#92adc9] text-[9px] font-medium leading-tight">M83</p>
+</div>
+</div>
+<!-- Album Item 2 -->
+<div class="flex flex-col gap-1.5 snap-start shrink-0 w-24">
+<div class="relative w-24 h-24 bg-center bg-no-repeat bg-cover rounded-lg border border-white/10" data-alt="Futuristic chrome helmet on black background album art" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCMlAduEoupeWjdeyOt0nWbPgFR4w2RZyiMpnLNPM4oSrAI-LxmO2Y9NRu-scDNVIHYKf4ouYiqBtSyU_cay5EsVn0c2p6NF1b4mKxit_C8pLhi58OiiXPjkDuZVlAokZ4CZz5Uh054Yo5PVZyLzO-VydxC9YNwU81YRrRt5p1eKRQBFXGDINZykJ6j5Hg1sKui2UkD1QQ41pKuh8TsOP_tQ95r5s4t7Nw50cjR7q5YhZnf3Fwc_zIrTsqkRflHb7lWWdrnAJMHlWg-");'>
+<div class="absolute top-1 right-1 bg-background-dark/60 backdrop-blur-md rounded-full p-1 shadow-sm">
+<span class="material-symbols-outlined text-primary text-[14px] leading-none block" style="font-variation-settings: 'FILL' 1">favorite</span>
+</div>
+</div>
+<div class="px-0.5">
+<p class="text-white text-[10px] font-bold truncate leading-none">Discovery</p>
+<p class="text-[#92adc9] text-[9px] font-medium leading-tight">Daft Punk</p>
+</div>
+</div>
+<!-- Album Item 3 -->
+<div class="flex flex-col gap-1.5 snap-start shrink-0 w-24">
+<div class="relative w-24 h-24 bg-center bg-no-repeat bg-cover rounded-lg border border-white/10" data-alt="Abstract oil painting style album artwork" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDNAcjHoi5yLAaQnwbGFjzlhM_9jpeUFcUVq-XBqBJc-FZvrdg17dRwN430tGON9KTZdORN_QU7aMKrqcx2srlF5gaZUiuzBb0s6PR4OqIf-9MEg4KMmdYpUp8Odm82_Actf9kKrLqPnH_PfM1pql6FA9V2CPN15yr-LcZoIDHFUiMsqauTYyEaVuC_M3EIxAHAQ8sim4hFTLDwxJaHAn3plw_xj84eCDbWKX5OZw4oIwetvRmfYverM0HSN6CKHnp5Ay-mVuMP_uRe");'>
+<div class="absolute top-1 right-1 bg-background-dark/60 backdrop-blur-md rounded-full p-1 shadow-sm">
+<span class="material-symbols-outlined text-primary text-[14px] leading-none block" style="font-variation-settings: 'FILL' 1">favorite</span>
+</div>
+</div>
+<div class="px-0.5">
+<p class="text-white text-[10px] font-bold truncate leading-none">Currents</p>
+<p class="text-[#92adc9] text-[9px] font-medium leading-tight">Tame Impala</p>
+</div>
+</div>
+</div>
+</div>
+<!-- SectionHeader: Radio -->
+<div class="px-3 pt-3 pb-1">
+<h3 class="text-white text-[10px] uppercase font-bold tracking-widest opacity-70">Radio Stations</h3>
+</div>
+<!-- ListItems: Vertical Radio Section -->
+<div class="flex flex-col pb-3">
+<!-- Radio Item 1 -->
+<div class="flex items-center gap-3 bg-white/5 mx-3 mb-1.5 px-3 h-[42px] rounded-lg border border-white/5 active:bg-primary/20 transition-colors">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-md size-7 shrink-0" data-alt="Red logo for BBC Radio 1" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBGvhuhyoG_Q_Saxv2Xw8TEFobHuqA_x40lbpPXZpsSPQdphgRgWJZFJGPZSUSaU3cFo-yiMXawjcX5iy8Pq6APFH69QTx9NOrASYqU6pA3VOPPNyAtZvGuWskkqrraY7cZ2EGssYhBwg2vw8NGwDtzgr8dZUMiaVaoKs26ihHk1SQ0oVC0mYKRpr4nFJ17Lz45fEJIt4c7wVpEyMr1VySM81Dva-B5I1BkgM8DaMFTMq6Q7IZKC_pxMYcyFeYRJNOZk5iu7RWOzco1");'></div>
+<div class="flex flex-col justify-center flex-1 overflow-hidden">
+<p class="text-white text-[11px] font-bold leading-none truncate">BBC Radio 1</p>
+<p class="text-[#92adc9] text-[9px] font-medium leading-tight truncate">Electronic &amp; Pop</p>
+</div>
+<div class="shrink-0 flex items-center justify-center w-8 h-8">
+<span class="material-symbols-outlined text-primary text-[20px]" style="font-variation-settings: 'FILL' 1">favorite</span>
+</div>
+</div>
+<!-- Radio Item 2 -->
+<div class="flex items-center gap-3 bg-white/5 mx-3 mb-1.5 px-3 h-[42px] rounded-lg border border-white/5 active:bg-primary/20 transition-colors">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-md size-7 shrink-0" data-alt="Abstract blue wave logo for KEXP" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAMBWw_K2fNBgdHFUGpdYN4Ewgkrgd8rzSsRbC1hHov2hYcQQyAgvNMfQB1UrkiYZPao7sAjeDZEEFYEgvJFyYow_7mipJ3UMwSY_M5JlXKfa1zNFYaBYhZbqDn8WJ-_K0uunxKnws1Yd8dNJ9TmpfcqaGjNajBkifJraaLkXy2QA5m0eBkgHNDbLexNiaSwr5zd0XYDAJfQWsx8y8bwws97i17qXgPF3WuA9a2YSTp9kda7PG4IyCEwt0y60JCp8TWUUOXT-kSpK_4");'></div>
+<div class="flex flex-col justify-center flex-1 overflow-hidden">
+<p class="text-white text-[11px] font-bold leading-none truncate">KEXP 90.3 FM</p>
+<p class="text-[#92adc9] text-[9px] font-medium leading-tight truncate">Indie Rock</p>
+</div>
+<div class="shrink-0 flex items-center justify-center w-8 h-8">
+<span class="material-symbols-outlined text-primary text-[20px]" style="font-variation-settings: 'FILL' 1">favorite</span>
+</div>
+</div>
+<!-- Radio Item 3 -->
+<div class="flex items-center gap-3 bg-white/5 mx-3 mb-1.5 px-3 h-[42px] rounded-lg border border-white/5 active:bg-primary/20 transition-colors">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-md size-7 shrink-0" data-alt="Jazz music abstract artwork" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBZ2pdmjJFVqB1E8MgW9WKXZ7E3UERwGCikjwdOzFMle8tBVPWPfBhdrc2fq8VTjSotO4oGpv3YvubuW3pvmWBg9BV60rQnGkZbisZdmuR5Mf-UkH9wwPaOcM5MOkroxUVvvNfLBgRZvodIvtU4APnZA6yAbdyYUQ4If2EJjjhrWiO3r7_F-rY-dZAb32nawDb3jJl2NejH4cxEpzQO-mUMfC5zIFiVgVDtgafnCl5v0RpEbh9ycFKxjuOBkl3IP_2NpWXt4gHQM9O2");'></div>
+<div class="flex flex-col justify-center flex-1 overflow-hidden">
+<p class="text-white text-[11px] font-bold leading-none truncate">Jazz FM London</p>
+<p class="text-[#92adc9] text-[9px] font-medium leading-tight truncate">Smooth Jazz</p>
+</div>
+<div class="shrink-0 flex items-center justify-center w-8 h-8">
+<span class="material-symbols-outlined text-primary text-[20px]" style="font-variation-settings: 'FILL' 1">favorite</span>
+</div>
+</div>
+<!-- Radio Item 4 -->
+<div class="flex items-center gap-3 bg-white/5 mx-3 mb-1.5 px-3 h-[42px] rounded-lg border border-white/5 active:bg-primary/20 transition-colors">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-md size-7 shrink-0" data-alt="Classical music sheet pattern" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuA6sNZxO0HcZUHcgJPIthrYzdr9cl0iy4d_2wcsyBHhAIxRpWN6ImEAueHRCdrkcqkSyu4O2itX2tmuP-XqKzfo4sGpQpQD5c6jyIzrX_gRtryzzFypsRT8TdNzjf_wzlumacCITtxLyLgGBV1UGWmOLiME8FMf-QbUo_4YcechoSw918TlRKPUTe1WMd-10D-Ib8V4_DTdwh3z51u1Z44H8B35Auih1QYpQi8Y4L1jNTp_Ud-K8ARMQYoYa1VX4lUHY2l6jDA7TWPp");'></div>
+<div class="flex flex-col justify-center flex-1 overflow-hidden">
+<p class="text-white text-[11px] font-bold leading-none truncate">Classical Live</p>
+<p class="text-[#92adc9] text-[9px] font-medium leading-tight truncate">Orchestral Classics</p>
+</div>
+<div class="shrink-0 flex items-center justify-center w-8 h-8">
+<span class="material-symbols-outlined text-primary text-[20px]" style="font-variation-settings: 'FILL' 1">favorite</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Mini Player / Interaction Area (Bottom Fixed) -->
+<div class="bg-primary/10 backdrop-blur-md border-t border-primary/20 h-9 flex items-center px-3 justify-between shrink-0">
+<div class="flex items-center gap-2 overflow-hidden">
+<span class="material-symbols-outlined text-primary text-[14px]">graphic_eq</span>
+<p class="text-white text-[10px] font-medium truncate">M83 - Midnight City</p>
+</div>
+<div class="flex gap-3">
+<span class="material-symbols-outlined text-white text-[18px]">play_arrow</span>
+</div>
+</div>
+</div>
+</body></html>
