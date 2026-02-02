@@ -59,7 +59,6 @@ wifi:
         level: WARN
         format: "Wi-Fi disconnected, attempting reconnection..."
 
-# Captive Portal
-# Automatically redirects users to configuration page when connected to fallback AP
-# Essential for initial setup or recovery scenarios
-captive_portal:
+# Captive Portal - DISABLED to save ~3KB heap
+# Uncomment if you need to reconfigure WiFi via fallback AP
+# captive_portal:

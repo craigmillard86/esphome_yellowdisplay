@@ -45,6 +45,11 @@ font:
       - "\U000F0456"  # mdi:repeat
       - "\U000F075A"  # mdi:music (album art placeholder)
       - "\U000F0772"  # mdi:loading (spinner fallback icon)
+      - "\U000F0251"  # mdi:library-music
+      - "\U000F057F"  # mdi:speaker
+      - "\U000F02D1"  # mdi:heart
+      - "\U000F004D"  # mdi:arrow-left (back button)
+      - "\U000F015A"  # mdi:home (home button)
 
 # =============================================================================
 # LVGL Configuration
@@ -60,12 +65,16 @@ lvgl:
   # Color depth - 16-bit RGB565 for ILI9341
   color_depth: 16
 
-  # Buffer configuration - reduced to 10% to free heap for album art
-  # 320x240x2 = 153KB full screen, 10% = ~15KB buffer
-  buffer_size: 10%
+  # Buffer configuration - Reduced to 5% to save heap memory
+  # 320x240x2 = 153KB full screen, 5% = ~7.6KB buffer (was 10% = ~15KB)
+  # Trade: slightly slower rendering for ~7KB more free heap
+  buffer_size: 5%
 
   # Update interval for LVGL tasks (4Hz update rate)
   update_interval: 250ms
+
+  # Optimize LVGL memory usage
+  # task_handler_priority: 10  # Default priority is fine
 
   # Log level for LVGL debugging
   log_level: INFO
@@ -171,6 +180,26 @@ lvgl:
       border_width: 0
       pad_all: 8
 
+    # Home Dashboard Tile - Normal State (T046)
+    - id: style_tile_normal
+      bg_color: 0x1E1E1E
+      bg_opa: COVER
+      radius: 10
+      border_width: 1
+      border_color: 0x2A2A2A
+      border_opa: COVER
+      pad_all: 0
+
+    # Home Dashboard Tile - Pressed State (T047)
+    - id: style_tile_pressed
+      bg_color: 0x1E1E1E
+      bg_opa: COVER
+      radius: 10
+      border_width: 2
+      border_color: 0x00D1FF
+      border_opa: COVER
+      pad_all: 0
+
   # =============================================================================
   # Pages - UI Screens
   # =============================================================================
@@ -186,6 +215,208 @@ lvgl:
             text_font: roboto_24
 
     # =========================================================================
+    # Home Dashboard - 2x2 Tile Grid Layout (T045-T051)
+    # =========================================================================
+    # Display: 320x240 pixels in landscape orientation
+    # Layout: 2x2 grid with 4 navigation tiles
+    # Tile size: 150x108px each with 10px gaps (4px margin per tile + 2px gap)
+    # Grid calculation:
+    #   - Available width: 320px
+    #   - Available height: 240px
+    #   - Gap between tiles: 8px (4px margin on each tile)
+    #   - Outer margins: 8px
+    #   - Tile width: (320 - 16 - 8) / 2 = 148px
+    #   - Tile height: (240 - 16 - 8) / 2 = 108px
+    - id: page_home
+      # Apply base screen style (dark background #121212)
+      styles: style_screen
+
+      widgets:
+        # =====================================================================
+        # TOP LEFT TILE - NOW PLAYING (T048)
+        # =====================================================================
+        # Shows current track title with music icon
+        # Clickable button that navigates to Now Playing screen
+        - button:
+            id: tile_now_playing
+            x: 8
+            y: 8
+            width: 148
+            height: 108
+            styles: style_tile_normal
+            checkable: false
+            pressed:
+              border_color: 0x00D1FF
+              border_width: 2
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Now Playing tile pressed"
+              # Navigate to Now Playing screen (T054)
+              - script.execute:
+                  id: navigate_to
+                  target_screen: 1  # NOW_PLAYING
+            widgets:
+              # Music icon centered at top
+              - label:
+                  text: "\U000F075A"
+                  text_font: icons_24
+                  text_color: 0x00D1FF
+                  align: TOP_MID
+                  x: 0
+                  y: 16
+
+              # Track title label (scrolling if long)
+              - label:
+                  id: lbl_home_track_title
+                  text: "Now Playing"
+                  text_font: roboto_12
+                  text_color: 0xFFFFFF
+                  text_align: CENTER
+                  align: BOTTOM_MID
+                  x: 0
+                  y: -12
+                  width: 140
+                  long_mode: SCROLL_CIRCULAR
+
+        # =====================================================================
+        # TOP RIGHT TILE - LIBRARY (T049)
+        # =====================================================================
+        # Library/collection browser tile
+        # Shows library icon and "Library" text
+        - button:
+            id: tile_library
+            x: 164
+            y: 8
+            width: 148
+            height: 108
+            styles: style_tile_normal
+            checkable: false
+            pressed:
+              border_color: 0x00D1FF
+              border_width: 2
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Library tile pressed"
+              # Navigate to Library screen (T054) - placeholder until screen exists
+              # - script.execute:
+              #     id: navigate_to
+              #     target_screen: 3  # LIBRARY
+            widgets:
+              # Library icon centered at top
+              - label:
+                  text: "\U000F0251"
+                  text_font: icons_24
+                  text_color: 0xFFFFFF
+                  align: TOP_MID
+                  x: 0
+                  y: 16
+
+              # "Library" label
+              - label:
+                  text: "Library"
+                  text_font: roboto_12
+                  text_color: 0xFFFFFF
+                  text_align: CENTER
+                  align: BOTTOM_MID
+                  x: 0
+                  y: -12
+
+        # =====================================================================
+        # BOTTOM LEFT TILE - SPEAKERS (T050)
+        # =====================================================================
+        # Speaker selection tile
+        # Shows speaker icon and dynamic "X Active" count
+        - button:
+            id: tile_speakers
+            x: 8
+            y: 124
+            width: 148
+            height: 108
+            styles: style_tile_normal
+            checkable: false
+            pressed:
+              border_color: 0x00D1FF
+              border_width: 2
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Speakers tile pressed"
+              # Navigate to Players/Speakers screen (T054) - placeholder until screen exists
+              # - script.execute:
+              #     id: navigate_to
+              #     target_screen: 2  # PLAYERS
+            widgets:
+              # Speaker icon centered at top
+              - label:
+                  text: "\U000F057F"
+                  text_font: icons_24
+                  text_color: 0xFFFFFF
+                  align: TOP_MID
+                  x: 0
+                  y: 16
+
+              # Dynamic speaker count label
+              - label:
+                  id: lbl_home_speaker_count
+                  text: "1 Active"
+                  text_font: roboto_12
+                  text_color: 0xB3B3B3
+                  text_align: CENTER
+                  align: BOTTOM_MID
+                  x: 0
+                  y: -12
+
+        # =====================================================================
+        # BOTTOM RIGHT TILE - FAVORITES (T051)
+        # =====================================================================
+        # Favorites/playlists tile
+        # Shows heart icon and "Favorites" text
+        - button:
+            id: tile_favorites
+            x: 164
+            y: 124
+            width: 148
+            height: 108
+            styles: style_tile_normal
+            checkable: false
+            pressed:
+              border_color: 0x00D1FF
+              border_width: 2
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Favorites tile pressed"
+              # Navigate to Favorites screen (T054) - placeholder until screen exists
+              # - script.execute:
+              #     id: navigate_to
+              #     target_screen: 4  # FAVORITES
+            widgets:
+              # Heart icon centered at top
+              - label:
+                  text: "\U000F02D1"
+                  text_font: icons_24
+                  text_color: 0xFF6B35
+                  align: TOP_MID
+                  x: 0
+                  y: 16
+
+              # "Favorites" label
+              - label:
+                  text: "Favorites"
+                  text_font: roboto_12
+                  text_color: 0xFFFFFF
+                  text_align: CENTER
+                  align: BOTTOM_MID
+                  x: 0
+                  y: -12
+
+    # =========================================================================
     # Main Now Playing Screen - Split Horizontal Layout
     # =========================================================================
     # Layout: Split Horizontal (Left 40% / Right 60%)
@@ -199,17 +430,44 @@ lvgl:
 
       widgets:
         # =====================================================================
+        # BACK BUTTON (T052-T053) - Top Left Corner
+        # =====================================================================
+        # Navigates back to previous screen using navigation stack
+        # Minimum 44x44px touch target per accessibility guidelines
+        - button:
+            id: btn_back
+            x: 0
+            y: 0
+            width: 44
+            height: 44
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            on_click:
+              - logger.log:
+                  tag: "navigation"
+                  level: INFO
+                  format: "Back button pressed - navigating back"
+              - script.execute: navigate_back
+            widgets:
+              - label:
+                  text: "\U000F004D"
+                  text_font: icons_24
+                  text_color: 0xB3B3B3
+                  align: CENTER
+
+        # =====================================================================
         # LEFT PANEL - ALBUM ART AREA (0-128px width)
         # =====================================================================
         # Album art placeholder container with rounded corners
         # Positioned at x=0, vertically centered
-        # Size: 128x128px to fit within left 40% panel (128px wide)
+        # Size: 128x128px
         - obj:
             id: album_art_container
-            x: 16
+            x: 0
             y: 56
-            width: 96
-            height: 96
+            width: 128
+            height: 128
             bg_color: 0x1E1E1E
             bg_opa: COVER
             radius: 12

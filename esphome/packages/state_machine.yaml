@@ -181,9 +181,8 @@ api:
         id: system_state_control
         option: "Ready"
 
-    # Switch to main page
-    - lvgl.page.show:
-        id: page_main
+    # Initialize navigation and show Home Dashboard
+    - script.execute: nav_initialize
 
   # API disconnected - transition to Offline
   on_client_disconnected:

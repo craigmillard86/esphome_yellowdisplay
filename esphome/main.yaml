@@ -26,11 +26,54 @@ esphome:
   platformio_options:
     board_build.f_cpu: 240000000L  # 240MHz CPU frequency
 
+  # Memory monitoring on boot
+  on_boot:
+    priority: 800  # Run very early, before most components init
+    then:
+      - lambda: |-
+          // Stop Bluetooth using Arduino API (if available)
+          // Note: btStop() may not be available in all configurations
+          // Log initial heap status
+          uint32_t free_heap = esp_get_free_heap_size();
+          uint32_t largest_block = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+          ESP_LOGI("memory", "Boot heap status - Free: %u bytes, Largest block: %u bytes",
+                   free_heap, largest_block);
+
 # ESP32 platform configuration (new format)
 esp32:
   board: esp32dev
   framework:
     type: arduino
+    version: recommended
+    sdkconfig_options:
+      # Disable Bluetooth at compile time (Arduino may override, but helps)
+      CONFIG_BT_ENABLED: "n"
+      CONFIG_BLUEDROID_ENABLED: "n"
+      CONFIG_BTDM_CTRL_MODE_BLE_ONLY: "n"
+      CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY: "n"
+      CONFIG_BTDM_CTRL_MODE_BTDM: "n"
+
+      # Reduce logging overhead
+      CONFIG_LOG_DEFAULT_LEVEL_INFO: "y"
+      CONFIG_LOG_MAXIMUM_LEVEL_INFO: "y"
+
+      # Reduce task watchdog timeout (saves a bit of memory)
+      CONFIG_ESP_TASK_WDT_TIMEOUT_S: "5"
+
+      # Disable features we don't use
+      CONFIG_ESP32_ENABLE_COREDUMP: "n"
+
+      # HTTP Client Memory Optimization
+      # Note: HTTPS is required for Last.fm image CDN - cannot disable
+
+      # LWIP (network stack) heap optimizations
+      CONFIG_LWIP_MAX_SOCKETS: "8"  # Needs 7 minimum (api=4, mdns=2, ota=1)
+      CONFIG_LWIP_TCP_MSS: "1440"   # Default, but explicit
+      CONFIG_LWIP_TCP_SND_BUF_DEFAULT: "5744"  # 4x MSS (reduced from 8x)
+      CONFIG_LWIP_TCP_WND_DEFAULT: "5744"      # Match send buffer
+
+      # Enable heap poisoning in debug builds to catch overflows
+      # CONFIG_HEAP_POISONING_COMPREHENSIVE: "y"  # Uncomment for debugging
 
 # =============================================================================
 # Package Includes
@@ -47,9 +90,10 @@ packages:
   lvgl: !include packages/lvgl.yaml
   state_machine: !include packages/state_machine.yaml
   connectivity: !include packages/connectivity.yaml
-  diagnostics: !include packages/diagnostics.yaml
+  # diagnostics: !include packages/diagnostics.yaml  # DISABLED to save ~4KB heap
   media_player: !include packages/media_player.yaml
   album_art: !include packages/album_art.yaml  # Last.fm API with memory optimizations
+  navigation: !include packages/navigation.yaml  # Screen navigation with animations (T042-T044)
 
 # =============================================================================
 # Logging
@@ -59,6 +103,10 @@ logger:
   level: INFO
   logs:
     component: ERROR  # Reduce component verbosity
+    lvgl: WARN  # Reduce LVGL verbosity
+  # Reduce log buffer size to save heap memory (default is 512 bytes)
+  baud_rate: 115200
+  tx_buffer_size: 512  # Default, keep for stability
 
 # =============================================================================
 # Home Assistant Integration
@@ -93,6 +141,30 @@ api:
 ota:
   platform: esphome
   password: !secret ota_password
+
+# =============================================================================
+# Memory Monitoring (Diagnostic - can be disabled after optimization)
+# =============================================================================
+
+interval:
+  # Monitor heap health every 30 seconds
+  - interval: 30s
+    then:
+      - lambda: |-
+          uint32_t free_heap = esp_get_free_heap_size();
+          uint32_t largest_block = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+          uint32_t min_free = esp_get_minimum_free_heap_size();
+
+          // Calculate fragmentation percentage
+          float fragmentation = 100.0f * (1.0f - ((float)largest_block / (float)free_heap));
+
+          ESP_LOGI("heap_monitor", "Free: %u bytes | Largest block: %u bytes | Min free: %u bytes | Fragmentation: %.1f%%",
+                   free_heap, largest_block, min_free, fragmentation);
+
+          // Warn if largest block drops below 50KB
+          if (largest_block < 50000) {
+            ESP_LOGW("heap_monitor", "WARNING: Largest free block is below 50KB!");
+          }
 
 # =============================================================================
 # Web Server (Optional - enable for debugging)

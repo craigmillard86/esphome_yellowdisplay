@@ -11,6 +11,16 @@
 # - FR-063: Prevent retry storms during connectivity loss
 
 # =============================================================================
+# Binary Sensors
+# =============================================================================
+
+binary_sensor:
+  # Home Assistant API connection status (moved from diagnostics.yaml)
+  - platform: status
+    id: ha_api_connected
+    internal: true  # Don't expose to HA to save memory
+
+# =============================================================================
 # Global Variables
 # =============================================================================
 

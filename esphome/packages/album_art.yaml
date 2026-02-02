@@ -22,9 +22,10 @@ substitutions:
   # Album art fetch timeout (milliseconds)
   album_art_timeout_ms: "5000"
 
-  # Album art dimensions (pixels) - must match container size
-  album_art_width: "96"
-  album_art_height: "96"
+  # Album art dimensions (pixels) - 128x128 to fill container
+  # 128x128 RGB565 = 32768 bytes - HTTP (no SSL) should have enough heap
+  album_art_width: "128"
+  album_art_height: "128"
 
 # =============================================================================
 # HTTP Request Component (required for Last.fm API and online_image)
@@ -81,30 +82,44 @@ globals:
     initial_value: '0'
 
   # Minimum free heap required for image decode (bytes)
+  # This is the largest contiguous block needed, not total free heap
+  # Calculation for 128x128 with HTTP (no SSL overhead):
+  #   - PNG decode buffer: ~4KB (buffer_size)
+  #   - Final RGB565 buffer: 128x128x2 = 32768 bytes
+  #   - LVGL image descriptor + overhead: ~2KB
+  #   - Safety margin: 6KB
+  #   Total: 45KB minimum contiguous
   - id: album_art_min_heap
     type: uint32_t
     restore_value: no
-    initial_value: '40000'  # 40KB minimum
+    initial_value: '45000'  # 45KB minimum contiguous block required
 
 # =============================================================================
 # Online Image Component - Album Art Fetcher
 # =============================================================================
-# Fetches small album art from Last.fm (typically 64x64 or 174x174, ~5-15KB)
+# Fetches medium album art from Last.fm (64x64, ~3-5KB PNG)
 
 online_image:
   - id: album_art_image
-    url: "https://via.placeholder.com/96"  # Placeholder URL, updated dynamically
+    url: "https://via.placeholder.com/128"  # Placeholder URL, updated dynamically
     format: PNG  # Last.fm serves PNG images
     type: RGB565
     resize: ${album_art_width}x${album_art_height}
-    buffer_size: 16384  # 16KB buffer - Last.fm 64x64 images are ~3-5KB
+    # Large images are 174x174 (~10-15KB PNG), downscaled to 128x128 RGB565 (32KB final)
+    # Using HTTP instead of HTTPS eliminates ~80KB SSL overhead
+    buffer_size: 16384  # 16KB buffer for larger source images
     update_interval: never  # Manual updates only
 
     on_download_finished:
       then:
         - lambda: |-
             if (id(album_art_state) == 1) {
-              ESP_LOGI("album_art", "Album art download completed successfully");
+              // Log heap status after successful download
+              uint32_t free_heap = esp_get_free_heap_size();
+              uint32_t largest_block = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+              ESP_LOGI("album_art", "Album art download completed - Free=%u, Largest=%u",
+                       free_heap, largest_block);
+
               id(album_art_state) = 2;
               id(has_album_art) = true;
               // Reset error tracking on success
@@ -147,14 +162,14 @@ script:
           // Check if we're in error cooldown
           uint32_t now = millis();
           if (now < id(album_art_cooldown_until)) {
-            ESP_LOGD("album_art", "In error cooldown, skipping lookup");
+            ESP_LOGI("album_art", "In error cooldown, skipping lookup");
             return;
           }
 
           // Check available heap memory before attempting fetch
           uint32_t free_heap = esp_get_free_heap_size();
           uint32_t largest_block = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-          ESP_LOGD("album_art", "Heap: %u free, %u largest block", free_heap, largest_block);
+          ESP_LOGI("album_art", "Pre-fetch heap: %u free, %u largest block", free_heap, largest_block);
 
           if (largest_block < id(album_art_min_heap)) {
             ESP_LOGW("album_art", "Insufficient heap for album art: %u < %u bytes",
@@ -212,6 +227,7 @@ script:
             // URL encode artist and title (basic encoding)
             auto url_encode = [](const std::string& str) -> std::string {
               std::string encoded;
+              encoded.reserve(str.length() * 3);  // Pre-allocate to reduce fragmentation
               for (char c : str) {
                 if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
                   encoded += c;
@@ -243,13 +259,14 @@ script:
                     return;
                   }
 
-                  // Read response body
+                  // Read response body with size limiting
                   size_t content_length = response->content_length;
-                  if (content_length == 0 || content_length > 8192) {
-                    content_length = 4096;  // Default buffer size
+                  if (content_length == 0 || content_length > 4096) {
+                    content_length = 4096;  // Limit buffer to 4KB max
                   }
 
                   std::string body;
+                  body.reserve(content_length);  // Pre-allocate exact size
                   body.resize(content_length);
                   uint8_t *buf = (uint8_t *)body.data();
                   int bytes_read = response->read(buf, content_length);
@@ -265,7 +282,7 @@ script:
 
                   // Simple JSON parsing - find the image array
                   // Last.fm returns images in order: small, medium, large, extralarge
-                  // We want "medium" (index 1) which is 64x64 (~3-5KB PNG)
+                  // We use "large" (index 2) which is 174x174 (~10-15KB PNG) - better quality
 
                   size_t img_pos = body.find("\"image\":");
                   if (img_pos == std::string::npos) {
@@ -274,12 +291,12 @@ script:
                     return;
                   }
 
-                  // Find the second "#text" entry (medium size, 64x64)
+                  // Find the third "#text" entry (large size, 174x174)
                   size_t text_pos = img_pos;
-                  for (int i = 0; i < 2; i++) {
+                  for (int i = 0; i < 3; i++) {
                     text_pos = body.find("\"#text\":", text_pos + 1);
                     if (text_pos == std::string::npos) {
-                      ESP_LOGW("album_art", "Could not find medium image in response");
+                      ESP_LOGW("album_art", "Could not find large image in response");
                       id(album_art_state) = 3;
                       return;
                     }
@@ -303,22 +320,44 @@ script:
                     return;
                   }
 
-                  ESP_LOGI("album_art", "Found album art: %s", image_url.c_str());
+                  // Convert HTTPS to HTTP to avoid SSL memory overhead (~80KB)
+                  // Last.fm CDN supports both HTTP and HTTPS
+                  if (image_url.rfind("https://", 0) == 0) {
+                    image_url = "http://" + image_url.substr(8);
+                    ESP_LOGI("album_art", "Converted to HTTP: %s", image_url.c_str());
+                  } else {
+                    ESP_LOGI("album_art", "Found album art: %s", image_url.c_str());
+                  }
                   id(current_album_art_url) = image_url;
+
+                  // CRITICAL: Clear body immediately to free heap before image download
+                  body.clear();
+                  body.shrink_to_fit();
 
                   // Set URL and trigger download
                   id(album_art_image).set_url(image_url);
+
+              # CRITICAL: Allow heap to defragment after API call before image download
+              # This delay allows ESP32 to coalesce freed memory blocks
+              - delay: 250ms
 
               # If we got a valid URL, check heap and fetch the image
               - if:
                   condition:
                     lambda: 'return !id(current_album_art_url).empty() && id(album_art_state) == 1;'
                   then:
-                    # Final heap check before image decode
+                    # Final heap check before image decode with detailed logging
                     - lambda: |-
+                        uint32_t free_heap = esp_get_free_heap_size();
                         uint32_t largest_block = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+                        uint32_t min_free = esp_get_minimum_free_heap_size();
+
+                        ESP_LOGI("album_art", "Pre-download heap: Free=%u, Largest=%u, MinFree=%u",
+                                 free_heap, largest_block, min_free);
+
                         if (largest_block < id(album_art_min_heap)) {
-                          ESP_LOGW("album_art", "Heap too low for decode: %u bytes", largest_block);
+                          ESP_LOGW("album_art", "Heap too low for decode: %u < %u bytes",
+                                   largest_block, id(album_art_min_heap));
                           id(album_art_state) = 3;
                           id(album_art_error_count)++;
                           uint32_t cooldown_ms = 10000 * (1 << std::min(id(album_art_error_count) - 1, 5));
