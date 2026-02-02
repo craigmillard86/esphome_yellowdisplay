@@ -1,0 +1,686 @@
+# =============================================================================
+# UI Screen: Player Management (T055)
+# Purpose: Screen for selecting and managing media players
+# Dependencies: packages/lvgl.yaml (LVGL framework, theme, fonts, icons)
+#               packages/player_manager.yaml (player state management)
+#               packages/navigation.yaml (screen navigation)
+# Exposes: page_players LVGL page with player list
+# Display: 320x240 ILI9341 in landscape orientation
+# =============================================================================
+
+# This file implements:
+# - T055: Create Player Management screen layout
+# - T063: Implement tap-to-select behavior for player rows
+
+# Screen Layout:
+# +--------------------------------------------------+
+# | [<] Select Player                          [0/0] |  <- Header (44px)
+# +--------------------------------------------------+
+# | +----------------------------------------------+ |
+# | | [*] Player 1 Name              [===] [pwr]   | |  <- Player rows
+# | +----------------------------------------------+ |  <- 56px each
+# | | [ ] Player 2 Name              [===] [pwr]   | |
+# | +----------------------------------------------+ |
+# | | ...                                          | |
+# | +----------------------------------------------+ |
+# +--------------------------------------------------+
+
+lvgl:
+  pages:
+    # =========================================================================
+    # Players Screen (T055)
+    # =========================================================================
+    - id: page_players
+      bg_color: 0x121212
+      widgets:
+        # =====================================================================
+        # HEADER AREA (44px height)
+        # =====================================================================
+
+        # Back Button - Top Left (44x44px touch target)
+        - button:
+            id: btn_players_back
+            x: 0
+            y: 0
+            width: 44
+            height: 44
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Players screen back button pressed"
+              - script.execute: navigate_back
+            widgets:
+              - label:
+                  text: "\U000F004D"  # mdi:arrow-left
+                  text_font: icons_24
+                  text_color: 0xB3B3B3
+                  align: CENTER
+
+        # Screen Title
+        - label:
+            id: lbl_players_title
+            text: "Select Player"
+            text_font: roboto_16
+            text_color: 0xFFFFFF
+            align: TOP_MID
+            x: 0
+            y: 12
+            text_align: CENTER
+
+        # Player Count Badge - Top Right
+        - label:
+            id: lbl_players_count
+            text: "0/0"
+            text_font: roboto_12
+            text_color: 0xB3B3B3
+            align: TOP_RIGHT
+            x: -8
+            y: 14
+
+        # Header Divider Line
+        - obj:
+            x: 0
+            y: 43
+            width: 320
+            height: 1
+            bg_color: 0x2A2A2A
+            bg_opa: COVER
+            border_width: 0
+
+        # =====================================================================
+        # SCROLLABLE PLAYER LIST CONTAINER
+        # =====================================================================
+        # Flex container with vertical scroll for player rows
+        # Position: Below header, fills remaining screen
+        # Size: 320x196 (240 - 44 header)
+
+        - obj:
+            id: player_list_container
+            x: 0
+            y: 44
+            width: 320
+            height: 196
+            bg_color: 0x121212
+            bg_opa: COVER
+            border_width: 0
+            pad_all: 4
+            scrollbar_mode: AUTO
+            layout:
+              type: FLEX
+              flex_flow: COLUMN
+              flex_align_main: START
+              flex_align_cross: CENTER
+              flex_align_track: CENTER
+            widgets:
+              # =================================================================
+              # PLAYER ROW 0
+              # =================================================================
+              - button:
+                  id: player_row_0
+                  width: 304
+                  height: 56
+                  bg_color: 0x1E1E1E
+                  radius: 8
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  pad_all: 8
+                  hidden: true  # Hidden until player registered
+                  pressed:
+                    bg_color: 0x2A2A2A
+                  on_click:
+                    - logger.log:
+                        tag: "ui"
+                        level: INFO
+                        format: "Player row 0 selected"
+                    - script.execute:
+                        id: select_player
+                        player_index: 0
+                  widgets:
+                    # Selection indicator (checkmark when selected)
+                    - label:
+                        id: player_0_check
+                        text: "\U000F012C"  # mdi:check-circle (filled)
+                        text_font: icons_24
+                        text_color: 0x00D1FF
+                        x: 4
+                        y: 8
+                        hidden: true
+                    # Selection indicator (empty circle when not selected)
+                    - label:
+                        id: player_0_circle
+                        text: "\U000F0765"  # mdi:circle-outline
+                        text_font: icons_24
+                        text_color: 0x666666
+                        x: 4
+                        y: 8
+                    # Player name
+                    - label:
+                        id: player_0_name_lbl
+                        text: "Player 0"
+                        text_font: roboto_16
+                        text_color: 0xFFFFFF
+                        x: 36
+                        y: 4
+                        width: 120
+                        long_mode: SCROLL_CIRCULAR
+                    # Online/Offline status
+                    - label:
+                        id: player_0_status
+                        text: "Online"
+                        text_font: roboto_12
+                        text_color: 0x00D1FF
+                        x: 36
+                        y: 24
+                    # Volume slider (50% width = 156px, but we use smaller)
+                    - slider:
+                        id: player_0_volume_slider
+                        x: 160
+                        y: 16
+                        width: 80
+                        height: 20
+                        min_value: 0
+                        max_value: 100
+                        value: 50
+                        bg_color: 0x2A2A2A
+                        radius: 4
+                        indicator:
+                          bg_color: 0x00D1FF
+                          radius: 4
+                        knob:
+                          bg_color: 0xFFFFFF
+                          radius: 6
+                          width: 12
+                          height: 12
+                        on_release:
+                          - script.execute:
+                              id: set_player_volume
+                              player_index: 0
+                              volume_percent: !lambda 'return (int)x;'
+                    # Power button
+                    - button:
+                        id: player_0_power
+                        x: 252
+                        y: 4
+                        width: 44
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        on_click:
+                          - lambda: |-
+                              bool is_on = id(player_0_online);
+                          - script.execute:
+                              id: set_player_power
+                              player_index: 0
+                              power_on: !lambda 'return !id(player_0_online);'
+                        widgets:
+                          - label:
+                              id: player_0_power_icon
+                              text: "\U000F0425"  # mdi:power
+                              text_font: icons_24
+                              text_color: 0x00D1FF
+                              align: CENTER
+
+              # =================================================================
+              # PLAYER ROW 1
+              # =================================================================
+              - button:
+                  id: player_row_1
+                  width: 304
+                  height: 56
+                  bg_color: 0x1E1E1E
+                  radius: 8
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  pad_all: 8
+                  hidden: true
+                  pressed:
+                    bg_color: 0x2A2A2A
+                  on_click:
+                    - script.execute:
+                        id: select_player
+                        player_index: 1
+                  widgets:
+                    - label:
+                        id: player_1_check
+                        text: "\U000F012C"
+                        text_font: icons_24
+                        text_color: 0x00D1FF
+                        x: 4
+                        y: 8
+                        hidden: true
+                    - label:
+                        id: player_1_circle
+                        text: "\U000F0765"
+                        text_font: icons_24
+                        text_color: 0x666666
+                        x: 4
+                        y: 8
+                    - label:
+                        id: player_1_name_lbl
+                        text: "Player 1"
+                        text_font: roboto_16
+                        text_color: 0xFFFFFF
+                        x: 36
+                        y: 4
+                        width: 120
+                        long_mode: SCROLL_CIRCULAR
+                    - label:
+                        id: player_1_status
+                        text: "Online"
+                        text_font: roboto_12
+                        text_color: 0x00D1FF
+                        x: 36
+                        y: 24
+                    - slider:
+                        id: player_1_volume_slider
+                        x: 160
+                        y: 16
+                        width: 80
+                        height: 20
+                        min_value: 0
+                        max_value: 100
+                        value: 50
+                        bg_color: 0x2A2A2A
+                        radius: 4
+                        indicator:
+                          bg_color: 0x00D1FF
+                          radius: 4
+                        knob:
+                          bg_color: 0xFFFFFF
+                          radius: 6
+                          width: 12
+                          height: 12
+                        on_release:
+                          - script.execute:
+                              id: set_player_volume
+                              player_index: 1
+                              volume_percent: !lambda 'return (int)x;'
+                    - button:
+                        id: player_1_power
+                        x: 252
+                        y: 4
+                        width: 44
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        on_click:
+                          - script.execute:
+                              id: set_player_power
+                              player_index: 1
+                              power_on: !lambda 'return !id(player_1_online);'
+                        widgets:
+                          - label:
+                              id: player_1_power_icon
+                              text: "\U000F0425"
+                              text_font: icons_24
+                              text_color: 0x00D1FF
+                              align: CENTER
+
+              # =================================================================
+              # PLAYER ROW 2
+              # =================================================================
+              - button:
+                  id: player_row_2
+                  width: 304
+                  height: 56
+                  bg_color: 0x1E1E1E
+                  radius: 8
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  pad_all: 8
+                  hidden: true
+                  pressed:
+                    bg_color: 0x2A2A2A
+                  on_click:
+                    - script.execute:
+                        id: select_player
+                        player_index: 2
+                  widgets:
+                    - label:
+                        id: player_2_check
+                        text: "\U000F012C"
+                        text_font: icons_24
+                        text_color: 0x00D1FF
+                        x: 4
+                        y: 8
+                        hidden: true
+                    - label:
+                        id: player_2_circle
+                        text: "\U000F0765"
+                        text_font: icons_24
+                        text_color: 0x666666
+                        x: 4
+                        y: 8
+                    - label:
+                        id: player_2_name_lbl
+                        text: "Player 2"
+                        text_font: roboto_16
+                        text_color: 0xFFFFFF
+                        x: 36
+                        y: 4
+                        width: 120
+                        long_mode: SCROLL_CIRCULAR
+                    - label:
+                        id: player_2_status
+                        text: "Online"
+                        text_font: roboto_12
+                        text_color: 0x00D1FF
+                        x: 36
+                        y: 24
+                    - slider:
+                        id: player_2_volume_slider
+                        x: 160
+                        y: 16
+                        width: 80
+                        height: 20
+                        min_value: 0
+                        max_value: 100
+                        value: 50
+                        bg_color: 0x2A2A2A
+                        radius: 4
+                        indicator:
+                          bg_color: 0x00D1FF
+                          radius: 4
+                        knob:
+                          bg_color: 0xFFFFFF
+                          radius: 6
+                          width: 12
+                          height: 12
+                        on_release:
+                          - script.execute:
+                              id: set_player_volume
+                              player_index: 2
+                              volume_percent: !lambda 'return (int)x;'
+                    - button:
+                        id: player_2_power
+                        x: 252
+                        y: 4
+                        width: 44
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        on_click:
+                          - script.execute:
+                              id: set_player_power
+                              player_index: 2
+                              power_on: !lambda 'return !id(player_2_online);'
+                        widgets:
+                          - label:
+                              id: player_2_power_icon
+                              text: "\U000F0425"
+                              text_font: icons_24
+                              text_color: 0x00D1FF
+                              align: CENTER
+
+              # =================================================================
+              # PLAYER ROW 3
+              # =================================================================
+              - button:
+                  id: player_row_3
+                  width: 304
+                  height: 56
+                  bg_color: 0x1E1E1E
+                  radius: 8
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  pad_all: 8
+                  hidden: true
+                  pressed:
+                    bg_color: 0x2A2A2A
+                  on_click:
+                    - script.execute:
+                        id: select_player
+                        player_index: 3
+                  widgets:
+                    - label:
+                        id: player_3_check
+                        text: "\U000F012C"
+                        text_font: icons_24
+                        text_color: 0x00D1FF
+                        x: 4
+                        y: 8
+                        hidden: true
+                    - label:
+                        id: player_3_circle
+                        text: "\U000F0765"
+                        text_font: icons_24
+                        text_color: 0x666666
+                        x: 4
+                        y: 8
+                    - label:
+                        id: player_3_name_lbl
+                        text: "Player 3"
+                        text_font: roboto_16
+                        text_color: 0xFFFFFF
+                        x: 36
+                        y: 4
+                        width: 120
+                        long_mode: SCROLL_CIRCULAR
+                    - label:
+                        id: player_3_status
+                        text: "Online"
+                        text_font: roboto_12
+                        text_color: 0x00D1FF
+                        x: 36
+                        y: 24
+                    - slider:
+                        id: player_3_volume_slider
+                        x: 160
+                        y: 16
+                        width: 80
+                        height: 20
+                        min_value: 0
+                        max_value: 100
+                        value: 50
+                        bg_color: 0x2A2A2A
+                        radius: 4
+                        indicator:
+                          bg_color: 0x00D1FF
+                          radius: 4
+                        knob:
+                          bg_color: 0xFFFFFF
+                          radius: 6
+                          width: 12
+                          height: 12
+                        on_release:
+                          - script.execute:
+                              id: set_player_volume
+                              player_index: 3
+                              volume_percent: !lambda 'return (int)x;'
+                    - button:
+                        id: player_3_power
+                        x: 252
+                        y: 4
+                        width: 44
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        on_click:
+                          - script.execute:
+                              id: set_player_power
+                              player_index: 3
+                              power_on: !lambda 'return !id(player_3_online);'
+                        widgets:
+                          - label:
+                              id: player_3_power_icon
+                              text: "\U000F0425"
+                              text_font: icons_24
+                              text_color: 0x00D1FF
+                              align: CENTER
+
+              # =================================================================
+              # "No Players" Message (shown when list is empty)
+              # =================================================================
+              - label:
+                  id: lbl_no_players
+                  text: "No players available"
+                  text_font: roboto_16
+                  text_color: 0x666666
+                  align: CENTER
+                  y: 60
+
+# =============================================================================
+# Scripts - Player Row UI Updates
+# =============================================================================
+
+script:
+  # ---------------------------------------------------------------------------
+  # Update Player Row UI (T062)
+  # ---------------------------------------------------------------------------
+  # Updates player row display based on player data
+  # Called when navigating to players screen or when player state changes
+  - id: update_player_rows
+    mode: restart
+    then:
+      - lambda: |-
+          ESP_LOGI("players_ui", "Updating player row UI...");
+
+          int visible_count = 0;
+
+          // Helper to update a single row with null checks (H8)
+          auto update_row = [&](int idx,
+                                lv_obj_t* row,
+                                lv_obj_t* check,
+                                lv_obj_t* circle,
+                                lv_obj_t* name_lbl,
+                                lv_obj_t* status_lbl,
+                                lv_obj_t* power_icon,
+                                lv_obj_t* vol_slider,
+                                const std::string& entity_id,
+                                const std::string& name,
+                                bool is_online,
+                                int volume) {
+            // Null check on all widget pointers (H8)
+            if (row == nullptr || check == nullptr || circle == nullptr ||
+                name_lbl == nullptr || status_lbl == nullptr ||
+                power_icon == nullptr || vol_slider == nullptr) {
+              ESP_LOGW("players_ui", "Null widget pointer for row %d", idx);
+              return;
+            }
+
+            if (entity_id.empty()) {
+              // Hide empty row
+              lv_obj_add_flag(row, LV_OBJ_FLAG_HIDDEN);
+              return;
+            }
+
+            visible_count++;
+            lv_obj_clear_flag(row, LV_OBJ_FLAG_HIDDEN);
+
+            // Reset border to default (clears offline tap feedback)
+            lv_obj_set_style_border_color(row, lv_color_hex(0x2A2A2A), 0);
+            lv_obj_set_style_border_width(row, 1, 0);
+
+            // Update name
+            lv_label_set_text(name_lbl, name.c_str());
+
+            // Check if this is selected player
+            bool is_selected = (entity_id == id(selected_player_id));
+
+            if (is_selected) {
+              lv_obj_clear_flag(check, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_add_flag(circle, LV_OBJ_FLAG_HIDDEN);
+            } else {
+              lv_obj_add_flag(check, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_clear_flag(circle, LV_OBJ_FLAG_HIDDEN);
+            }
+
+            // Update online/offline status and styling (T062)
+            if (is_online) {
+              lv_label_set_text(status_lbl, "Online");
+              lv_obj_set_style_text_color(status_lbl, lv_color_hex(0x00D1FF), 0);
+              lv_obj_set_style_text_color(name_lbl, lv_color_hex(0xFFFFFF), 0);
+              lv_obj_set_style_text_color(power_icon, lv_color_hex(0x00D1FF), 0);
+              lv_obj_set_style_text_color(circle, lv_color_hex(0x666666), 0);
+            } else {
+              // Greyed out for offline (FR-034)
+              lv_label_set_text(status_lbl, "Offline");
+              lv_obj_set_style_text_color(status_lbl, lv_color_hex(0x666666), 0);
+              lv_obj_set_style_text_color(name_lbl, lv_color_hex(0x666666), 0);
+              lv_obj_set_style_text_color(power_icon, lv_color_hex(0x666666), 0);
+              lv_obj_set_style_text_color(circle, lv_color_hex(0x444444), 0);
+            }
+
+            // Update volume slider
+            lv_slider_set_value(vol_slider, volume, LV_ANIM_OFF);
+          };
+
+          // Update each row
+          update_row(0, id(player_row_0), id(player_0_check), id(player_0_circle),
+                     id(player_0_name_lbl), id(player_0_status), id(player_0_power_icon),
+                     id(player_0_volume_slider),
+                     id(player_0_entity_id), id(player_0_name), id(player_0_online), id(player_0_volume));
+
+          update_row(1, id(player_row_1), id(player_1_check), id(player_1_circle),
+                     id(player_1_name_lbl), id(player_1_status), id(player_1_power_icon),
+                     id(player_1_volume_slider),
+                     id(player_1_entity_id), id(player_1_name), id(player_1_online), id(player_1_volume));
+
+          update_row(2, id(player_row_2), id(player_2_check), id(player_2_circle),
+                     id(player_2_name_lbl), id(player_2_status), id(player_2_power_icon),
+                     id(player_2_volume_slider),
+                     id(player_2_entity_id), id(player_2_name), id(player_2_online), id(player_2_volume));
+
+          update_row(3, id(player_row_3), id(player_3_check), id(player_3_circle),
+                     id(player_3_name_lbl), id(player_3_status), id(player_3_power_icon),
+                     id(player_3_volume_slider),
+                     id(player_3_entity_id), id(player_3_name), id(player_3_online), id(player_3_volume));
+
+          // Show/hide "No players" message (with null check)
+          lv_obj_t* no_players_lbl = id(lbl_no_players);
+          if (no_players_lbl != nullptr) {
+            if (visible_count == 0) {
+              lv_obj_clear_flag(no_players_lbl, LV_OBJ_FLAG_HIDDEN);
+            } else {
+              lv_obj_add_flag(no_players_lbl, LV_OBJ_FLAG_HIDDEN);
+            }
+          }
+
+          // Update count label (with null check)
+          lv_obj_t* count_lbl = id(lbl_players_count);
+          if (count_lbl != nullptr) {
+            char count_str[16];
+            snprintf(count_str, sizeof(count_str), "%d/%d",
+                     id(online_player_count), id(available_player_count));
+            lv_label_set_text(count_lbl, count_str);
+          }
+
+          ESP_LOGI("players_ui", "Updated %d visible player rows", visible_count);
+
+# =============================================================================
+# Usage Notes
+# =============================================================================
+#
+# This screen displays available media players in a scrollable list.
+# Each row shows:
+#   - Selection indicator (checkmark if selected, circle if not)
+#   - Player name (with scroll for long names)
+#   - Online/Offline status
+#   - Volume slider (80px width)
+#   - Power toggle button
+#
+# Layout Notes:
+#   - Row width is 304px to account for scrollbar (320 - 8 padding - 8 scrollbar)
+#   - Scrollbar appears automatically when content overflows (scrollbar_mode: AUTO)
+#   - Each row is 56px height with 8px padding
+#
+# Offline players are shown in grey (#666666) per FR-034.
+# Tapping an offline player shows brief orange border feedback.
+#
+# When a player is selected:
+#   - It becomes the active media player for all controls
+#   - Selection is persisted to NVS for boot restore
+#   - The checkmark indicator appears
+#
+# To update the UI when player states change:
+#   - script.execute: update_player_rows
+#
+# Navigation:
+#   - Back button returns to previous screen (navigate_back)
+#   - Home screen Speakers tile navigates here (navigate_to target_screen: 2)
+#
+# =============================================================================

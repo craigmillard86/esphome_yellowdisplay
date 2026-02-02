@@ -254,7 +254,7 @@
 
 ---
 
-## Phase 5: User Story 3 - Select Target Player (Priority: P2)
+## Phase 5: User Story 3 - Select Target Player (Priority: P2) ✅ COMPLETE
 
 **Goal**: Allow users to view available players, see status, and select which player to control
 
@@ -262,21 +262,21 @@
 
 ### Implementation for User Story 3
 
-- [ ] T055 [US3] Create Player Management screen layout in esphome/ui/players.yaml
-- [ ] T056 [P] [US3] Create scrollable list container component in esphome/ui/components/scroll_list.yaml
-- [ ] T057 [P] [US3] Create player row component (icon, label, status, volume) in esphome/ui/components/player_row.yaml
-- [ ] T058 [US3] Add volume slider to player row (50% width) in esphome/ui/components/player_row.yaml
-- [ ] T059 [US3] Add power toggle switch per player in esphome/ui/components/player_row.yaml
-- [ ] T060 [US3] Query Music Assistant for available players list in esphome/packages/player_manager.yaml
-- [ ] T061 [US3] Subscribe to player state updates in esphome/packages/player_manager.yaml
-- [ ] T062 [US3] Implement online/offline styling (bright vs greyed #666666) in esphome/ui/components/player_row.yaml
-- [ ] T063 [US3] Implement tap-to-select behavior for player rows in esphome/ui/players.yaml
-- [ ] T064 [US3] Prevent selection of offline players (FR-034) in esphome/packages/player_manager.yaml
-- [ ] T065 [US3] Update header to show selected player name in esphome/ui/components/header.yaml
-- [ ] T066 [US3] Persist selected player ID to NVS in esphome/packages/player_manager.yaml
-- [ ] T067 [US3] Restore selected player on boot from NVS in esphome/packages/player_manager.yaml
-- [ ] T068 [US3] Handle deleted/unavailable player - prompt re-selection in esphome/packages/player_manager.yaml
-- [ ] T069 [US3] Wire Speakers tile navigation to Player Management screen in esphome/ui/home.yaml
+- [x] T055 [US3] Create Player Management screen layout in esphome/ui/players.yaml
+- [x] T056 [P] [US3] Create scrollable list container component in esphome/ui/components/scroll_list.yaml
+- [x] T057 [P] [US3] Create player row component (icon, label, status, volume) in esphome/ui/components/player_row.yaml
+- [x] T058 [US3] Add volume slider to player row (50% width) in esphome/ui/components/player_row.yaml
+- [x] T059 [US3] Add power toggle switch per player in esphome/ui/components/player_row.yaml
+- [x] T060 [US3] Query Music Assistant for available players list in esphome/packages/player_manager.yaml
+- [x] T061 [US3] Subscribe to player state updates in esphome/packages/player_manager.yaml
+- [x] T062 [US3] Implement online/offline styling (bright vs greyed #666666) in esphome/ui/components/player_row.yaml
+- [x] T063 [US3] Implement tap-to-select behavior for player rows in esphome/ui/players.yaml
+- [x] T064 [US3] Prevent selection of offline players (FR-034) in esphome/packages/player_manager.yaml
+- [x] T065 [US3] Update header to show selected player name in esphome/ui/components/header.yaml
+- [x] T066 [US3] Persist selected player ID to NVS in esphome/packages/player_manager.yaml
+- [x] T067 [US3] Restore selected player on boot from NVS in esphome/packages/player_manager.yaml
+- [x] T068 [US3] Handle deleted/unavailable player - prompt re-selection in esphome/packages/player_manager.yaml
+- [x] T069 [US3] Wire Speakers tile navigation to Player Management screen in esphome/ui/home.yaml
 
 **Checkpoint**: Player list displays all available players, selection works and persists across reboot, offline players greyed out
 

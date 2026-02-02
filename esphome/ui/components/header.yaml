@@ -1,0 +1,89 @@
+# =============================================================================
+# UI Component: Header Bar with Selected Player Name (T065)
+# Purpose: Reusable header component showing selected player name
+# Dependencies: packages/lvgl.yaml (LVGL framework, theme, fonts, icons)
+#               packages/player_manager.yaml (selected player state)
+# Exposes: Header widgets for player name display
+# Display: Header area (44px height) with selected player indicator
+# =============================================================================
+
+# This file implements:
+# - T065: Update header to show selected player name
+
+# Note: This component provides a script and interval to update the header
+# on screens that show the selected player name. The actual header widgets
+# are defined in each screen's page definition to allow customization.
+
+# =============================================================================
+# Scripts - Header Updates
+# =============================================================================
+
+script:
+  # ---------------------------------------------------------------------------
+  # Update Header Player Name (T065)
+  # ---------------------------------------------------------------------------
+  # Updates the player name label in Now Playing screen header
+  # Also updates the home dashboard speaker count
+  - id: update_header_player_name
+    mode: restart
+    then:
+      - lambda: |-
+          // Get selected player name
+          std::string player_name = id(selected_player_name);
+
+          if (player_name.empty()) {
+            player_name = "No Player";
+          }
+
+          // Update Now Playing screen player name label (with null check - H8)
+          lv_obj_t* player_lbl = id(lbl_player_name);
+          if (player_lbl != nullptr) {
+            lv_label_set_text(player_lbl, player_name.c_str());
+          }
+
+          // Update home dashboard speaker count (with null check - H8)
+          lv_obj_t* count_lbl = id(lbl_home_speaker_count);
+          if (count_lbl != nullptr) {
+            int online = id(online_player_count);
+            char count_str[16];
+            snprintf(count_str, sizeof(count_str), "%d Active", online);
+            lv_label_set_text(count_lbl, count_str);
+          }
+
+          ESP_LOGD("header", "Header updated - Player: %s, Active: %d",
+                   player_name.c_str(), id(online_player_count));
+
+# =============================================================================
+# Interval - Periodic Header Update
+# =============================================================================
+
+interval:
+  # Update header periodically to reflect player state changes
+  - interval: 2s
+    then:
+      - script.execute: update_header_player_name
+
+# =============================================================================
+# Usage Notes
+# =============================================================================
+#
+# The header player name is displayed in several places:
+#
+# 1. Now Playing Screen (page_main):
+#    - lbl_player_name: Shows the selected player's friendly name
+#    - Located below the status label, above track info
+#
+# 2. Home Dashboard (page_home):
+#    - lbl_home_speaker_count: Shows "X Active" count
+#    - Located in the Speakers tile
+#
+# The update_header_player_name script updates both locations.
+# Call this script when:
+#   - A new player is selected
+#   - Player online status changes
+#   - Navigating to a screen that shows the player name
+#
+# The interval ensures the header stays in sync even if the
+# player state changes while on a different screen.
+#
+# =============================================================================

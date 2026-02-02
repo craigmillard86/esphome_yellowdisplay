@@ -50,6 +50,10 @@ font:
       - "\U000F02D1"  # mdi:heart
       - "\U000F004D"  # mdi:arrow-left (back button)
       - "\U000F015A"  # mdi:home (home button)
+      # Player management icons (T055-T069)
+      - "\U000F012C"  # mdi:check-circle (selected player)
+      - "\U000F0765"  # mdi:circle-outline (unselected player)
+      - "\U000F0425"  # mdi:power (power toggle)
 
 # =============================================================================
 # LVGL Configuration
@@ -346,10 +350,10 @@ lvgl:
                   tag: "ui"
                   level: INFO
                   format: "Speakers tile pressed"
-              # Navigate to Players/Speakers screen (T054) - placeholder until screen exists
-              # - script.execute:
-              #     id: navigate_to
-              #     target_screen: 2  # PLAYERS
+              # Navigate to Players/Speakers screen (T069)
+              - script.execute:
+                  id: navigate_to
+                  target_screen: 2  # PLAYERS
             widgets:
               # Speaker icon centered at top
               - label:

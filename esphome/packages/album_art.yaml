@@ -22,10 +22,11 @@ substitutions:
   # Album art fetch timeout (milliseconds)
   album_art_timeout_ms: "5000"
 
-  # Album art dimensions (pixels) - 128x128 to fill container
-  # 128x128 RGB565 = 32768 bytes - HTTP (no SSL) should have enough heap
-  album_art_width: "128"
-  album_art_height: "128"
+  # Album art dimensions (pixels) - 100x100 for memory safety during HTTP download
+  # 100x100 RGB565 = 20000 bytes - leaves headroom when HTTP fragments heap
+  # (128x128 = 32KB fails because HTTP download leaves only ~30KB contiguous)
+  album_art_width: "100"
+  album_art_height: "100"
 
 # =============================================================================
 # HTTP Request Component (required for Last.fm API and online_image)
@@ -83,16 +84,17 @@ globals:
 
   # Minimum free heap required for image decode (bytes)
   # This is the largest contiguous block needed, not total free heap
-  # Calculation for 128x128 with HTTP (no SSL overhead):
-  #   - PNG decode buffer: ~4KB (buffer_size)
-  #   - Final RGB565 buffer: 128x128x2 = 32768 bytes
-  #   - LVGL image descriptor + overhead: ~2KB
-  #   - Safety margin: 6KB
-  #   Total: 45KB minimum contiguous
+  # Calculation for 174x174 large image -> 100x100 display:
+  #   - HTTP receive buffers: ~8KB (TCP window)
+  #   - PNG streaming buffer: ~16KB (buffer_size)
+  #   - PNG decode working memory: ~8KB
+  #   - Final RGB565 buffer: 100x100x2 = 20KB
+  #   - Safety margin for fragmentation: ~8KB
+  #   Total: 60KB minimum contiguous
   - id: album_art_min_heap
     type: uint32_t
     restore_value: no
-    initial_value: '45000'  # 45KB minimum contiguous block required
+    initial_value: '60000'  # 60KB minimum contiguous block required
 
 # =============================================================================
 # Online Image Component - Album Art Fetcher
@@ -105,9 +107,9 @@ online_image:
     format: PNG  # Last.fm serves PNG images
     type: RGB565
     resize: ${album_art_width}x${album_art_height}
-    # Large images are 174x174 (~10-15KB PNG), downscaled to 128x128 RGB565 (32KB final)
+    # Large images are 174x174 (~50KB PNG), downscaled to 128x128 RGB565 (32KB final)
     # Using HTTP instead of HTTPS eliminates ~80KB SSL overhead
-    buffer_size: 16384  # 16KB buffer for larger source images
+    buffer_size: 16384  # 16KB streaming buffer
     update_interval: never  # Manual updates only
 
     on_download_finished:
@@ -282,7 +284,7 @@ script:
 
                   // Simple JSON parsing - find the image array
                   // Last.fm returns images in order: small, medium, large, extralarge
-                  // We use "large" (index 2) which is 174x174 (~10-15KB PNG) - better quality
+                  // We use "large" (index 2) which is 174x174 for better quality
 
                   size_t img_pos = body.find("\"image\":");
                   if (img_pos == std::string::npos) {

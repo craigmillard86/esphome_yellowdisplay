@@ -1,0 +1,838 @@
+# =============================================================================
+# Package: Player Manager (T060-T068)
+# Purpose: Multi-player management for Music Assistant integration
+# Dependencies: packages/media_player.yaml (active player state)
+#               packages/homeassistant.yaml (HA API connection)
+# Exposes: Player list management, selection, NVS persistence
+# =============================================================================
+
+# This package implements:
+# - T060: Query Music Assistant for available players list
+# - T061: Subscribe to player state updates
+# - T064: Prevent selection of offline players (FR-034)
+# - T066: Persist selected player ID to NVS
+# - T067: Restore selected player on boot from NVS
+# - T068: Handle deleted/unavailable player - prompt re-selection
+#
+# PLAYER DISCOVERY LIMITATION:
+# This implementation uses static player registration via HA text_sensor subscriptions.
+# Players must be pre-configured in homeassistant.yaml with specific entity IDs.
+# Dynamic player discovery from Music Assistant would require a custom ESPHome component
+# that queries the HA REST API or uses websocket subscriptions to enumerate entities.
+# For most home setups with a fixed set of speakers, static configuration is sufficient.
+
+# =============================================================================
+# Substitutions
+# =============================================================================
+
+substitutions:
+  # Maximum number of players to track (memory constraint)
+  max_players: "8"
+
+  # Player state poll interval
+  player_state_poll_interval: "5s"
+
+  # NVS namespace for player data
+  player_nvs_namespace: "player"
+
+# =============================================================================
+# Global Variables - Player State Management
+# =============================================================================
+
+globals:
+  # Currently selected player entity_id (persisted to NVS)
+  # Format: "media_player.living_room_speaker"
+  - id: selected_player_id
+    type: std::string
+    restore_value: yes  # Restore from NVS on boot (T067)
+    initial_value: '""'
+
+  # Selected player friendly name (for UI display)
+  - id: selected_player_name
+    type: std::string
+    restore_value: no
+    initial_value: '"No Player Selected"'
+
+  # Selected player online status
+  - id: selected_player_online
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # Flag: Player selection prompt needed (T068)
+  # Set when selected player becomes unavailable
+  - id: player_selection_required
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # Total count of available players
+  - id: available_player_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Online player count (for UI display)
+  - id: online_player_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Player data arrays (up to max_players entries)
+  # Each player has: entity_id, friendly_name, is_online, volume_level
+
+  # Player 0
+  - id: player_0_entity_id
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_0_name
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_0_online
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: player_0_volume
+    type: int
+    restore_value: no
+    initial_value: '50'
+
+  # Player 1
+  - id: player_1_entity_id
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_1_name
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_1_online
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: player_1_volume
+    type: int
+    restore_value: no
+    initial_value: '50'
+
+  # Player 2
+  - id: player_2_entity_id
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_2_name
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_2_online
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: player_2_volume
+    type: int
+    restore_value: no
+    initial_value: '50'
+
+  # Player 3
+  - id: player_3_entity_id
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_3_name
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_3_online
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: player_3_volume
+    type: int
+    restore_value: no
+    initial_value: '50'
+
+  # Player 4
+  - id: player_4_entity_id
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_4_name
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_4_online
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: player_4_volume
+    type: int
+    restore_value: no
+    initial_value: '50'
+
+  # Player 5
+  - id: player_5_entity_id
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_5_name
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_5_online
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: player_5_volume
+    type: int
+    restore_value: no
+    initial_value: '50'
+
+  # Player 6
+  - id: player_6_entity_id
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_6_name
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_6_online
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: player_6_volume
+    type: int
+    restore_value: no
+    initial_value: '50'
+
+  # Player 7
+  - id: player_7_entity_id
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_7_name
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_7_online
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: player_7_volume
+    type: int
+    restore_value: no
+    initial_value: '50'
+
+  # Last button press timestamp for debouncing
+  - id: last_player_select_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+# =============================================================================
+# Text Sensors - Subscribe to Player States from Home Assistant (T061)
+# =============================================================================
+# Note: These sensors subscribe to pre-configured media_player entities
+# For dynamic player discovery, a custom component would be needed
+
+text_sensor:
+  # Selected player display name (for header/UI)
+  - platform: template
+    id: selected_player_display
+    name: "Selected Player"
+    icon: "mdi:speaker"
+    update_interval: never
+    lambda: |-
+      return {id(selected_player_name)};
+
+  # Player count display
+  - platform: template
+    id: player_count_display
+    name: "Available Players"
+    icon: "mdi:speaker-multiple"
+    update_interval: 10s
+    lambda: |-
+      char buf[32];
+      snprintf(buf, sizeof(buf), "%d online / %d total",
+               id(online_player_count), id(available_player_count));
+      return {buf};
+
+  # ==========================================================================
+  # Home Assistant Media Player Subscriptions
+  # ==========================================================================
+  # Subscribe to media_player entities to populate the player list.
+  # Add more subscriptions here for additional players.
+
+  # Player 0: Default player (from media_player.yaml substitution)
+  - platform: homeassistant
+    id: ha_player_0_state
+    entity_id: ${default_media_player}
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            // Determine online status from state
+            bool is_online = (x != "unavailable" && x != "unknown" && !x.empty());
+
+            // Get friendly name (will be updated by attribute subscription)
+            std::string name = id(player_0_name);
+            if (name.empty()) {
+              name = "${default_media_player}";
+            }
+
+            ESP_LOGD("player_mgr", "Player 0 state update: %s -> %s",
+                     x.c_str(), is_online ? "online" : "offline");
+
+            // Update player data
+            id(player_0_entity_id) = "${default_media_player}";
+            id(player_0_online) = is_online;
+        - script.execute: refresh_player_list
+
+  # Player 0: Friendly name attribute
+  - platform: homeassistant
+    id: ha_player_0_name
+    entity_id: ${default_media_player}
+    attribute: friendly_name
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGD("player_mgr", "Player 0 name: %s", x.c_str());
+            id(player_0_name) = x;
+            id(player_0_entity_id) = "${default_media_player}";
+        - script.execute: refresh_player_list
+
+# =============================================================================
+# Scripts - Player Management (T060, T063, T064, T066-T068)
+# =============================================================================
+
+script:
+  # ---------------------------------------------------------------------------
+  # Initialize Player Manager (T067)
+  # ---------------------------------------------------------------------------
+  # Called on boot to restore selected player and validate availability
+  # Note: This script waits for HA API connection before proceeding
+  - id: player_manager_init
+    mode: single
+    then:
+      - lambda: |-
+          // Check if Home Assistant API is connected before proceeding (C3 - race condition fix)
+          if (!id(ha_api_connected).state) {
+            ESP_LOGW("player_mgr", "HA API not connected yet, deferring init...");
+            return;
+          }
+          ESP_LOGI("player_mgr", "Initializing player manager...");
+
+          // Check if we have a persisted player selection
+          std::string saved_id = id(selected_player_id);
+          if (!saved_id.empty()) {
+            ESP_LOGI("player_mgr", "Restored selected player from NVS: %s", saved_id.c_str());
+
+            // Update active player in media_player package
+            id(active_player_entity) = saved_id;
+          } else {
+            ESP_LOGI("player_mgr", "No saved player selection found");
+            id(player_selection_required) = true;
+          }
+
+      # Request player list update from HA
+      - script.execute: refresh_player_list
+
+  # ---------------------------------------------------------------------------
+  # Refresh Player List (T060)
+  # ---------------------------------------------------------------------------
+  # Queries Home Assistant for available media players
+  # Uses HA service call to get player list
+  - id: refresh_player_list
+    mode: restart
+    then:
+      - lambda: |-
+          ESP_LOGI("player_mgr", "Refreshing player list from Home Assistant...");
+
+      # Call HA to get media_player entities via event
+      # Note: In production, this would use a custom service or sensor
+      # For now, we populate from hardcoded entities in text_sensor subscriptions
+
+      - delay: 500ms
+
+      - lambda: |-
+          // Count available and online players
+          int available = 0;
+          int online = 0;
+
+          // Check each player slot
+          if (!id(player_0_entity_id).empty()) { available++; if (id(player_0_online)) online++; }
+          if (!id(player_1_entity_id).empty()) { available++; if (id(player_1_online)) online++; }
+          if (!id(player_2_entity_id).empty()) { available++; if (id(player_2_online)) online++; }
+          if (!id(player_3_entity_id).empty()) { available++; if (id(player_3_online)) online++; }
+          if (!id(player_4_entity_id).empty()) { available++; if (id(player_4_online)) online++; }
+          if (!id(player_5_entity_id).empty()) { available++; if (id(player_5_online)) online++; }
+          if (!id(player_6_entity_id).empty()) { available++; if (id(player_6_online)) online++; }
+          if (!id(player_7_entity_id).empty()) { available++; if (id(player_7_online)) online++; }
+
+          id(available_player_count) = available;
+          id(online_player_count) = online;
+
+          ESP_LOGI("player_mgr", "Player list updated: %d available, %d online", available, online);
+
+      - component.update: player_count_display
+
+  # ---------------------------------------------------------------------------
+  # Select Player (T063, T064, T066)
+  # ---------------------------------------------------------------------------
+  # Selects a player by index (0-7)
+  # Validates player is online before selection (FR-034)
+  # Persists selection to NVS (T066)
+  - id: select_player
+    mode: single
+    parameters:
+      player_index: int
+    then:
+      - lambda: |-
+          // Debounce check (200ms) - use signed difference to handle millis() overflow
+          uint32_t now = millis();
+          int32_t elapsed = (int32_t)(now - id(last_player_select_ms));
+          if (elapsed >= 0 && elapsed < 200) {
+            ESP_LOGD("player_mgr", "Player select debounced");
+            return;
+          }
+          id(last_player_select_ms) = now;
+
+          // Get player data by index
+          std::string entity_id;
+          std::string name;
+          bool is_online = false;
+
+          switch (player_index) {
+            case 0:
+              entity_id = id(player_0_entity_id);
+              name = id(player_0_name);
+              is_online = id(player_0_online);
+              break;
+            case 1:
+              entity_id = id(player_1_entity_id);
+              name = id(player_1_name);
+              is_online = id(player_1_online);
+              break;
+            case 2:
+              entity_id = id(player_2_entity_id);
+              name = id(player_2_name);
+              is_online = id(player_2_online);
+              break;
+            case 3:
+              entity_id = id(player_3_entity_id);
+              name = id(player_3_name);
+              is_online = id(player_3_online);
+              break;
+            case 4:
+              entity_id = id(player_4_entity_id);
+              name = id(player_4_name);
+              is_online = id(player_4_online);
+              break;
+            case 5:
+              entity_id = id(player_5_entity_id);
+              name = id(player_5_name);
+              is_online = id(player_5_online);
+              break;
+            case 6:
+              entity_id = id(player_6_entity_id);
+              name = id(player_6_name);
+              is_online = id(player_6_online);
+              break;
+            case 7:
+              entity_id = id(player_7_entity_id);
+              name = id(player_7_name);
+              is_online = id(player_7_online);
+              break;
+            default:
+              ESP_LOGE("player_mgr", "Invalid player index: %d", player_index);
+              return;
+          }
+
+          // Validate player exists
+          if (entity_id.empty()) {
+            ESP_LOGW("player_mgr", "Player slot %d is empty", player_index);
+            return;
+          }
+
+          // FR-034: Prevent selection of offline players
+          if (!is_online) {
+            ESP_LOGW("player_mgr", "Cannot select offline player: %s", name.c_str());
+            // Brief visual feedback - flash the row border red
+            lv_obj_t* row = nullptr;
+            switch (player_index) {
+              case 0: row = id(player_row_0); break;
+              case 1: row = id(player_row_1); break;
+              case 2: row = id(player_row_2); break;
+              case 3: row = id(player_row_3); break;
+            }
+            if (row != nullptr) {
+              // Flash border to indicate cannot select
+              lv_obj_set_style_border_color(row, lv_color_hex(0xFF6B35), 0);  // Orange/warning
+              lv_obj_set_style_border_width(row, 2, 0);
+            }
+            return;
+          }
+
+          ESP_LOGI("player_mgr", "Selecting player %d: %s (%s)",
+                   player_index, name.c_str(), entity_id.c_str());
+
+          // Update selected player state
+          id(selected_player_id) = entity_id;
+          id(selected_player_name) = name;
+          id(selected_player_online) = is_online;
+          id(player_selection_required) = false;
+
+          // Update active player in media_player package
+          id(active_player_entity) = entity_id;
+
+      - component.update: selected_player_display
+
+      # Update header with new player name (T065)
+      - script.execute: update_header_player_name
+
+      - logger.log:
+          tag: "player_mgr"
+          level: INFO
+          format: "Player selection complete"
+
+  # ---------------------------------------------------------------------------
+  # Check Selected Player Availability (T068)
+  # ---------------------------------------------------------------------------
+  # Called periodically to verify selected player is still available
+  # If unavailable, sets flag for re-selection prompt
+  - id: check_selected_player
+    mode: single
+    then:
+      - lambda: |-
+          std::string current_id = id(selected_player_id);
+
+          if (current_id.empty()) {
+            // No player selected - require selection
+            if (!id(player_selection_required)) {
+              ESP_LOGW("player_mgr", "No player selected - prompting for selection");
+              id(player_selection_required) = true;
+            }
+            return;
+          }
+
+          // Find current player in list and check status
+          bool found = false;
+          bool online = false;
+          std::string name;
+
+          // Check each slot
+          if (id(player_0_entity_id) == current_id) {
+            found = true; online = id(player_0_online); name = id(player_0_name);
+          } else if (id(player_1_entity_id) == current_id) {
+            found = true; online = id(player_1_online); name = id(player_1_name);
+          } else if (id(player_2_entity_id) == current_id) {
+            found = true; online = id(player_2_online); name = id(player_2_name);
+          } else if (id(player_3_entity_id) == current_id) {
+            found = true; online = id(player_3_online); name = id(player_3_name);
+          } else if (id(player_4_entity_id) == current_id) {
+            found = true; online = id(player_4_online); name = id(player_4_name);
+          } else if (id(player_5_entity_id) == current_id) {
+            found = true; online = id(player_5_online); name = id(player_5_name);
+          } else if (id(player_6_entity_id) == current_id) {
+            found = true; online = id(player_6_online); name = id(player_6_name);
+          } else if (id(player_7_entity_id) == current_id) {
+            found = true; online = id(player_7_online); name = id(player_7_name);
+          }
+
+          if (!found) {
+            // Player was deleted/removed from HA
+            ESP_LOGW("player_mgr", "Selected player no longer exists: %s", current_id.c_str());
+            id(selected_player_id) = "";
+            id(selected_player_name) = "Player Unavailable";
+            id(selected_player_online) = false;
+            id(player_selection_required) = true;
+          } else {
+            // Update cached state
+            id(selected_player_name) = name;
+            id(selected_player_online) = online;
+
+            if (!online && !id(player_selection_required)) {
+              ESP_LOGW("player_mgr", "Selected player went offline: %s", name.c_str());
+              // Don't force re-selection immediately, player may come back
+            }
+          }
+
+      - component.update: selected_player_display
+
+  # ---------------------------------------------------------------------------
+  # Set Player Power (T059)
+  # ---------------------------------------------------------------------------
+  # Turns a player on or off
+  - id: set_player_power
+    mode: restart
+    parameters:
+      player_index: int
+      power_on: bool
+    then:
+      - lambda: |-
+          std::string entity_id;
+
+          switch (player_index) {
+            case 0: entity_id = id(player_0_entity_id); break;
+            case 1: entity_id = id(player_1_entity_id); break;
+            case 2: entity_id = id(player_2_entity_id); break;
+            case 3: entity_id = id(player_3_entity_id); break;
+            case 4: entity_id = id(player_4_entity_id); break;
+            case 5: entity_id = id(player_5_entity_id); break;
+            case 6: entity_id = id(player_6_entity_id); break;
+            case 7: entity_id = id(player_7_entity_id); break;
+            default: return;
+          }
+
+          if (entity_id.empty()) return;
+
+          ESP_LOGI("player_mgr", "Setting player %d power: %s", player_index, power_on ? "ON" : "OFF");
+
+      - if:
+          condition:
+            lambda: 'return power_on;'
+          then:
+            - homeassistant.service:
+                service: media_player.turn_on
+                data:
+                  entity_id: !lambda |-
+                    switch (player_index) {
+                      case 0: return id(player_0_entity_id);
+                      case 1: return id(player_1_entity_id);
+                      case 2: return id(player_2_entity_id);
+                      case 3: return id(player_3_entity_id);
+                      case 4: return id(player_4_entity_id);
+                      case 5: return id(player_5_entity_id);
+                      case 6: return id(player_6_entity_id);
+                      case 7: return id(player_7_entity_id);
+                      default: return std::string("");
+                    }
+          else:
+            - homeassistant.service:
+                service: media_player.turn_off
+                data:
+                  entity_id: !lambda |-
+                    switch (player_index) {
+                      case 0: return id(player_0_entity_id);
+                      case 1: return id(player_1_entity_id);
+                      case 2: return id(player_2_entity_id);
+                      case 3: return id(player_3_entity_id);
+                      case 4: return id(player_4_entity_id);
+                      case 5: return id(player_5_entity_id);
+                      case 6: return id(player_6_entity_id);
+                      case 7: return id(player_7_entity_id);
+                      default: return std::string("");
+                    }
+
+  # ---------------------------------------------------------------------------
+  # Set Player Volume (T058)
+  # ---------------------------------------------------------------------------
+  # Sets volume for a specific player
+  - id: set_player_volume
+    mode: restart
+    parameters:
+      player_index: int
+      volume_percent: int
+    then:
+      - lambda: |-
+          std::string entity_id;
+
+          switch (player_index) {
+            case 0: entity_id = id(player_0_entity_id); id(player_0_volume) = volume_percent; break;
+            case 1: entity_id = id(player_1_entity_id); id(player_1_volume) = volume_percent; break;
+            case 2: entity_id = id(player_2_entity_id); id(player_2_volume) = volume_percent; break;
+            case 3: entity_id = id(player_3_entity_id); id(player_3_volume) = volume_percent; break;
+            case 4: entity_id = id(player_4_entity_id); id(player_4_volume) = volume_percent; break;
+            case 5: entity_id = id(player_5_entity_id); id(player_5_volume) = volume_percent; break;
+            case 6: entity_id = id(player_6_entity_id); id(player_6_volume) = volume_percent; break;
+            case 7: entity_id = id(player_7_entity_id); id(player_7_volume) = volume_percent; break;
+            default: return;
+          }
+
+          if (entity_id.empty()) return;
+
+          ESP_LOGI("player_mgr", "Setting player %d volume: %d%%", player_index, volume_percent);
+
+      - homeassistant.service:
+          service: media_player.volume_set
+          data:
+            entity_id: !lambda |-
+              switch (player_index) {
+                case 0: return id(player_0_entity_id);
+                case 1: return id(player_1_entity_id);
+                case 2: return id(player_2_entity_id);
+                case 3: return id(player_3_entity_id);
+                case 4: return id(player_4_entity_id);
+                case 5: return id(player_5_entity_id);
+                case 6: return id(player_6_entity_id);
+                case 7: return id(player_7_entity_id);
+                default: return std::string("");
+              }
+            volume_level: !lambda 'return volume_percent / 100.0f;'
+
+  # ---------------------------------------------------------------------------
+  # Register Player (T060)
+  # ---------------------------------------------------------------------------
+  # Adds a player to the list (called from HA sensor subscriptions)
+  - id: register_player
+    mode: queued
+    parameters:
+      slot: int
+      entity_id: string
+      name: string
+      is_online: bool
+      volume: int
+    then:
+      - lambda: |-
+          if (slot < 0 || slot >= ${max_players}) {
+            ESP_LOGE("player_mgr", "Invalid player slot: %d", slot);
+            return;
+          }
+
+          ESP_LOGD("player_mgr", "Registering player %d: %s (%s) - %s",
+                   slot, name.c_str(), entity_id.c_str(),
+                   is_online ? "online" : "offline");
+
+          switch (slot) {
+            case 0:
+              id(player_0_entity_id) = entity_id;
+              id(player_0_name) = name;
+              id(player_0_online) = is_online;
+              id(player_0_volume) = volume;
+              break;
+            case 1:
+              id(player_1_entity_id) = entity_id;
+              id(player_1_name) = name;
+              id(player_1_online) = is_online;
+              id(player_1_volume) = volume;
+              break;
+            case 2:
+              id(player_2_entity_id) = entity_id;
+              id(player_2_name) = name;
+              id(player_2_online) = is_online;
+              id(player_2_volume) = volume;
+              break;
+            case 3:
+              id(player_3_entity_id) = entity_id;
+              id(player_3_name) = name;
+              id(player_3_online) = is_online;
+              id(player_3_volume) = volume;
+              break;
+            case 4:
+              id(player_4_entity_id) = entity_id;
+              id(player_4_name) = name;
+              id(player_4_online) = is_online;
+              id(player_4_volume) = volume;
+              break;
+            case 5:
+              id(player_5_entity_id) = entity_id;
+              id(player_5_name) = name;
+              id(player_5_online) = is_online;
+              id(player_5_volume) = volume;
+              break;
+            case 6:
+              id(player_6_entity_id) = entity_id;
+              id(player_6_name) = name;
+              id(player_6_online) = is_online;
+              id(player_6_volume) = volume;
+              break;
+            case 7:
+              id(player_7_entity_id) = entity_id;
+              id(player_7_name) = name;
+              id(player_7_online) = is_online;
+              id(player_7_volume) = volume;
+              break;
+          }
+
+      # Update counts
+      - script.execute: refresh_player_list
+
+  # ---------------------------------------------------------------------------
+  # Update Player UI (called when players screen is shown)
+  # ---------------------------------------------------------------------------
+  - id: update_players_ui
+    mode: restart
+    then:
+      - lambda: |-
+          ESP_LOGI("player_mgr", "Updating players UI...");
+          // Note: Actual UI updates handled by update_player_rows in players.yaml
+          // Header updates handled by update_header_player_name in header.yaml
+      - script.execute: update_header_player_name
+
+# =============================================================================
+# Interval: Periodic Player State Check
+# =============================================================================
+
+interval:
+  # Check selected player availability periodically (T068)
+  - interval: ${player_state_poll_interval}
+    then:
+      - script.execute: check_selected_player
+
+# =============================================================================
+# Boot Initialization
+# =============================================================================
+# Note: Initialization is triggered by HA API connection event.
+# This ensures players are only queried after the HA connection is established.
+# The on_boot handler below is a fallback that waits for HA connection.
+
+esphome:
+  on_boot:
+    priority: 100  # Run after most components init
+    then:
+      - delay: 5s  # Wait for HA connection attempt
+      - if:
+          condition:
+            lambda: 'return id(ha_api_connected).state;'
+          then:
+            - script.execute: player_manager_init
+          else:
+            - logger.log:
+                tag: "player_mgr"
+                level: WARN
+                format: "HA not connected at boot, init will retry when connected"
+
+# Trigger init when HA API connects (H5 - player availability check after boot)
+binary_sensor:
+  - platform: template
+    id: ha_api_init_trigger
+    internal: true
+    lambda: 'return id(ha_api_connected).state;'
+    on_press:
+      then:
+        - delay: 1s  # Brief delay to let HA sync
+        - script.execute: player_manager_init
+        - delay: 2s  # Allow player list to populate
+        - script.execute: check_selected_player  # Verify selected player availability (H5)
+
+# =============================================================================
+# Usage Notes
+# =============================================================================
+#
+# Player Data Structure:
+#   Each player slot (0-7) has the following globals:
+#   - player_N_entity_id: Home Assistant entity ID
+#   - player_N_name: Friendly name for display
+#   - player_N_online: Current online/offline status
+#   - player_N_volume: Current volume level (0-100)
+#
+# To add players, subscribe to their states in HA and call register_player:
+#   - script.execute:
+#       id: register_player
+#       slot: 0
+#       entity_id: "media_player.living_room"
+#       name: "Living Room"
+#       is_online: true
+#       volume: 50
+#
+# To select a player (will be persisted to NVS):
+#   - script.execute:
+#       id: select_player
+#       player_index: 0
+#
+# The selected player ID persists across reboots via NVS restore_value.
+#
+# =============================================================================

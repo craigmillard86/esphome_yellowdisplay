@@ -94,6 +94,9 @@ packages:
   media_player: !include packages/media_player.yaml
   album_art: !include packages/album_art.yaml  # Last.fm API with memory optimizations
   navigation: !include packages/navigation.yaml  # Screen navigation with animations (T042-T044)
+  player_manager: !include packages/player_manager.yaml  # Multi-player management (T060-T068)
+  players_ui: !include ui/players.yaml  # Player management screen (T055)
+  header: !include ui/components/header.yaml  # Header with player name (T065)
 
 # =============================================================================
 # Logging
