@@ -129,29 +129,29 @@
 
 ### Implementation for User Stories 1 & 2
 
-- [ ] T020 [P] [US1] Create Now Playing screen layout (40% left / 60% right split) in esphome/ui/now_playing.yaml
-- [ ] T021 [P] [US1] [US2] Create album art container component with rounded corners (12px) in esphome/ui/components/album_art.yaml
-- [ ] T022 [US1] [US2] Add placeholder image for missing album art in esphome/ui/components/album_art.yaml
+- [x] T020 [P] [US1] Create Now Playing screen layout (40% left / 60% right split) in esphome/ui/now_playing.yaml
+- [x] T021 [P] [US1] [US2] Create album art container component with rounded corners (12px) in esphome/ui/components/album_art.yaml
+- [x] T022 [US1] [US2] Add placeholder image for missing album art in esphome/ui/components/album_art.yaml
 - [ ] T023 [US1] [US2] Add loading indicator for album art fetching in esphome/ui/components/album_art.yaml
 - [ ] T024 [US1] [US2] Implement album art fetch from Music Assistant with 3-second timeout in esphome/packages/album_art.yaml
 - [ ] T025 [US1] [US2] Implement album art caching strategy (LRU, 3-5 images) in esphome/packages/album_art.yaml
-- [ ] T026 [P] [US1] [US2] Create scrolling/marquee label component for long titles in esphome/ui/components/marquee_label.yaml
-- [ ] T027 [US1] [US2] Create track metadata labels (title, artist, album) in esphome/ui/now_playing.yaml
-- [ ] T028 [US1] Subscribe to Music Assistant media_player state updates in esphome/packages/media_player.yaml
-- [ ] T029 [P] [US1] Create playback control button component (44x44px minimum) in esphome/ui/components/control_button.yaml
-- [ ] T030 [US1] Implement play/pause button with icon swap in esphome/ui/now_playing.yaml
-- [ ] T031 [US1] Implement previous track button in esphome/ui/now_playing.yaml
-- [ ] T032 [US1] Implement next track button in esphome/ui/now_playing.yaml
-- [ ] T033 [P] [US1] Create progress bar component with touch-to-seek in esphome/ui/components/progress_bar.yaml
-- [ ] T034 [US1] [US2] Implement progress bar updates (2-4 Hz rate limiting) in esphome/ui/now_playing.yaml
-- [ ] T035 [P] [US1] Create volume slider component with smooth dragging in esphome/ui/components/volume_slider.yaml
-- [ ] T036 [US1] Implement volume slider with debounced API calls (only on release) in esphome/ui/now_playing.yaml
-- [ ] T036a [US1] Implement mute/unmute toggle button with icon state in esphome/ui/now_playing.yaml (FR-025)
-- [ ] T037 [US1] Add optimistic UI updates on control touch (immediate visual feedback) in esphome/packages/media_player.yaml
-- [ ] T038 [US1] Implement state reconciliation within 2 seconds of action in esphome/packages/media_player.yaml
-- [ ] T039 [US1] Add input debouncing for rapid button taps (200ms minimum) in esphome/packages/media_player.yaml
-- [ ] T040 [US1] [US2] Display active player name in header area in esphome/ui/now_playing.yaml
-- [ ] T041 [US1] [US2] Handle missing metadata gracefully ("Unknown" placeholders) in esphome/ui/now_playing.yaml
+- [x] T026 [P] [US1] [US2] Create scrolling/marquee label component for long titles in esphome/ui/components/marquee_label.yaml
+- [x] T027 [US1] [US2] Create track metadata labels (title, artist, album) in esphome/ui/now_playing.yaml
+- [x] T028 [US1] Subscribe to Music Assistant media_player state updates in esphome/packages/media_player.yaml
+- [x] T029 [P] [US1] Create playback control button component (44x44px minimum) in esphome/ui/components/control_button.yaml
+- [x] T030 [US1] Implement play/pause button with icon swap in esphome/ui/now_playing.yaml
+- [x] T031 [US1] Implement previous track button in esphome/ui/now_playing.yaml
+- [x] T032 [US1] Implement next track button in esphome/ui/now_playing.yaml
+- [x] T033 [P] [US1] Create progress bar component with touch-to-seek in esphome/ui/components/progress_bar.yaml
+- [x] T034 [US1] [US2] Implement progress bar updates (2-4 Hz rate limiting) in esphome/ui/now_playing.yaml
+- [x] T035 [P] [US1] Create volume slider component with smooth dragging in esphome/ui/components/volume_slider.yaml
+- [x] T036 [US1] Implement volume slider with debounced API calls (only on release) in esphome/ui/now_playing.yaml
+- [x] T036a [US1] Implement mute/unmute toggle button with icon state in esphome/ui/now_playing.yaml (FR-025)
+- [x] T037 [US1] Add optimistic UI updates on control touch (immediate visual feedback) in esphome/packages/media_player.yaml
+- [x] T038 [US1] Implement state reconciliation within 2 seconds of action in esphome/packages/media_player.yaml
+- [x] T039 [US1] Add input debouncing for rapid button taps (200ms minimum) in esphome/packages/media_player.yaml
+- [x] T040 [US1] [US2] Display active player name in header area in esphome/ui/now_playing.yaml
+- [x] T041 [US1] [US2] Handle missing metadata gracefully ("Unknown" placeholders) in esphome/ui/now_playing.yaml
 
 **Checkpoint**: Now Playing screen fully functional - can control playback, see track info, album art loads within 3 seconds, touch feedback within 100ms
 
