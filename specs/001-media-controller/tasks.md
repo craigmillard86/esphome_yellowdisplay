@@ -27,77 +27,77 @@
 
 ---
 
-## Phase 1: Setup (Project Initialization)
+## Phase 1: Setup (Project Initialization) ✅ COMPLETE
 
 **Purpose**: Create project structure and base ESPHome configuration
 
-- [ ] T001 Create project directory structure per constitution §5.1 (esphome/, esphome/packages/, esphome/ui/, esphome/ui/components/, components/, fonts/, docs/)
-- [ ] T001a [P] Create esphome/secrets.yaml template and add to .gitignore per Constitution §1.6
-- [ ] T001b [P] Create CHANGELOG.md in repository root following Keep a Changelog format per Constitution §3.5
-- [ ] T002 Create base ESPHome configuration in esphome/main.yaml with ESP32-2432S028R board definition and package includes
-- [ ] T003 [P] Create hardware package for SPI bus configuration in esphome/packages/spi.yaml
-- [ ] T004 [P] Create hardware package for ILI9341 display driver in esphome/packages/display.yaml
-- [ ] T005 [P] Create hardware package for XPT2046 touch controller in esphome/packages/touch.yaml
-- [ ] T006 [P] Create hardware package for backlight PWM control in esphome/packages/backlight.yaml
-- [ ] T007 Create LVGL initialization package in esphome/packages/lvgl.yaml with theme colors (#121212, #00D1FF, #FF6B35)
-- [ ] T008 Create boot screen with "Starting..." text in esphome/ui/boot.yaml
+- [x] T001 Create project directory structure per constitution §5.1 (esphome/, esphome/packages/, esphome/ui/, esphome/ui/components/, components/, fonts/, docs/)
+- [x] T001a [P] Create esphome/secrets.yaml template and add to .gitignore per Constitution §1.6
+- [x] T001b [P] Create CHANGELOG.md in repository root following Keep a Changelog format per Constitution §3.5
+- [x] T002 Create base ESPHome configuration in esphome/main.yaml with ESP32-2432S028R board definition and package includes
+- [x] T003 [P] Create hardware package for SPI bus configuration in esphome/packages/spi.yaml
+- [x] T004 [P] Create hardware package for ILI9341 display driver in esphome/packages/display.yaml
+- [x] T005 [P] Create hardware package for XPT2046 touch controller in esphome/packages/touch.yaml
+- [x] T006 [P] Create hardware package for backlight PWM control in esphome/packages/backlight.yaml
+- [x] T007 Create LVGL initialization package in esphome/packages/lvgl.yaml with theme colors (#121212, #00D1FF, #FF6B35)
+- [x] T008 Create boot screen with "Starting..." text in esphome/ui/boot.yaml
 
-**Checkpoint**: ESPHome compiles, display shows boot screen, touch responds, backlight works
+**Checkpoint**: ESPHome compiles, display shows boot screen, touch responds, backlight works ✅
 
 ---
 
-## Human Testing Checkpoint: Setup Validation
+## Human Testing Checkpoint: Setup Validation ✅ PASSED
 
 **Purpose**: Verify hardware initialization before proceeding
 
-- [ ] HT-001 **HUMAN TEST**: Flash firmware to device and verify:
-  - [ ] Device powers on without errors in serial log
-  - [ ] Display shows boot screen with "Starting..." text
-  - [ ] Display is in landscape orientation (320x240)
-  - [ ] Backlight is visible at conservative brightness (≤50%)
-  - [ ] Touch coordinates appear in serial log when screen is touched
-  - [ ] Touch calibration is reasonably accurate (tap matches visual)
+- [x] HT-001 **HUMAN TEST**: Flash firmware to device and verify:
+  - [x] Device powers on without errors in serial log
+  - [x] Display shows boot screen with "Music Remote" text
+  - [x] Display is in landscape orientation (320x240)
+  - [x] Backlight is visible at conservative brightness (≤50%)
+  - [x] Touch coordinates appear in serial log when screen is touched
+  - [x] Touch calibration is reasonably accurate (tap matches visual)
 
-**Pass criteria**: All items checked. If any fail, fix before proceeding to Phase 2.
+**Pass criteria**: All items checked. ✅ PASSED 2026-02-01
 
 ---
 
-## Phase 2: Foundational (Blocking Prerequisites)
+## Phase 2: Foundational (Blocking Prerequisites) ✅ COMPLETE
 
 **Purpose**: Core infrastructure that MUST be complete before ANY user story can be implemented
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T009 Create system state enum (Booting, Connecting, Ready, Offline, Error) in esphome/packages/state_machine.yaml
-- [ ] T010 Implement Wi-Fi connection management with timeout in esphome/packages/wifi.yaml
-- [ ] T011 Implement Home Assistant Native API connection in esphome/packages/homeassistant.yaml
-- [ ] T012 [P] Create state transition logic with event-driven updates in esphome/packages/state_machine.yaml
-- [ ] T013 [P] Create visual state indicator component (icon + text) in esphome/ui/components/status_indicator.yaml
-- [ ] T014 Implement offline detection with debounce (5-second threshold) in esphome/packages/connectivity.yaml
-- [ ] T015 Implement automatic reconnection with exponential backoff in esphome/packages/connectivity.yaml
-- [ ] T016 Create "Connecting" screen with progress indication in esphome/ui/connecting.yaml
-- [ ] T017 Ensure UI remains responsive during connection attempts (non-blocking API calls)
-- [ ] T018 Create boot time measurement sensor in esphome/packages/diagnostics.yaml
-- [ ] T018a [P] Create uptime sensor in esphome/packages/diagnostics.yaml (Constitution §1.5.1)
-- [ ] T018b [P] Create wifi_rssi sensor in esphome/packages/diagnostics.yaml (Constitution §1.5.1)
-- [ ] T018c [P] Create ip_address sensor in esphome/packages/diagnostics.yaml (Constitution §1.5.1)
-- [ ] T018d [P] Create ha_api_connected binary sensor in esphome/packages/diagnostics.yaml (Constitution §1.5.1)
-- [ ] T019 Create free_heap sensor in esphome/packages/diagnostics.yaml (Constitution §1.5.1)
-- [ ] T019a [P] Create reset_reason sensor in esphome/packages/diagnostics.yaml (Constitution §1.5.1)
+- [x] T009 Create system state enum (Booting, Connecting, Ready, Offline, Error) in esphome/packages/state_machine.yaml
+- [x] T010 Implement Wi-Fi connection management with timeout in esphome/packages/wifi.yaml
+- [x] T011 Implement Home Assistant Native API connection in esphome/packages/homeassistant.yaml
+- [x] T012 [P] Create state transition logic with event-driven updates in esphome/packages/state_machine.yaml
+- [x] T013 [P] Create visual state indicator component (icon + text) in esphome/ui/components/status_indicator.yaml
+- [x] T014 Implement offline detection with debounce (5-second threshold) in esphome/packages/connectivity.yaml
+- [x] T015 Implement automatic reconnection with exponential backoff in esphome/packages/connectivity.yaml
+- [x] T016 Create "Connecting" screen with progress indication in esphome/ui/connecting.yaml
+- [x] T017 Ensure UI remains responsive during connection attempts (non-blocking API calls)
+- [x] T018 Create boot time measurement sensor in esphome/packages/diagnostics.yaml
+- [x] T018a [P] Create uptime sensor in esphome/packages/diagnostics.yaml (Constitution §1.5.1)
+- [x] T018b [P] Create wifi_rssi sensor in esphome/packages/diagnostics.yaml (Constitution §1.5.1)
+- [x] T018c [P] Create ip_address sensor in esphome/packages/diagnostics.yaml (Constitution §1.5.1)
+- [x] T018d [P] Create ha_api_connected binary sensor in esphome/packages/diagnostics.yaml (Constitution §1.5.1)
+- [x] T019 Create free_heap sensor in esphome/packages/diagnostics.yaml (Constitution §1.5.1)
+- [x] T019a [P] Create reset_reason sensor in esphome/packages/diagnostics.yaml (Constitution §1.5.1)
 
-**Checkpoint**: Foundation ready - device transitions Booting → Connecting → Ready, offline detection works, UI responsive during all states
+**Checkpoint**: Foundation ready - device transitions Booting → Connecting → Ready, offline detection works, UI responsive during all states ✅
 
 ---
 
-## Human Testing Checkpoint: Connectivity & State Machine
+## Human Testing Checkpoint: Connectivity & State Machine ✅ PASSED
 
 **Purpose**: Verify system states and network resilience
 
-- [ ] HT-002 **HUMAN TEST**: Verify state transitions:
-  - [ ] Boot shows "Booting" state briefly
-  - [ ] "Connecting" state appears during Wi-Fi/HA connection
-  - [ ] "Ready" state appears when fully connected
-  - [ ] State indicator visible in UI
+- [x] HT-002 **HUMAN TEST**: Verify state transitions:
+  - [x] Boot shows "Booting" state briefly
+  - [x] "Connecting" state appears during Wi-Fi/HA connection
+  - [x] "Ready" state appears when fully connected
+  - [x] State indicator visible in UI
 
 - [ ] HT-003 **HUMAN TEST**: Verify offline handling:
   - [ ] Disconnect Wi-Fi → UI shows "Offline" within 5 seconds

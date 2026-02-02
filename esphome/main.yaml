@@ -48,6 +48,7 @@ packages:
   state_machine: !include packages/state_machine.yaml
   connectivity: !include packages/connectivity.yaml
   diagnostics: !include packages/diagnostics.yaml
+  media_player: !include packages/media_player.yaml
 
 # =============================================================================
 # Logging

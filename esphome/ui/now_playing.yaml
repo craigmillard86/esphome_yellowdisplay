@@ -1,0 +1,17 @@
+# =============================================================================
+# UI Screen: Now Playing Screen
+# =============================================================================
+# NOTE: This screen has been merged into packages/lvgl.yaml as page_main.
+#
+# The Now Playing screen is now defined directly in lvgl.yaml to avoid
+# conflicts with multiple lvgl: and pages: sections across files.
+#
+# See: packages/lvgl.yaml -> pages -> page_main
+#
+# Widget IDs available for dynamic updates:
+#   - lbl_status: Connection state text
+#   - lbl_title: Current track title
+#   - lbl_artist: Current artist name
+#   - btn_prev, btn_play, btn_next: Playback control buttons
+#   - lbl_play_icon: Play/pause icon (toggle based on state)
+# =============================================================================

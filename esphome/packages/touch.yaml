@@ -19,4 +19,5 @@ touchscreen:
       y_min: 340
       y_max: 3860
     transform:
+      swap_xy: true
       mirror_x: true

@@ -182,28 +182,181 @@ lvgl:
             text_color: 0xFFFFFF
             text_font: roboto_24
 
-    # Main Now Playing screen (placeholder)
+    # =========================================================================
+    # Main Now Playing Screen
+    # =========================================================================
+    # This is the main playback screen showing:
+    # - Connection status at top
+    # - Track title (large, centered)
+    # - Artist name (smaller, gray, centered)
+    # - Playback control buttons (prev, play/pause, next) at bottom
+    # Display: 320x240 pixels in landscape orientation
     - id: page_main
-      bg_color: 0x121212
+      # Apply base screen style (dark background #121212, white text)
+      styles: style_screen
+
       widgets:
+        # ---------------------------------------------------------------------
+        # Status Label (Top)
+        # ---------------------------------------------------------------------
+        # Shows connection state: "Connected", "Disconnected", etc.
+        # Positioned at top center of screen
         - label:
             id: lbl_status
+            text: "Connected"
+            styles: style_label_secondary
+            text_font: roboto_16
+            text_color: 0x00D1FF            # Vibrant Cyan for connected state
+            text_align: CENTER
             align: TOP_MID
             y: 10
-            text: "Ready"
-            text_color: 0x00D1FF
-            text_font: roboto_16
+            width: 300
+            bg_opa: TRANSP
+
+        # ---------------------------------------------------------------------
+        # Track Title (Center - Upper)
+        # ---------------------------------------------------------------------
+        # Large white text showing current track name
+        # Centered horizontally, positioned above center
         - label:
             id: lbl_title
-            align: CENTER
-            y: -20
-            text: "No Media"
-            text_color: 0xFFFFFF
+            text: "No Track Playing"
+            styles: style_label_primary
             text_font: roboto_24
+            text_color: 0xFFFFFF            # White text
+            text_align: CENTER
+            align: CENTER
+            y: -30                           # Above center
+            width: 300                       # Allow wrapping if needed
+            bg_opa: TRANSP
+            long_mode: DOT                   # Truncate with ellipsis if too long
+
+        # ---------------------------------------------------------------------
+        # Artist Name (Center - Lower)
+        # ---------------------------------------------------------------------
+        # Smaller gray text showing artist name
+        # Centered horizontally, positioned below track title
         - label:
             id: lbl_artist
-            align: CENTER
-            y: 20
-            text: "Select a player"
-            text_color: 0xB3B3B3
+            text: "Unknown Artist"
+            styles: style_label_secondary
             text_font: roboto_16
+            text_color: 0xB3B3B3            # Secondary gray text
+            text_align: CENTER
+            align: CENTER
+            y: 10                            # Below center
+            width: 300
+            bg_opa: TRANSP
+            long_mode: DOT                   # Truncate with ellipsis if too long
+
+        # ---------------------------------------------------------------------
+        # Previous Track Button (Left)
+        # ---------------------------------------------------------------------
+        - button:
+            id: btn_prev
+            styles: style_btn_secondary
+            width: 56
+            height: 56
+            align: BOTTOM_RIGHT
+            x: -40
+            y: -20
+            on_click:
+              then:
+                - logger.log:
+                    tag: "ui"
+                    level: INFO
+                    format: "Previous button pressed"
+                - homeassistant.service:
+                    service: media_player.media_previous_track
+                    data:
+                      entity_id: media_player.lards_speaker2
+            widgets:
+              - label:
+                  text: "\U000F04AD"
+                  text_font: icons_24
+                  text_color: 0xFFFFFF
+                  align: CENTER
+
+        # ---------------------------------------------------------------------
+        # Play/Pause Button (Center)
+        # ---------------------------------------------------------------------
+        - button:
+            id: btn_play
+            styles: style_btn_primary
+            width: 64
+            height: 64
+            align: BOTTOM_MID
+            y: -16
+            on_click:
+              then:
+                - logger.log:
+                    tag: "ui"
+                    level: INFO
+                    format: "Play/Pause button pressed"
+                - homeassistant.service:
+                    service: media_player.media_play_pause
+                    data:
+                      entity_id: media_player.lards_speaker2
+            widgets:
+              - label:
+                  id: lbl_play_icon
+                  text: "\U000F040A"
+                  text_font: icons_24
+                  text_color: 0x121212
+                  align: CENTER
+
+        # ---------------------------------------------------------------------
+        # Next Track Button (Right)
+        # ---------------------------------------------------------------------
+        - button:
+            id: btn_next
+            styles: style_btn_secondary
+            width: 56
+            height: 56
+            align: BOTTOM_LEFT
+            x: 40
+            y: -20
+            on_click:
+              then:
+                - logger.log:
+                    tag: "ui"
+                    level: INFO
+                    format: "Next button pressed"
+                - homeassistant.service:
+                    service: media_player.media_next_track
+                    data:
+                      entity_id: media_player.lards_speaker2
+            widgets:
+              - label:
+                  text: "\U000F04AE"
+                  text_font: icons_24
+                  text_color: 0xFFFFFF
+                  align: CENTER
+
+# =============================================================================
+# Dynamic Update Notes (Now Playing Screen)
+# =============================================================================
+# The following widget IDs are exposed for dynamic updates from state machine:
+#
+# - lbl_status: Update connection state text and color
+#   Example: id(lbl_status).set_text("Disconnected");
+#            id(lbl_status).set_style_text_color(lv_color_hex(0xFF6B35), 0);
+#
+# - lbl_title: Update with current track title from media player
+#   Example: id(lbl_title).set_text(title.c_str());
+#
+# - lbl_artist: Update with current artist name from media player
+#   Example: id(lbl_artist).set_text(artist.c_str());
+#
+# - btn_play: Access play button for visual state updates
+#
+# - lbl_play_icon: Toggle between play/pause icons based on playback state
+#   Playing: id(lbl_play_icon).set_text("\U000F03E4");  // mdi:pause
+#   Paused:  id(lbl_play_icon).set_text("\U000F040A");  // mdi:play
+#
+# - btn_prev / btn_next: Access for enabling/disabling based on playlist position
+#
+# Media Player Entity:
+# The buttons call services on "media_player.lards_speaker2" entity.
+# Update this entity_id to match your actual Home Assistant media player entity.
+# =============================================================================
