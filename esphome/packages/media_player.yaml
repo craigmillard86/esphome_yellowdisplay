@@ -25,8 +25,8 @@ substitutions:
   # Debounce interval for button presses (milliseconds)
   media_button_debounce_ms: "200"
 
-  # Polling interval for media position updates
-  media_position_poll_interval: "1s"
+  # Polling interval for media position updates (2-4 Hz per constitution)
+  media_position_poll_interval: "250ms"
 
 # =============================================================================
 # Global Variables
@@ -110,6 +110,19 @@ text_sensor:
 
         - component.update: media_state_display
 
+        # Update play/pause button icon based on media state
+        - if:
+            condition:
+              lambda: 'return x == "playing";'
+            then:
+              - lvgl.label.update:
+                  id: lbl_play_icon
+                  text: "\U000F03E4"  # mdi:pause
+            else:
+              - lvgl.label.update:
+                  id: lbl_play_icon
+                  text: "\U000F040A"  # mdi:play
+
   # Media title
   - platform: homeassistant
     id: ha_media_title
@@ -155,6 +168,9 @@ text_sensor:
     on_value:
       then:
         - component.update: media_album_display
+        - lvgl.label.update:
+            id: lbl_album
+            text: !lambda 'return x.c_str();'
         - logger.log:
             tag: "media"
             level: DEBUG
@@ -273,6 +289,20 @@ sensor:
             id(optimistic_volume) = x;
             ESP_LOGD("media", "Volume updated: %.0f%%", x * 100);
         - component.update: volume_level_display
+        # Update LVGL volume slider to match HA volume
+        - lvgl.slider.update:
+            id: slider_volume
+            value: !lambda 'return (int)(x * 100);'
+        # Update volume icon based on level
+        - lambda: |-
+            int vol = (int)(x * 100);
+            if (vol == 0) {
+              lv_label_set_text(id(lbl_volume_icon), "\U000F0581");  // mute
+            } else if (vol < 50) {
+              lv_label_set_text(id(lbl_volume_icon), "\U000F0580");  // low
+            } else {
+              lv_label_set_text(id(lbl_volume_icon), "\U000F057E");  // high
+            }
 
   # Exposed media position with local interpolation
   - platform: template
@@ -446,6 +476,19 @@ script:
           ESP_LOGI("media", "Play/Pause toggled for: %s", id(active_player_entity).c_str());
 
       - component.update: media_state_display
+
+      # Optimistic icon update: show pause icon if now playing, play icon if now paused
+      - if:
+          condition:
+            lambda: 'return id(optimistic_media_state) == 1;'
+          then:
+            - lvgl.label.update:
+                id: lbl_play_icon
+                text: "\U000F03E4"  # mdi:pause
+          else:
+            - lvgl.label.update:
+                id: lbl_play_icon
+                text: "\U000F040A"  # mdi:play
 
       - homeassistant.service:
           service: media_player.media_play_pause
@@ -698,17 +741,54 @@ button:
 # =============================================================================
 
 interval:
-  # Periodically update media position display
+  # Periodically update media position display and progress bar UI
   # Only active interpolation happens in the sensor lambda
   - interval: ${media_position_poll_interval}
     then:
       - lambda: |-
-          // Force update of position-dependent components
-          // The actual interpolation logic is in the sensor lambda
-          if (id(optimistic_media_state) == 1) {  // playing
-            // Position sensor auto-updates via its update_interval
-            // This interval ensures we catch any edge cases
+          // Get current position and duration
+          float position = 0;
+          float duration = 0;
+
+          // Calculate interpolated position if playing
+          if (id(optimistic_media_state) == 1 && id(position_update_timestamp_ms) > 0) {
+            float elapsed_seconds = (millis() - id(position_update_timestamp_ms)) / 1000.0;
+            position = id(cached_media_position) + elapsed_seconds;
+          } else {
+            position = id(cached_media_position);
           }
+
+          if (id(ha_media_duration).has_state()) {
+            duration = id(ha_media_duration).state;
+          }
+
+          // Clamp position to duration
+          if (duration > 0 && position > duration) {
+            position = duration;
+          }
+
+          // Update progress slider (0-100%)
+          int progress_percent = 0;
+          if (duration > 0) {
+            progress_percent = (int)((position / duration) * 100.0);
+            if (progress_percent > 100) progress_percent = 100;
+            if (progress_percent < 0) progress_percent = 0;
+          }
+          lv_slider_set_value(id(progress_slider), progress_percent, LV_ANIM_OFF);
+
+          // Format elapsed time as MM:SS
+          int elapsed_min = (int)position / 60;
+          int elapsed_sec = (int)position % 60;
+          char elapsed_str[8];
+          snprintf(elapsed_str, sizeof(elapsed_str), "%d:%02d", elapsed_min, elapsed_sec);
+          lv_label_set_text(id(lbl_elapsed_time), elapsed_str);
+
+          // Format total time as MM:SS
+          int total_min = (int)duration / 60;
+          int total_sec = (int)duration % 60;
+          char total_str[8];
+          snprintf(total_str, sizeof(total_str), "%d:%02d", total_min, total_sec);
+          lv_label_set_text(id(lbl_total_time), total_str);
 
 # =============================================================================
 # Notes on Usage
