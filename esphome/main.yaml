@@ -49,6 +49,7 @@ packages:
   connectivity: !include packages/connectivity.yaml
   diagnostics: !include packages/diagnostics.yaml
   media_player: !include packages/media_player.yaml
+  album_art: !include packages/album_art.yaml  # Last.fm API with memory optimizations
 
 # =============================================================================
 # Logging

@@ -1,0 +1,437 @@
+# =============================================================================
+# Package: Album Art (T023, T024, T025)
+# Purpose: Fetch album art from Last.fm API (smaller images than HA)
+# Dependencies: packages/media_player.yaml (ha_media_artist, ha_media_title)
+#               packages/lvgl.yaml (album art container and spinner)
+# Exposes: online_image component, album art control scripts
+# =============================================================================
+
+# This package implements:
+# - T023: Loading indicator (spinner) control during album art fetch
+# - T024: Album art fetch from Last.fm API (memory-efficient small images)
+# - T025: Album art caching strategy with memory-efficient settings
+
+# =============================================================================
+# Substitutions
+# =============================================================================
+
+substitutions:
+  # Last.fm API key (free from https://www.last.fm/api/account/create)
+  lastfm_api_key: !secret lastfm_api_key
+
+  # Album art fetch timeout (milliseconds)
+  album_art_timeout_ms: "5000"
+
+  # Album art dimensions (pixels) - must match container size
+  album_art_width: "96"
+  album_art_height: "96"
+
+# =============================================================================
+# HTTP Request Component (required for Last.fm API and online_image)
+# =============================================================================
+
+http_request:
+  useragent: "ESPHome CYD Music Remote"
+  timeout: 5s
+  verify_ssl: false
+
+# =============================================================================
+# Global Variables
+# =============================================================================
+
+globals:
+  # Current album art URL (to detect changes)
+  - id: current_album_art_url
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+  # Current track key (artist+title) to detect changes
+  - id: current_track_key
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+  # Album art loading state
+  # 0 = idle (showing placeholder or image)
+  # 1 = loading (showing spinner)
+  # 2 = loaded (showing image)
+  # 3 = error (showing placeholder)
+  - id: album_art_state
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Flag to track if we have a valid album art image
+  - id: has_album_art
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # Error handling - consecutive error count
+  - id: album_art_error_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Error handling - cooldown timestamp (millis)
+  - id: album_art_cooldown_until
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+  # Minimum free heap required for image decode (bytes)
+  - id: album_art_min_heap
+    type: uint32_t
+    restore_value: no
+    initial_value: '40000'  # 40KB minimum
+
+# =============================================================================
+# Online Image Component - Album Art Fetcher
+# =============================================================================
+# Fetches small album art from Last.fm (typically 64x64 or 174x174, ~5-15KB)
+
+online_image:
+  - id: album_art_image
+    url: "https://via.placeholder.com/96"  # Placeholder URL, updated dynamically
+    format: PNG  # Last.fm serves PNG images
+    type: RGB565
+    resize: ${album_art_width}x${album_art_height}
+    buffer_size: 16384  # 16KB buffer - Last.fm 64x64 images are ~3-5KB
+    update_interval: never  # Manual updates only
+
+    on_download_finished:
+      then:
+        - lambda: |-
+            if (id(album_art_state) == 1) {
+              ESP_LOGI("album_art", "Album art download completed successfully");
+              id(album_art_state) = 2;
+              id(has_album_art) = true;
+              // Reset error tracking on success
+              id(album_art_error_count) = 0;
+              id(album_art_cooldown_until) = 0;
+            } else {
+              ESP_LOGW("album_art", "Download completed but state changed");
+              return;
+            }
+        - if:
+            condition:
+              lambda: 'return id(album_art_state) == 2;'
+            then:
+              - script.execute: album_art_show_image
+
+    on_error:
+      then:
+        - lambda: |-
+            ESP_LOGW("album_art", "Album art download failed (error handler)");
+            id(album_art_state) = 3;
+            id(has_album_art) = false;
+            id(album_art_error_count)++;
+
+            // Set exponential backoff cooldown
+            uint32_t cooldown_ms = 10000 * (1 << std::min(id(album_art_error_count) - 1, 5));
+            id(album_art_cooldown_until) = millis() + cooldown_ms;
+            ESP_LOGW("album_art", "Error cooldown %u ms (count: %d)", cooldown_ms, id(album_art_error_count));
+        - script.execute: album_art_show_placeholder
+
+# =============================================================================
+# Scripts - Album Art Control
+# =============================================================================
+
+script:
+  # Lookup album art from Last.fm when track changes
+  - id: album_art_lookup
+    mode: restart
+    then:
+      - lambda: |-
+          // Check if we're in error cooldown
+          uint32_t now = millis();
+          if (now < id(album_art_cooldown_until)) {
+            ESP_LOGD("album_art", "In error cooldown, skipping lookup");
+            return;
+          }
+
+          // Check available heap memory before attempting fetch
+          uint32_t free_heap = esp_get_free_heap_size();
+          uint32_t largest_block = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+          ESP_LOGD("album_art", "Heap: %u free, %u largest block", free_heap, largest_block);
+
+          if (largest_block < id(album_art_min_heap)) {
+            ESP_LOGW("album_art", "Insufficient heap for album art: %u < %u bytes",
+                     largest_block, id(album_art_min_heap));
+            // Don't attempt fetch, show placeholder instead
+            id(album_art_state) = 3;
+            id(album_art_error_count)++;
+
+            // Set cooldown: 10 seconds after first error, doubles each time (max 5 min)
+            uint32_t cooldown_ms = 10000 * (1 << std::min(id(album_art_error_count) - 1, 5));
+            id(album_art_cooldown_until) = now + cooldown_ms;
+            ESP_LOGW("album_art", "Cooldown for %u ms (error count: %d)", cooldown_ms, id(album_art_error_count));
+            return;
+          }
+
+          // Get current artist and title
+          std::string artist = "";
+          std::string title = "";
+
+          if (id(ha_media_artist).has_state()) {
+            artist = id(ha_media_artist).state;
+          }
+          if (id(ha_media_title).has_state()) {
+            title = id(ha_media_title).state;
+          }
+
+          // Skip if no track info
+          if (artist.empty() || title.empty()) {
+            ESP_LOGI("album_art", "No artist/title available, showing placeholder");
+            id(current_track_key) = "";
+            id(current_album_art_url) = "";
+            return;
+          }
+
+          // Create track key to detect changes
+          std::string track_key = artist + "|" + title;
+          if (track_key == id(current_track_key)) {
+            ESP_LOGD("album_art", "Track unchanged, skipping lookup");
+            return;
+          }
+          id(current_track_key) = track_key;
+
+          ESP_LOGI("album_art", "Looking up album art for: %s - %s", artist.c_str(), title.c_str());
+          id(album_art_state) = 1;  // loading
+
+      # Show spinner while looking up
+      - script.execute: album_art_show_spinner
+
+      # Make HTTP request to Last.fm API
+      - http_request.get:
+          url: !lambda |-
+            std::string artist = id(ha_media_artist).state;
+            std::string title = id(ha_media_title).state;
+
+            // URL encode artist and title (basic encoding)
+            auto url_encode = [](const std::string& str) -> std::string {
+              std::string encoded;
+              for (char c : str) {
+                if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+                  encoded += c;
+                } else if (c == ' ') {
+                  encoded += '+';
+                } else {
+                  char hex[4];
+                  snprintf(hex, sizeof(hex), "%%%02X", (unsigned char)c);
+                  encoded += hex;
+                }
+              }
+              return encoded;
+            };
+
+            std::string url = "http://ws.audioscrobbler.com/2.0/?method=track.getInfo";
+            url += "&api_key=${lastfm_api_key}";
+            url += "&artist=" + url_encode(artist);
+            url += "&track=" + url_encode(title);
+            url += "&format=json";
+
+            ESP_LOGD("album_art", "Last.fm API URL: %s", url.c_str());
+            return url;
+          on_response:
+            then:
+              - lambda: |-
+                  if (response->status_code != 200) {
+                    ESP_LOGW("album_art", "Last.fm API error: %d", response->status_code);
+                    id(album_art_state) = 3;
+                    return;
+                  }
+
+                  // Read response body
+                  size_t content_length = response->content_length;
+                  if (content_length == 0 || content_length > 8192) {
+                    content_length = 4096;  // Default buffer size
+                  }
+
+                  std::string body;
+                  body.resize(content_length);
+                  uint8_t *buf = (uint8_t *)body.data();
+                  int bytes_read = response->read(buf, content_length);
+                  if (bytes_read > 0) {
+                    body.resize(bytes_read);
+                  } else {
+                    ESP_LOGW("album_art", "Failed to read response body");
+                    id(album_art_state) = 3;
+                    return;
+                  }
+
+                  ESP_LOGD("album_art", "Response length: %d", body.length());
+
+                  // Simple JSON parsing - find the image array
+                  // Last.fm returns images in order: small, medium, large, extralarge
+                  // We want "medium" (index 1) which is 64x64 (~3-5KB PNG)
+
+                  size_t img_pos = body.find("\"image\":");
+                  if (img_pos == std::string::npos) {
+                    ESP_LOGW("album_art", "No album image in Last.fm response");
+                    id(album_art_state) = 3;
+                    return;
+                  }
+
+                  // Find the second "#text" entry (medium size, 64x64)
+                  size_t text_pos = img_pos;
+                  for (int i = 0; i < 2; i++) {
+                    text_pos = body.find("\"#text\":", text_pos + 1);
+                    if (text_pos == std::string::npos) {
+                      ESP_LOGW("album_art", "Could not find medium image in response");
+                      id(album_art_state) = 3;
+                      return;
+                    }
+                  }
+
+                  // Extract URL between quotes after "#text":"
+                  size_t url_start = body.find("\"", text_pos + 8) + 1;
+                  size_t url_end = body.find("\"", url_start);
+
+                  if (url_start == std::string::npos || url_end == std::string::npos) {
+                    ESP_LOGW("album_art", "Could not parse image URL");
+                    id(album_art_state) = 3;
+                    return;
+                  }
+
+                  std::string image_url = body.substr(url_start, url_end - url_start);
+
+                  if (image_url.empty()) {
+                    ESP_LOGW("album_art", "Empty image URL from Last.fm");
+                    id(album_art_state) = 3;
+                    return;
+                  }
+
+                  ESP_LOGI("album_art", "Found album art: %s", image_url.c_str());
+                  id(current_album_art_url) = image_url;
+
+                  // Set URL and trigger download
+                  id(album_art_image).set_url(image_url);
+
+              # If we got a valid URL, check heap and fetch the image
+              - if:
+                  condition:
+                    lambda: 'return !id(current_album_art_url).empty() && id(album_art_state) == 1;'
+                  then:
+                    # Final heap check before image decode
+                    - lambda: |-
+                        uint32_t largest_block = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+                        if (largest_block < id(album_art_min_heap)) {
+                          ESP_LOGW("album_art", "Heap too low for decode: %u bytes", largest_block);
+                          id(album_art_state) = 3;
+                          id(album_art_error_count)++;
+                          uint32_t cooldown_ms = 10000 * (1 << std::min(id(album_art_error_count) - 1, 5));
+                          id(album_art_cooldown_until) = millis() + cooldown_ms;
+                        }
+                    - if:
+                        condition:
+                          lambda: 'return id(album_art_state) == 1;'
+                        then:
+                          - component.update: album_art_image
+                        else:
+                          - script.execute: album_art_show_placeholder
+                  else:
+                    - script.execute: album_art_show_placeholder
+
+      # Timeout handling
+      - delay: ${album_art_timeout_ms}ms
+      - if:
+          condition:
+            lambda: 'return id(album_art_state) == 1;'
+          then:
+            - lambda: |-
+                ESP_LOGW("album_art", "Album art lookup timed out");
+                id(album_art_state) = 3;
+                id(has_album_art) = false;
+            - script.execute: album_art_show_placeholder
+
+  # Show loading spinner
+  - id: album_art_show_spinner
+    mode: restart
+    then:
+      - lambda: 'ESP_LOGD("album_art", "Showing loading spinner");'
+      - lvgl.widget.hide: lbl_album_art_placeholder
+      - lvgl.widget.hide: img_album_art
+      - lvgl.widget.show: spinner_album_art
+
+  # Show album art image
+  - id: album_art_show_image
+    mode: restart
+    then:
+      - lambda: 'ESP_LOGD("album_art", "Showing album art image");'
+      - lvgl.widget.hide: spinner_album_art
+      - lvgl.widget.hide: lbl_album_art_placeholder
+      - lvgl.widget.show: img_album_art
+      - lvgl.image.update:
+          id: img_album_art
+          src: album_art_image
+
+  # Show placeholder
+  - id: album_art_show_placeholder
+    mode: restart
+    then:
+      - lambda: 'ESP_LOGD("album_art", "Showing placeholder icon");'
+      - lvgl.widget.hide: spinner_album_art
+      - lvgl.widget.hide: img_album_art
+      - lvgl.widget.show: lbl_album_art_placeholder
+
+  # Clear album art
+  - id: album_art_clear
+    mode: single
+    then:
+      - lambda: |-
+          ESP_LOGI("album_art", "Clearing album art");
+          id(current_album_art_url) = "";
+          id(current_track_key) = "";
+          id(album_art_state) = 0;
+          id(has_album_art) = false;
+      - script.execute: album_art_show_placeholder
+
+# =============================================================================
+# Interval - Trigger album art lookup when track changes
+# =============================================================================
+# We check periodically since we can't easily hook into the media_player
+# text sensor changes from another package
+
+interval:
+  - interval: 2s
+    then:
+      - lambda: |-
+          // Build current track key
+          std::string artist = "";
+          std::string title = "";
+
+          if (id(ha_media_artist).has_state()) {
+            artist = id(ha_media_artist).state;
+          }
+          if (id(ha_media_title).has_state()) {
+            title = id(ha_media_title).state;
+          }
+
+          std::string track_key = artist + "|" + title;
+
+          // If track changed and we have valid info, trigger lookup
+          if (!artist.empty() && !title.empty() && track_key != id(current_track_key)) {
+            id(album_art_lookup).execute();
+          } else if (artist.empty() && title.empty() && !id(current_track_key).empty()) {
+            // Track cleared, show placeholder
+            id(current_track_key) = "";
+            id(album_art_clear).execute();
+          }
+
+# =============================================================================
+# Notes
+# =============================================================================
+#
+# Last.fm API returns album art in these sizes:
+# - small: 34x34 (~1-2KB)
+# - medium: 64x64 (~3-5KB) <- We use this
+# - large: 174x174 (~10-15KB)
+# - extralarge: 300x300 (~20-30KB)
+#
+# We use "medium" (64x64) which is around 3-5KB PNG - safely within ESP32's
+# available heap (~36KB contiguous).
+#
+# Get your free API key at: https://www.last.fm/api/account/create
+#

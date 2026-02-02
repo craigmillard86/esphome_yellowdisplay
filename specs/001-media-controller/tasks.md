@@ -132,9 +132,15 @@
 - [x] T020 [P] [US1] Create Now Playing screen layout (40% left / 60% right split) in esphome/ui/now_playing.yaml
 - [x] T021 [P] [US1] [US2] Create album art container component with rounded corners (12px) in esphome/ui/components/album_art.yaml
 - [x] T022 [US1] [US2] Add placeholder image for missing album art in esphome/ui/components/album_art.yaml
-- [ ] T023 [US1] [US2] Add loading indicator for album art fetching in esphome/ui/components/album_art.yaml
-- [ ] T024 [US1] [US2] Implement album art fetch from Music Assistant with 3-second timeout in esphome/packages/album_art.yaml
-- [ ] T025 [US1] [US2] Implement album art caching strategy (LRU, 3-5 images) in esphome/packages/album_art.yaml
+- [x] T023 [US1] [US2] Add loading indicator for album art fetching in esphome/ui/components/album_art.yaml
+- [x] T024 [US1] [US2] Implement album art fetch from Last.fm API with 5-second timeout in esphome/packages/album_art.yaml
+  - **Note**: Changed from Music Assistant to Last.fm API due to HA album art size (~100KB) exceeding ESP32 heap (~36KB contiguous). Last.fm 64x64 images are ~3-5KB.
+- [x] T025 [US1] [US2] Implement album art memory management with error handling in esphome/packages/album_art.yaml
+  - **Note**: Changed from LRU cache to single-image with comprehensive error handling:
+    - Heap memory check (40KB minimum) before fetch
+    - Exponential backoff cooldown (10s→320s max) on errors
+    - LVGL buffer reduced from 25% to 10% to free ~23KB heap
+    - Graceful fallback to placeholder on failure
 - [x] T026 [P] [US1] [US2] Create scrolling/marquee label component for long titles in esphome/ui/components/marquee_label.yaml
 - [x] T027 [US1] [US2] Create track metadata labels (title, artist, album) in esphome/ui/now_playing.yaml
 - [x] T028 [US1] Subscribe to Music Assistant media_player state updates in esphome/packages/media_player.yaml

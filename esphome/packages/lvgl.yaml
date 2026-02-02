@@ -44,6 +44,7 @@ font:
       - "\U000F0493"  # mdi:shuffle
       - "\U000F0456"  # mdi:repeat
       - "\U000F075A"  # mdi:music (album art placeholder)
+      - "\U000F0772"  # mdi:loading (spinner fallback icon)
 
 # =============================================================================
 # LVGL Configuration
@@ -59,8 +60,9 @@ lvgl:
   # Color depth - 16-bit RGB565 for ILI9341
   color_depth: 16
 
-  # Buffer configuration for ESP32 RAM constraints
-  buffer_size: 25%
+  # Buffer configuration - reduced to 10% to free heap for album art
+  # 320x240x2 = 153KB full screen, 10% = ~15KB buffer
+  buffer_size: 10%
 
   # Update interval for LVGL tasks (4Hz update rate)
   update_interval: 250ms
@@ -218,13 +220,36 @@ lvgl:
             widgets:
               # Album art placeholder icon (music note)
               # Shown when no album art is available
-              # Will be hidden when actual album art is loaded (T024-T025)
+              # Hidden when loading or when album art is displayed (T023-T025)
               - label:
                   id: lbl_album_art_placeholder
                   text: "\U000F075A"
                   text_font: icons_24
                   text_color: 0x666666
                   align: CENTER
+
+              # Loading spinner (T023)
+              # Shown while fetching album art
+              - spinner:
+                  id: spinner_album_art
+                  align: CENTER
+                  width: 48
+                  height: 48
+                  spin_time: 1s
+                  arc_length: 60
+                  arc_width: 4
+                  arc_color: 0x00D1FF
+                  indicator:
+                    arc_color: 0x1E1E1E
+                    arc_width: 4
+                  hidden: true
+
+              # Album art image (T024-T025)
+              - image:
+                  id: img_album_art
+                  align: CENTER
+                  src: album_art_image
+                  hidden: true
 
         # =====================================================================
         # RIGHT PANEL - CONTENT AREA (128-320px width = 192px)
@@ -561,12 +586,18 @@ lvgl:
 # - lbl_album: Update with current album name from media player
 #   Example: id(lbl_album).set_text(album.c_str());
 #
-# Album Art Section:
+# Album Art Section (T023-T025):
 # - album_art_container: Container for album art (96x96px at x=16, y=56)
 #
 # - lbl_album_art_placeholder: Music note icon placeholder for when no album art
 #   Hide when album art is loaded: lv_obj_add_flag(id(lbl_album_art_placeholder), LV_OBJ_FLAG_HIDDEN);
 #   Show when no album art:        lv_obj_clear_flag(id(lbl_album_art_placeholder), LV_OBJ_FLAG_HIDDEN);
+#
+# - spinner_album_art: Loading spinner shown while fetching album art (T023)
+#   Initially hidden, controlled by album_art.yaml scripts
+#
+# - img_album_art: LVGL image widget displaying fetched album art (T024-T025)
+#   Initially hidden, updated and shown when album art is downloaded successfully
 #
 # - btn_play: Access play button for visual state updates
 #
