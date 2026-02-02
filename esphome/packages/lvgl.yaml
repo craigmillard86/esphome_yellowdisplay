@@ -43,6 +43,7 @@ font:
       - "\U000F0581"  # mdi:volume-mute
       - "\U000F0493"  # mdi:shuffle
       - "\U000F0456"  # mdi:repeat
+      - "\U000F075A"  # mdi:music (album art placeholder)
 
 # =============================================================================
 # LVGL Configuration
@@ -214,6 +215,16 @@ lvgl:
             border_color: 0x2A2A2A
             border_opa: COVER
             pad_all: 0
+            widgets:
+              # Album art placeholder icon (music note)
+              # Shown when no album art is available
+              # Will be hidden when actual album art is loaded (T024-T025)
+              - label:
+                  id: lbl_album_art_placeholder
+                  text: "\U000F075A"
+                  text_font: icons_24
+                  text_color: 0x666666
+                  align: CENTER
 
         # =====================================================================
         # RIGHT PANEL - CONTENT AREA (128-320px width = 192px)
@@ -233,9 +244,28 @@ lvgl:
             text_align: LEFT
             align: TOP_LEFT
             x: 136
-            y: 8
+            y: 4
             width: 176
             bg_opa: TRANSP
+
+        # ---------------------------------------------------------------------
+        # Player Name Label (Right Panel Header - Below Status)
+        # ---------------------------------------------------------------------
+        # Shows the friendly name of the active media player
+        # Positioned below the status label
+        - label:
+            id: lbl_player_name
+            text: "No Player"
+            styles: style_label_secondary
+            text_font: roboto_12
+            text_color: 0xB3B3B3            # Secondary gray text
+            text_align: LEFT
+            align: TOP_LEFT
+            x: 136
+            y: 18
+            width: 176
+            bg_opa: TRANSP
+            long_mode: SCROLL_CIRCULAR       # Scroll if player name is long
 
         # ---------------------------------------------------------------------
         # Track Title (Right Panel)
@@ -350,45 +380,21 @@ lvgl:
               height: 12
             on_release:
               then:
-                - lambda: |-
-                    // Get the slider value (0-100 percentage)
-                    float slider_value = lv_slider_get_value(id(progress_slider));
-
-                    // Get media duration
-                    float duration = 0;
-                    if (id(ha_media_duration).has_state()) {
-                      duration = id(ha_media_duration).state;
-                    }
-
-                    if (duration > 0) {
-                      // Calculate target position in seconds
-                      float target_position = (slider_value / 100.0) * duration;
-
-                      // Update cached position immediately for smooth UI
-                      id(cached_media_position) = target_position;
-                      id(position_update_timestamp_ms) = millis();
-
-                      ESP_LOGI("ui", "Seek requested to %.1f seconds (%.0f%%)", target_position, slider_value);
-                    }
-                - homeassistant.service:
-                    service: media_player.media_seek
-                    data:
-                      entity_id: media_player.lards_speaker2
-                    data_template:
-                      seek_position: !lambda |-
-                        float slider_value = lv_slider_get_value(id(progress_slider));
-                        float duration = 0;
-                        if (id(ha_media_duration).has_state()) {
-                          duration = id(ha_media_duration).state;
-                        }
-                        return (slider_value / 100.0) * duration;
+                - logger.log:
+                    tag: "ui"
+                    level: INFO
+                    format: "Progress slider released: %d%%"
+                    args: ['(int)x']
+                - script.execute:
+                    id: media_seek
+                    seek_percent: !lambda 'return (float)x;'
 
         # ---------------------------------------------------------------------
         # Playback Control Buttons (Right Panel - Horizontal Row)
         # ---------------------------------------------------------------------
-        # Previous Track Button
+        # Next Track Button (Left position)
         - button:
-            id: btn_prev
+            id: btn_next
             styles: style_btn_secondary
             width: 44
             height: 44
@@ -400,14 +406,11 @@ lvgl:
                 - logger.log:
                     tag: "ui"
                     level: INFO
-                    format: "Previous button pressed"
-                - homeassistant.service:
-                    service: media_player.media_previous_track
-                    data:
-                      entity_id: media_player.lards_speaker2
+                    format: "Next button pressed"
+                - script.execute: media_next_track
             widgets:
               - label:
-                  text: "\U000F04AD"
+                  text: "\U000F04AE"
                   text_font: icons_24
                   text_color: 0xFFFFFF
                   align: CENTER
@@ -427,10 +430,7 @@ lvgl:
                     tag: "ui"
                     level: INFO
                     format: "Play/Pause button pressed"
-                - homeassistant.service:
-                    service: media_player.media_play_pause
-                    data:
-                      entity_id: media_player.lards_speaker2
+                - script.execute: media_play_pause
             widgets:
               - label:
                   id: lbl_play_icon
@@ -439,9 +439,9 @@ lvgl:
                   text_color: 0x121212
                   align: CENTER
 
-        # Next Track Button
+        # Previous Track Button (Right position)
         - button:
-            id: btn_next
+            id: btn_prev
             styles: style_btn_secondary
             width: 44
             height: 44
@@ -453,14 +453,11 @@ lvgl:
                 - logger.log:
                     tag: "ui"
                     level: INFO
-                    format: "Next button pressed"
-                - homeassistant.service:
-                    service: media_player.media_next_track
-                    data:
-                      entity_id: media_player.lards_speaker2
+                    format: "Previous button pressed"
+                - script.execute: media_previous_track
             widgets:
               - label:
-                  text: "\U000F04AE"
+                  text: "\U000F04AD"
                   text_font: icons_24
                   text_color: 0xFFFFFF
                   align: CENTER
@@ -470,29 +467,48 @@ lvgl:
         # =====================================================================
 
         # ---------------------------------------------------------------------
-        # Volume Icon (Bottom Left)
+        # Mute Toggle Button (Bottom Left)
         # ---------------------------------------------------------------------
-        # Shows volume state icon: high, low, or mute based on volume level
-        - label:
-            id: lbl_volume_icon
-            text: "\U000F057E"
-            text_font: icons_24
-            text_color: 0xB3B3B3
+        # Clickable button to toggle mute state
+        # Icon changes between volume-high and volume-mute based on mute state
+        # Minimum 44x44px touch target per accessibility guidelines
+        - button:
+            id: btn_mute
             align: BOTTOM_LEFT
-            x: 8
-            y: -6
+            x: 0
+            y: 0
+            width: 44
+            height: 44
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            on_click:
+              then:
+                - logger.log:
+                    tag: "ui"
+                    level: INFO
+                    format: "Mute button pressed"
+                - script.execute: media_mute_toggle
+            widgets:
+              - label:
+                  id: lbl_volume_icon
+                  text: "\U000F057E"
+                  text_font: icons_24
+                  text_color: 0xB3B3B3
+                  align: CENTER
 
         # ---------------------------------------------------------------------
         # Volume Slider (Bottom - Full Width)
         # ---------------------------------------------------------------------
         # Slim volume slider at very bottom spanning entire width
         # Only sends volume on release (debounced) to avoid flooding API
+        # Positioned next to mute button (44px width)
         - slider:
             id: slider_volume
             align: BOTTOM_LEFT
-            x: 36
-            y: -8
-            width: 276
+            x: 44
+            y: -12
+            width: 268
             height: 20
             min_value: 0
             max_value: 100
@@ -520,16 +536,8 @@ lvgl:
                 - script.execute:
                     id: media_volume_set
                     volume_percent: !lambda 'return (int)x;'
-                - lambda: |-
-                    // Update volume icon based on level
-                    int vol = (int)x;
-                    if (vol == 0) {
-                      lv_label_set_text(id(lbl_volume_icon), "\U000F0581");  // mute
-                    } else if (vol < 50) {
-                      lv_label_set_text(id(lbl_volume_icon), "\U000F0580");  // low
-                    } else {
-                      lv_label_set_text(id(lbl_volume_icon), "\U000F057E");  // high
-                    }
+                # Update volume icon using centralized script (H2 fix)
+                - script.execute: update_volume_icon
 
 # =============================================================================
 # Dynamic Update Notes (Now Playing Screen)
@@ -540,6 +548,10 @@ lvgl:
 #   Example: id(lbl_status).set_text("Disconnected");
 #            id(lbl_status).set_style_text_color(lv_color_hex(0xFF6B35), 0);
 #
+# - lbl_player_name: Update with active media player friendly name
+#   Updated automatically from ha_player_friendly_name sensor in media_player.yaml
+#   Example: lv_label_set_text(id(lbl_player_name), "Living Room Speaker");
+#
 # - lbl_title: Update with current track title from media player
 #   Example: id(lbl_title).set_text(title.c_str());
 #
@@ -548,6 +560,13 @@ lvgl:
 #
 # - lbl_album: Update with current album name from media player
 #   Example: id(lbl_album).set_text(album.c_str());
+#
+# Album Art Section:
+# - album_art_container: Container for album art (96x96px at x=16, y=56)
+#
+# - lbl_album_art_placeholder: Music note icon placeholder for when no album art
+#   Hide when album art is loaded: lv_obj_add_flag(id(lbl_album_art_placeholder), LV_OBJ_FLAG_HIDDEN);
+#   Show when no album art:        lv_obj_clear_flag(id(lbl_album_art_placeholder), LV_OBJ_FLAG_HIDDEN);
 #
 # - btn_play: Access play button for visual state updates
 #
@@ -572,13 +591,15 @@ lvgl:
 #   Example: lv_label_set_text(id(lbl_total_time), "4:30");
 #
 # Volume Section:
+# - btn_mute: Mute toggle button (44x44px touch target)
+#   On click, calls media_mute_toggle script to toggle mute state
+#
 # - slider_volume: Volume slider (0-100), calls media_volume_set on release
 #   Example: lv_slider_set_value(id(slider_volume), volume_percent, LV_ANIM_ON);
 #
-# - lbl_volume_icon: Volume icon that changes based on level
-#   Mute:    lv_label_set_text(id(lbl_volume_icon), "\U000F0581");  // mdi:volume-mute
-#   Low:     lv_label_set_text(id(lbl_volume_icon), "\U000F0580");  // mdi:volume-low
-#   High:    lv_label_set_text(id(lbl_volume_icon), "\U000F057E");  // mdi:volume-high
+# - lbl_volume_icon: Volume icon inside btn_mute that changes based on mute state
+#   Muted:   lv_label_set_text(id(lbl_volume_icon), "\U000F0581");  // mdi:volume-mute
+#   Unmuted: lv_label_set_text(id(lbl_volume_icon), "\U000F057E");  // mdi:volume-high
 #
 # Media Player Entity:
 # The buttons call services on "media_player.lards_speaker2" entity.
