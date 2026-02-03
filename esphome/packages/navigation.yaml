@@ -170,6 +170,13 @@ script:
                 id: page_main
                 animation: OUT_LEFT
                 time: 250ms
+            # Show/hide "No Player Selected" overlay based on selection state
+            - lambda: |-
+                if (id(selected_player_id).empty()) {
+                  lv_obj_clear_flag(id(no_player_overlay), LV_OBJ_FLAG_HIDDEN);
+                } else {
+                  lv_obj_add_flag(id(no_player_overlay), LV_OBJ_FLAG_HIDDEN);
+                }
       - if:
           condition:
             lambda: 'return target_screen == 2;'
@@ -255,6 +262,13 @@ script:
                 id: page_main
                 animation: OUT_RIGHT
                 time: 250ms
+            # Show/hide "No Player Selected" overlay based on selection state
+            - lambda: |-
+                if (id(selected_player_id).empty()) {
+                  lv_obj_clear_flag(id(no_player_overlay), LV_OBJ_FLAG_HIDDEN);
+                } else {
+                  lv_obj_add_flag(id(no_player_overlay), LV_OBJ_FLAG_HIDDEN);
+                }
       - if:
           condition:
             lambda: 'return id(current_screen) == 2;'

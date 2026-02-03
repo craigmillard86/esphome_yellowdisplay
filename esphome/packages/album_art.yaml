@@ -87,14 +87,24 @@ globals:
   # Calculation for 174x174 large image -> 100x100 display:
   #   - HTTP receive buffers: ~8KB (TCP window)
   #   - PNG streaming buffer: ~16KB (buffer_size)
-  #   - PNG decode working memory: ~8KB
   #   - Final RGB565 buffer: 100x100x2 = 20KB
-  #   - Safety margin for fragmentation: ~8KB
-  #   Total: 60KB minimum contiguous
+  #   Total: ~44KB needed, use 35KB threshold with streaming
   - id: album_art_min_heap
     type: uint32_t
     restore_value: no
-    initial_value: '60000'  # 60KB minimum contiguous block required
+    initial_value: '35000'  # 35KB minimum - streaming decode needs less
+
+  # Current display track info (updated by both HA sensors AND player state refresh)
+  # This allows album art lookup to work for ANY player, not just the default one
+  - id: current_display_artist
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+  - id: current_display_title
+    type: std::string
+    restore_value: no
+    initial_value: '""'
 
 # =============================================================================
 # Online Image Component - Album Art Fetcher
@@ -115,27 +125,18 @@ online_image:
     on_download_finished:
       then:
         - lambda: |-
-            if (id(album_art_state) == 1) {
-              // Log heap status after successful download
-              uint32_t free_heap = esp_get_free_heap_size();
-              uint32_t largest_block = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-              ESP_LOGI("album_art", "Album art download completed - Free=%u, Largest=%u",
-                       free_heap, largest_block);
+            // Accept download regardless of state - we did the work, use the result
+            uint32_t free_heap = esp_get_free_heap_size();
+            uint32_t largest_block = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+            ESP_LOGI("album_art", "Album art download completed - Free=%u, Largest=%u",
+                     free_heap, largest_block);
 
-              id(album_art_state) = 2;
-              id(has_album_art) = true;
-              // Reset error tracking on success
-              id(album_art_error_count) = 0;
-              id(album_art_cooldown_until) = 0;
-            } else {
-              ESP_LOGW("album_art", "Download completed but state changed");
-              return;
-            }
-        - if:
-            condition:
-              lambda: 'return id(album_art_state) == 2;'
-            then:
-              - script.execute: album_art_show_image
+            id(album_art_state) = 2;
+            id(has_album_art) = true;
+            // Reset error tracking on success
+            id(album_art_error_count) = 0;
+            id(album_art_cooldown_until) = 0;
+        - script.execute: album_art_show_image
 
     on_error:
       then:
@@ -164,7 +165,7 @@ script:
           // Check if we're in error cooldown
           uint32_t now = millis();
           if (now < id(album_art_cooldown_until)) {
-            ESP_LOGI("album_art", "In error cooldown, skipping lookup");
+            ESP_LOGD("album_art", "In error cooldown, skipping lookup");
             return;
           }
 
@@ -187,16 +188,10 @@ script:
             return;
           }
 
-          // Get current artist and title
-          std::string artist = "";
-          std::string title = "";
-
-          if (id(ha_media_artist).has_state()) {
-            artist = id(ha_media_artist).state;
-          }
-          if (id(ha_media_title).has_state()) {
-            title = id(ha_media_title).state;
-          }
+          // Get current artist and title from display globals
+          // These are set by either HA sensor updates OR player state refresh
+          std::string artist = id(current_display_artist);
+          std::string title = id(current_display_title);
 
           // Skip if no track info
           if (artist.empty() || title.empty()) {
@@ -223,8 +218,9 @@ script:
       # Make HTTP request to Last.fm API
       - http_request.get:
           url: !lambda |-
-            std::string artist = id(ha_media_artist).state;
-            std::string title = id(ha_media_title).state;
+            // Use display globals (set by HA sensors or player state refresh)
+            std::string artist = id(current_display_artist);
+            std::string title = id(current_display_title);
 
             // URL encode artist and title (basic encoding)
             auto url_encode = [](const std::string& str) -> std::string {
@@ -439,16 +435,21 @@ interval:
   - interval: 2s
     then:
       - lambda: |-
-          // Build current track key
-          std::string artist = "";
-          std::string title = "";
+          // Skip if in cooldown (don't even check track - reduces log spam)
+          uint32_t now = millis();
+          if (now < id(album_art_cooldown_until)) {
+            return;  // Silently skip during cooldown
+          }
 
-          if (id(ha_media_artist).has_state()) {
-            artist = id(ha_media_artist).state;
+          // Skip if download already in progress
+          if (id(album_art_state) == 1) {
+            return;
           }
-          if (id(ha_media_title).has_state()) {
-            title = id(ha_media_title).state;
-          }
+
+          // Use same source as lookup: current_display_* globals
+          // These are set by BOTH HA sensor updates AND player state refresh
+          std::string artist = id(current_display_artist);
+          std::string title = id(current_display_title);
 
           std::string track_key = artist + "|" + title;
 

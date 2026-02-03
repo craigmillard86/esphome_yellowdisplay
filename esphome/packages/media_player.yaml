@@ -141,6 +141,8 @@ text_sensor:
         - lvgl.label.update:
             id: lbl_title
             text: !lambda 'return x.c_str();'
+        # Update display global for album art lookup (works with any player)
+        - lambda: 'id(current_display_title) = x;'
         - logger.log:
             tag: "media"
             level: INFO
@@ -159,6 +161,8 @@ text_sensor:
         - lvgl.label.update:
             id: lbl_artist
             text: !lambda 'return x.c_str();'
+        # Update display global for album art lookup (works with any player)
+        - lambda: 'id(current_display_artist) = x;'
         - logger.log:
             tag: "media"
             level: INFO

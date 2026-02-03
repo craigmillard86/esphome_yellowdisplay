@@ -32,6 +32,8 @@ lvgl:
     # =========================================================================
     - id: page_players
       bg_color: 0x121212
+      border_width: 0
+      shadow_width: 0
       widgets:
         # =====================================================================
         # HEADER AREA (44px height)
@@ -46,6 +48,7 @@ lvgl:
             height: 44
             bg_opa: TRANSP
             border_width: 0
+            shadow_width: 0
             pad_all: 0
             on_click:
               - logger.log:
@@ -107,6 +110,7 @@ lvgl:
             bg_color: 0x121212
             bg_opa: COVER
             border_width: 0
+            shadow_width: 0
             pad_all: 4
             scrollbar_mode: AUTO
             layout:
@@ -127,6 +131,7 @@ lvgl:
                   radius: 8
                   border_width: 1
                   border_color: 0x2A2A2A
+                  shadow_width: 0
                   pad_all: 8
                   hidden: true  # Hidden until player registered
                   pressed:
@@ -209,6 +214,7 @@ lvgl:
                         height: 44
                         bg_opa: TRANSP
                         border_width: 0
+                        shadow_width: 0
                         on_click:
                           - lambda: |-
                               bool is_on = id(player_0_online);
@@ -235,6 +241,7 @@ lvgl:
                   radius: 8
                   border_width: 1
                   border_color: 0x2A2A2A
+                  shadow_width: 0
                   pad_all: 8
                   hidden: true
                   pressed:
@@ -307,6 +314,7 @@ lvgl:
                         height: 44
                         bg_opa: TRANSP
                         border_width: 0
+                        shadow_width: 0
                         on_click:
                           - script.execute:
                               id: set_player_power
@@ -331,6 +339,7 @@ lvgl:
                   radius: 8
                   border_width: 1
                   border_color: 0x2A2A2A
+                  shadow_width: 0
                   pad_all: 8
                   hidden: true
                   pressed:
@@ -403,6 +412,7 @@ lvgl:
                         height: 44
                         bg_opa: TRANSP
                         border_width: 0
+                        shadow_width: 0
                         on_click:
                           - script.execute:
                               id: set_player_power
@@ -427,6 +437,7 @@ lvgl:
                   radius: 8
                   border_width: 1
                   border_color: 0x2A2A2A
+                  shadow_width: 0
                   pad_all: 8
                   hidden: true
                   pressed:
@@ -499,6 +510,7 @@ lvgl:
                         height: 44
                         bg_opa: TRANSP
                         border_width: 0
+                        shadow_width: 0
                         on_click:
                           - script.execute:
                               id: set_player_power

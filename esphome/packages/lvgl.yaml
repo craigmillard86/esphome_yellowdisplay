@@ -101,6 +101,7 @@ lvgl:
       bg_color: 0x121212
       bg_opa: COVER
       border_width: 0
+      shadow_width: 0
       pad_all: 0
       radius: 0
       text_color: 0xFFFFFF
@@ -111,6 +112,7 @@ lvgl:
       bg_color: 0x00D1FF
       bg_opa: COVER
       border_width: 0
+      shadow_width: 0
       text_color: 0x121212
       pad_all: 12
 
@@ -121,6 +123,7 @@ lvgl:
       bg_opa: COVER
       border_width: 2
       border_color: 0x00D1FF
+      shadow_width: 0
       text_color: 0xFFFFFF
       pad_all: 12
 
@@ -130,6 +133,7 @@ lvgl:
       bg_color: 0x1E1E1E
       bg_opa: COVER
       border_width: 0
+      shadow_width: 0
       pad_all: 16
 
     # Primary text (song title)
@@ -193,6 +197,7 @@ lvgl:
       border_color: 0x2A2A2A
       border_opa: COVER
       pad_all: 0
+      shadow_width: 0
 
     # Home Dashboard Tile - Pressed State (T047)
     - id: style_tile_pressed
@@ -203,6 +208,7 @@ lvgl:
       border_color: 0x00D1FF
       border_opa: COVER
       pad_all: 0
+      shadow_width: 0
 
   # =============================================================================
   # Pages - UI Screens
@@ -211,6 +217,8 @@ lvgl:
     # Boot/Loading screen
     - id: page_boot
       bg_color: 0x121212
+      border_width: 0
+      shadow_width: 0
       widgets:
         - label:
             align: CENTER
@@ -446,6 +454,7 @@ lvgl:
             height: 44
             bg_opa: TRANSP
             border_width: 0
+            shadow_width: 0
             pad_all: 0
             on_click:
               - logger.log:
@@ -768,6 +777,7 @@ lvgl:
             height: 44
             bg_opa: TRANSP
             border_width: 0
+            shadow_width: 0
             pad_all: 0
             on_click:
               then:
@@ -825,6 +835,69 @@ lvgl:
                     volume_percent: !lambda 'return (int)x;'
                 # Update volume icon using centralized script (H2 fix)
                 - script.execute: update_volume_icon
+
+        # =====================================================================
+        # NO PLAYER SELECTED OVERLAY
+        # =====================================================================
+        # Full-screen overlay shown when no player is selected
+        # Hidden when a player is selected
+        - obj:
+            id: no_player_overlay
+            x: 0
+            y: 0
+            width: 320
+            height: 240
+            bg_color: 0x121212
+            bg_opa: COVER
+            border_width: 0
+            shadow_width: 0
+            hidden: false
+            widgets:
+              # Back button on overlay
+              - button:
+                  x: 0
+                  y: 0
+                  width: 44
+                  height: 44
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute: navigate_back
+                  widgets:
+                    - label:
+                        text: "\U000F004D"
+                        text_font: icons_24
+                        text_color: 0xB3B3B3
+                        align: CENTER
+
+              # Speaker icon
+              - label:
+                  text: "\U000F057F"
+                  text_font: icons_24
+                  text_color: 0x666666
+                  align: CENTER
+                  y: -20
+
+              # "No Player Selected" message
+              - label:
+                  id: lbl_no_player_msg
+                  text: "No Player Selected"
+                  text_font: roboto_16
+                  text_color: 0xB3B3B3
+                  text_align: CENTER
+                  align: CENTER
+                  y: 20
+
+              # Hint text
+              - label:
+                  text: "Tap Speakers to select"
+                  text_font: roboto_12
+                  text_color: 0x666666
+                  text_align: CENTER
+                  align: CENTER
+                  y: 45
 
 # =============================================================================
 # Dynamic Update Notes (Now Playing Screen)
