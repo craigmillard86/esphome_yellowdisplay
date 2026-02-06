@@ -1,0 +1,919 @@
+# =============================================================================
+# Package: Speaker Grouping (T095, T097-T098, T101-T102)
+# Purpose: Multi-room speaker grouping via Music Assistant
+# Dependencies: packages/player_manager.yaml (player list and state)
+#               packages/homeassistant.yaml (HA API connection)
+#               packages/navigation.yaml (screen navigation)
+# Exposes: Grouping state, apply/cancel scripts, validation logic
+# =============================================================================
+
+# This package implements:
+# - T095: Store checkbox states locally before apply (bitmask/array)
+# - T097: On Apply: validate selections, send group command to MA
+# - T098: Handle partial group creation failure (FR-044)
+# - T101: Update active target to new group after creation (FR-046)
+# - T102: Prevent invalid grouping combinations (FR-045)
+#
+# Music Assistant Grouping Commands (via Home Assistant media_player services):
+# - media_player.join: Group players together (leader + members)
+# - media_player.unjoin: Remove player from group / dissolve group
+#
+# Group Requirements (FR-045):
+# - Minimum 2 players required for a group
+# - All players must be online
+# - Players must be of compatible types (handled by MA)
+
+# =============================================================================
+# Substitutions
+# =============================================================================
+
+substitutions:
+  # HA API for group commands
+  group_api_url: !secret ha_url
+  group_api_token: !secret ha_long_lived_token
+
+# =============================================================================
+# Global Variables - Grouping State
+# =============================================================================
+
+globals:
+  # Checkbox states bitmask (T095)
+  # Bit N = 1 means player N is checked for grouping
+  # Supports up to 8 players (bits 0-7)
+  - id: grouping_checkbox_states
+    type: uint8_t
+    restore_value: no
+    initial_value: '0'
+
+  # Original checkbox states (for cancel/restore)
+  - id: grouping_original_states
+    type: uint8_t
+    restore_value: no
+    initial_value: '0'
+
+  # Currently selected group leader (entity_id)
+  # The first checked player becomes the leader
+  - id: grouping_leader_entity
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+  # Number of players currently checked
+  - id: grouping_checked_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Grouping operation status
+  # 0 = idle, 1 = in_progress, 2 = success, 3 = partial_failure, 4 = failure
+  - id: grouping_status
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Error message for partial/full failures (FR-044)
+  - id: grouping_error_message
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+  # Members list for group command (built before service call)
+  - id: grouping_members_list
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+  # Flag: grouping screen is active (for UI updates)
+  - id: grouping_screen_active
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # Designated group leader entity_id (user can tap crown to change)
+  - id: grouping_designated_leader
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+  # Grouping mode: 0 = create new group, 1 = edit existing group
+  - id: grouping_mode
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # ===========================================================================
+  # Player Group Status - Per-player group membership tracking
+  # ===========================================================================
+  # group_status: 0=none, 1=leader, 2=member
+  # group_leader: entity_id of group leader (when player is a member)
+  # group_size: number of members (when player is leader)
+
+  # Player 0 group status
+  - id: player_0_group_status
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: player_0_group_leader
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_0_group_size
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Player 1 group status
+  - id: player_1_group_status
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: player_1_group_leader
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_1_group_size
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Player 2 group status
+  - id: player_2_group_status
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: player_2_group_leader
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_2_group_size
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Player 3 group status
+  - id: player_3_group_status
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: player_3_group_leader
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_3_group_size
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Player 4 group status
+  - id: player_4_group_status
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: player_4_group_leader
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_4_group_size
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Player 5 group status
+  - id: player_5_group_status
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: player_5_group_leader
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_5_group_size
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Player 6 group status
+  - id: player_6_group_status
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: player_6_group_leader
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_6_group_size
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Player 7 group status
+  - id: player_7_group_status
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: player_7_group_leader
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: player_7_group_size
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+# =============================================================================
+# Scripts - Grouping Logic
+# =============================================================================
+
+script:
+  # ---------------------------------------------------------------------------
+  # Initialize Grouping Screen (T094)
+  # ---------------------------------------------------------------------------
+  # Called when navigating to grouping screen
+  # Pre-checks players already in current group, detects create/edit mode
+  - id: grouping_init
+    mode: restart
+    then:
+      - lambda: |-
+          ESP_LOGI("grouping", "Initializing grouping screen...");
+
+          id(grouping_screen_active) = true;
+          id(grouping_status) = 0;  // Idle
+          id(grouping_error_message) = "";
+
+          std::string selected = id(selected_player_id);
+          uint8_t initial_states = 0;
+          int selected_idx = -1;
+          int selected_group_status = 0;  // 0=none, 1=leader, 2=member
+          std::string selected_group_leader = "";
+
+          // Player entity IDs and group status arrays for easy lookup
+          std::string entities[8] = {
+            id(player_0_entity_id), id(player_1_entity_id), id(player_2_entity_id), id(player_3_entity_id),
+            id(player_4_entity_id), id(player_5_entity_id), id(player_6_entity_id), id(player_7_entity_id)
+          };
+          int group_statuses[8] = {
+            id(player_0_group_status), id(player_1_group_status), id(player_2_group_status), id(player_3_group_status),
+            id(player_4_group_status), id(player_5_group_status), id(player_6_group_status), id(player_7_group_status)
+          };
+          std::string group_leaders[8] = {
+            id(player_0_group_leader), id(player_1_group_leader), id(player_2_group_leader), id(player_3_group_leader),
+            id(player_4_group_leader), id(player_5_group_leader), id(player_6_group_leader), id(player_7_group_leader)
+          };
+
+          // Find selected player's index and group status
+          for (int i = 0; i < 8; i++) {
+            if (!entities[i].empty() && entities[i] == selected) {
+              selected_idx = i;
+              selected_group_status = group_statuses[i];
+              selected_group_leader = group_leaders[i];
+              break;
+            }
+          }
+
+          ESP_LOGI("grouping", "Selected player idx=%d, group_status=%d, group_leader=%s",
+                   selected_idx, selected_group_status, selected_group_leader.c_str());
+
+          // Determine mode and pre-check players based on group status
+          if (selected_group_status == 0) {
+            // Not in a group - CREATE mode
+            id(grouping_mode) = 0;
+            id(grouping_designated_leader) = selected;
+
+            // Only check the selected player
+            if (selected_idx >= 0) {
+              initial_states |= (1 << selected_idx);
+            }
+            ESP_LOGI("grouping", "CREATE mode: designated_leader=%s", selected.c_str());
+
+          } else if (selected_group_status == 1) {
+            // Selected player IS the leader - EDIT mode
+            id(grouping_mode) = 1;
+            id(grouping_designated_leader) = selected;
+
+            // Pre-check all players in this group (leader + members)
+            for (int i = 0; i < 8; i++) {
+              if (entities[i].empty()) continue;
+
+              // Check this player if: it IS the leader OR its group_leader matches selected
+              if (entities[i] == selected || group_leaders[i] == selected) {
+                initial_states |= (1 << i);
+              }
+            }
+            ESP_LOGI("grouping", "EDIT mode (leader): designated_leader=%s", selected.c_str());
+
+          } else if (selected_group_status == 2) {
+            // Selected player is a MEMBER - EDIT mode
+            id(grouping_mode) = 1;
+            id(grouping_designated_leader) = selected_group_leader;
+
+            // Pre-check all players in the same group
+            for (int i = 0; i < 8; i++) {
+              if (entities[i].empty()) continue;
+
+              // Check: the leader, or any member of the same group
+              if (entities[i] == selected_group_leader ||
+                  group_leaders[i] == selected_group_leader) {
+                initial_states |= (1 << i);
+              }
+            }
+            ESP_LOGI("grouping", "EDIT mode (member): designated_leader=%s", selected_group_leader.c_str());
+          }
+
+          id(grouping_checkbox_states) = initial_states;
+          id(grouping_original_states) = initial_states;
+
+          // Count checked players
+          int count = 0;
+          for (int i = 0; i < 8; i++) {
+            if (initial_states & (1 << i)) count++;
+          }
+          id(grouping_checked_count) = count;
+
+          ESP_LOGI("grouping", "Initial checkbox states: 0x%02X (%d players checked), mode=%d",
+                   initial_states, count, id(grouping_mode));
+
+      # Update UI to reflect initial states (title, checkboxes, leader crown)
+      - script.execute: grouping_update_ui
+
+  # ---------------------------------------------------------------------------
+  # Toggle Checkbox State (T095)
+  # ---------------------------------------------------------------------------
+  # Toggles a player's checkbox and updates counts
+  - id: grouping_toggle_checkbox
+    mode: restart
+    parameters:
+      player_index: int
+    then:
+      - lambda: |-
+          if (player_index < 0 || player_index > 7) {
+            ESP_LOGE("grouping", "Invalid player index: %d", player_index);
+            return;
+          }
+
+          // Check if player exists and is online (FR-045)
+          std::string entity_id;
+          bool is_online = false;
+
+          switch (player_index) {
+            case 0: entity_id = id(player_0_entity_id); is_online = id(player_0_online); break;
+            case 1: entity_id = id(player_1_entity_id); is_online = id(player_1_online); break;
+            case 2: entity_id = id(player_2_entity_id); is_online = id(player_2_online); break;
+            case 3: entity_id = id(player_3_entity_id); is_online = id(player_3_online); break;
+            case 4: entity_id = id(player_4_entity_id); is_online = id(player_4_online); break;
+            case 5: entity_id = id(player_5_entity_id); is_online = id(player_5_online); break;
+            case 6: entity_id = id(player_6_entity_id); is_online = id(player_6_online); break;
+            case 7: entity_id = id(player_7_entity_id); is_online = id(player_7_online); break;
+          }
+
+          if (entity_id.empty()) {
+            ESP_LOGW("grouping", "Player slot %d is empty", player_index);
+            return;
+          }
+
+          // Prevent checking offline players (FR-045)
+          if (!is_online) {
+            ESP_LOGW("grouping", "Cannot add offline player to group: %s", entity_id.c_str());
+            return;
+          }
+
+          // Toggle the bit
+          uint8_t mask = (1 << player_index);
+          bool was_checked = (id(grouping_checkbox_states) & mask) != 0;
+
+          if (was_checked) {
+            id(grouping_checkbox_states) &= ~mask;  // Uncheck
+            id(grouping_checked_count)--;
+            ESP_LOGI("grouping", "Unchecked player %d (%s)", player_index, entity_id.c_str());
+          } else {
+            id(grouping_checkbox_states) |= mask;   // Check
+            id(grouping_checked_count)++;
+            ESP_LOGI("grouping", "Checked player %d (%s)", player_index, entity_id.c_str());
+          }
+
+          ESP_LOGD("grouping", "Checkbox states now: 0x%02X (%d checked)",
+                   id(grouping_checkbox_states), id(grouping_checked_count));
+
+      # Update UI
+      - script.execute: grouping_update_ui
+
+  # ---------------------------------------------------------------------------
+  # Set Designated Group Leader
+  # ---------------------------------------------------------------------------
+  # Allows user to tap crown icon to change which player will be the leader
+  - id: grouping_set_leader
+    mode: restart
+    parameters:
+      player_index: int
+    then:
+      - lambda: |-
+          if (player_index < 0 || player_index > 7) {
+            ESP_LOGE("grouping", "Invalid player index for leader: %d", player_index);
+            return;
+          }
+
+          // Get entity_id for this player
+          std::string entity_id;
+          switch (player_index) {
+            case 0: entity_id = id(player_0_entity_id); break;
+            case 1: entity_id = id(player_1_entity_id); break;
+            case 2: entity_id = id(player_2_entity_id); break;
+            case 3: entity_id = id(player_3_entity_id); break;
+            case 4: entity_id = id(player_4_entity_id); break;
+            case 5: entity_id = id(player_5_entity_id); break;
+            case 6: entity_id = id(player_6_entity_id); break;
+            case 7: entity_id = id(player_7_entity_id); break;
+          }
+
+          if (entity_id.empty()) {
+            ESP_LOGW("grouping", "Cannot set empty player as leader");
+            return;
+          }
+
+          // Verify player is checked (can't make unchecked player the leader)
+          uint8_t mask = (1 << player_index);
+          if (!(id(grouping_checkbox_states) & mask)) {
+            ESP_LOGW("grouping", "Cannot set unchecked player as leader: %s", entity_id.c_str());
+            return;
+          }
+
+          // Set as designated leader
+          id(grouping_designated_leader) = entity_id;
+          ESP_LOGI("grouping", "Designated leader changed to: %s (index %d)", entity_id.c_str(), player_index);
+
+      # Refresh UI to show crown on new leader
+      - script.execute: grouping_update_ui
+
+  # ---------------------------------------------------------------------------
+  # Validate Grouping Selection (T097, T102)
+  # ---------------------------------------------------------------------------
+  # Returns true if current selection is valid for grouping
+  - id: grouping_validate
+    mode: single
+    then:
+      - lambda: |-
+          int count = id(grouping_checked_count);
+
+          // FR-045: Minimum 2 players required for a group
+          if (count < 2) {
+            ESP_LOGW("grouping", "Invalid: Need at least 2 players (have %d)", count);
+            id(grouping_error_message) = "Select at least 2 players";
+            return;
+          }
+
+          // Verify all checked players are online
+          uint8_t states = id(grouping_checkbox_states);
+          for (int i = 0; i < 8; i++) {
+            if (!(states & (1 << i))) continue;
+
+            bool is_online = false;
+            std::string player_name;
+            switch (i) {
+              case 0: is_online = id(player_0_online); player_name = id(player_0_name); break;
+              case 1: is_online = id(player_1_online); player_name = id(player_1_name); break;
+              case 2: is_online = id(player_2_online); player_name = id(player_2_name); break;
+              case 3: is_online = id(player_3_online); player_name = id(player_3_name); break;
+              case 4: is_online = id(player_4_online); player_name = id(player_4_name); break;
+              case 5: is_online = id(player_5_online); player_name = id(player_5_name); break;
+              case 6: is_online = id(player_6_online); player_name = id(player_6_name); break;
+              case 7: is_online = id(player_7_online); player_name = id(player_7_name); break;
+            }
+
+            if (!is_online) {
+              ESP_LOGW("grouping", "Invalid: Player '%s' went offline", player_name.c_str());
+              id(grouping_error_message) = player_name + " went offline";
+              return;
+            }
+          }
+
+          ESP_LOGI("grouping", "Validation passed: %d players selected", count);
+          id(grouping_error_message) = "";
+
+  # ---------------------------------------------------------------------------
+  # Apply Grouping (T097)
+  # ---------------------------------------------------------------------------
+  # Sends group command to Music Assistant via Home Assistant
+  - id: grouping_apply
+    mode: single
+    then:
+      - lambda: |-
+          ESP_LOGI("grouping", "Applying group changes...");
+          id(grouping_status) = 1;  // In progress
+
+          // Show loading feedback in UI
+          lv_obj_t* status_lbl = id(lbl_grouping_status);
+          if (status_lbl != nullptr) {
+            lv_label_set_text(status_lbl, "Creating group...");
+            lv_obj_set_style_text_color(status_lbl, lv_color_hex(0x00D1FF), 0);
+          }
+
+          // Disable Apply button during operation
+          lv_obj_t* apply_btn = id(btn_grouping_apply);
+          if (apply_btn != nullptr) {
+            lv_obj_add_state(apply_btn, LV_STATE_DISABLED);
+            lv_obj_set_style_bg_opa(apply_btn, LV_OPA_50, 0);
+          }
+
+      # Validate first
+      - script.execute: grouping_validate
+      - script.wait: grouping_validate
+
+      # Check if validation passed
+      - if:
+          condition:
+            lambda: 'return !id(grouping_error_message).empty();'
+          then:
+            - lambda: |-
+                ESP_LOGW("grouping", "Validation failed: %s", id(grouping_error_message).c_str());
+                id(grouping_status) = 4;  // Failure
+            - script.execute: grouping_update_ui
+          else:
+            # Build list of players to group using designated leader
+            - lambda: |-
+                uint8_t states = id(grouping_checkbox_states);
+                std::string leader = id(grouping_designated_leader);
+
+                // Validate designated leader is still checked
+                std::string entities[8] = {
+                  id(player_0_entity_id), id(player_1_entity_id), id(player_2_entity_id), id(player_3_entity_id),
+                  id(player_4_entity_id), id(player_5_entity_id), id(player_6_entity_id), id(player_7_entity_id)
+                };
+
+                bool leader_valid = false;
+                for (int i = 0; i < 8; i++) {
+                  if (entities[i] == leader && (states & (1 << i))) {
+                    leader_valid = true;
+                    break;
+                  }
+                }
+
+                // Fallback: if designated leader became unchecked, use first checked player
+                if (!leader_valid) {
+                  for (int i = 0; i < 8; i++) {
+                    if ((states & (1 << i)) && !entities[i].empty()) {
+                      leader = entities[i];
+                      id(grouping_designated_leader) = leader;
+                      ESP_LOGW("grouping", "Designated leader invalid, falling back to: %s", leader.c_str());
+                      break;
+                    }
+                  }
+                }
+
+                id(grouping_leader_entity) = leader;
+
+                // Build comma-separated list of member entity IDs (exclude leader)
+                std::string members;
+                members.reserve(512);  // Pre-allocate to avoid reallocations
+                for (int i = 0; i < 8; i++) {
+                  if (!(states & (1 << i))) continue;
+                  if (entities[i].empty() || entities[i] == leader) continue;
+
+                  if (!members.empty()) members += ",";
+                  members += entities[i];
+                }
+                id(grouping_members_list) = members;
+
+                ESP_LOGI("grouping", "%s group with leader: %s, members: %s",
+                         id(grouping_mode) == 0 ? "Creating" : "Updating",
+                         leader.c_str(), members.c_str());
+
+            # Send group command via HA service call (media_player.join)
+            # entity_id = leader, group_members = players to join
+            - homeassistant.service:
+                service: media_player.join
+                data:
+                  entity_id: !lambda 'return id(grouping_leader_entity);'
+                  group_members: !lambda 'return id(grouping_members_list);'
+
+            # Wait for command to process
+            - delay: 1s
+
+            # Update status (T101)
+            - lambda: |-
+                ESP_LOGI("grouping", "Group command sent, updating active target");
+                id(grouping_status) = 2;  // Success
+
+                // T101: Update active target to new group (the leader)
+                std::string new_target = id(grouping_leader_entity);
+                if (!new_target.empty()) {
+                  id(selected_player_id) = new_target;
+                  id(active_player_entity) = new_target;
+
+                  // Find the leader's name
+                  if (new_target == id(player_0_entity_id)) id(selected_player_name) = id(player_0_name);
+                  else if (new_target == id(player_1_entity_id)) id(selected_player_name) = id(player_1_name);
+                  else if (new_target == id(player_2_entity_id)) id(selected_player_name) = id(player_2_name);
+                  else if (new_target == id(player_3_entity_id)) id(selected_player_name) = id(player_3_name);
+                  else if (new_target == id(player_4_entity_id)) id(selected_player_name) = id(player_4_name);
+                  else if (new_target == id(player_5_entity_id)) id(selected_player_name) = id(player_5_name);
+                  else if (new_target == id(player_6_entity_id)) id(selected_player_name) = id(player_6_name);
+                  else if (new_target == id(player_7_entity_id)) id(selected_player_name) = id(player_7_name);
+
+                  ESP_LOGI("grouping", "Active target updated to: %s", new_target.c_str());
+                }
+
+            - script.execute: grouping_update_ui
+            - script.execute: update_header_player_name
+
+            # Navigate back after brief delay to show success
+            - delay: 500ms
+            - script.execute: navigate_back
+
+  # ---------------------------------------------------------------------------
+  # Cancel Grouping (T100)
+  # ---------------------------------------------------------------------------
+  # Discards changes and returns to previous screen
+  - id: grouping_cancel
+    mode: single
+    then:
+      - lambda: |-
+          ESP_LOGI("grouping", "Cancelling group changes");
+
+          // Restore original checkbox states
+          id(grouping_checkbox_states) = id(grouping_original_states);
+
+          // Count original checked players
+          int count = 0;
+          uint8_t states = id(grouping_original_states);
+          for (int i = 0; i < 8; i++) {
+            if (states & (1 << i)) count++;
+          }
+          id(grouping_checked_count) = count;
+
+          id(grouping_status) = 0;
+          id(grouping_error_message) = "";
+          id(grouping_screen_active) = false;
+
+      # Navigate back without applying changes
+      - script.execute: navigate_back
+
+  # ---------------------------------------------------------------------------
+  # Update Grouping UI
+  # ---------------------------------------------------------------------------
+  # Updates checkbox visuals and status message
+  - id: grouping_update_ui
+    mode: restart
+    then:
+      - lambda: |-
+          if (!id(grouping_screen_active)) return;
+
+          ESP_LOGD("grouping", "Updating grouping UI...");
+
+          uint8_t states = id(grouping_checkbox_states);
+          int checked_count = id(grouping_checked_count);
+
+          // Update each checkbox visual (implemented in grouping.yaml UI)
+          // This is called from the UI file after updating widget visibility
+
+          // Update status/error label
+          lv_obj_t* status_lbl = id(lbl_grouping_status);
+          if (status_lbl != nullptr) {
+            if (!id(grouping_error_message).empty()) {
+              lv_label_set_text(status_lbl, id(grouping_error_message).c_str());
+              lv_obj_set_style_text_color(status_lbl, lv_color_hex(0xFF6B35), 0);  // Orange warning
+            } else if (checked_count < 2) {
+              lv_label_set_text(status_lbl, "Select 2+ players to group");
+              lv_obj_set_style_text_color(status_lbl, lv_color_hex(0x666666), 0);  // Grey hint
+            } else {
+              char buf[32];
+              snprintf(buf, sizeof(buf), "%d players selected", checked_count);
+              lv_label_set_text(status_lbl, buf);
+              lv_obj_set_style_text_color(status_lbl, lv_color_hex(0x00D1FF), 0);  // Cyan ready
+            }
+          }
+
+          // Enable/disable Apply button based on valid selection
+          lv_obj_t* apply_btn = id(btn_grouping_apply);
+          if (apply_btn != nullptr) {
+            if (checked_count >= 2) {
+              lv_obj_clear_state(apply_btn, LV_STATE_DISABLED);
+              lv_obj_set_style_bg_opa(apply_btn, LV_OPA_COVER, 0);
+            } else {
+              lv_obj_add_state(apply_btn, LV_STATE_DISABLED);
+              lv_obj_set_style_bg_opa(apply_btn, LV_OPA_50, 0);
+            }
+          }
+
+          ESP_LOGD("grouping", "UI updated: %d checked, status=%d",
+                   checked_count, id(grouping_status));
+
+  # ---------------------------------------------------------------------------
+  # Ungroup All (dissolve current group)
+  # ---------------------------------------------------------------------------
+  # Called when user wants to dissolve the current group
+  - id: grouping_ungroup_all
+    mode: single
+    then:
+      - lambda: |-
+          std::string leader = id(selected_player_id);
+          if (leader.empty()) {
+            ESP_LOGW("grouping", "No player selected, cannot ungroup");
+            return;
+          }
+          ESP_LOGI("grouping", "Dissolving group for: %s", leader.c_str());
+
+      - homeassistant.service:
+          service: media_player.unjoin
+          data:
+            entity_id: !lambda 'return id(selected_player_id);'
+
+      - delay: 500ms
+      - lambda: |-
+          ESP_LOGI("grouping", "Group dissolved");
+
+      - script.execute: navigate_back
+
+  # ---------------------------------------------------------------------------
+  # Refresh Player Group Status
+  # ---------------------------------------------------------------------------
+  # Queries HA REST API for group_members attribute for all Music Assistant players
+  # Updates the group status globals based on the response.
+  - id: refresh_player_group_status
+    mode: restart
+    then:
+      - lambda: |-
+          ESP_LOGI("grouping", "Refreshing player group status from HA...");
+
+      - http_request.post:
+          url: "${group_api_url}/api/template"
+          request_headers:
+            Authorization: "Bearer ${group_api_token}"
+            Content-Type: "application/json"
+          json: |-
+            // Simple template: get group_members for all MA players as pipe-delimited string
+            // Format: "entity1:member1,member2|entity2:member1,member2|..."
+            root["template"] = "{% set players = states.media_player | selectattr('attributes.mass_player_type', 'defined') | list %}{% for p in players %}{{ p.entity_id }}:{{ (p.attributes.group_members | default([])) | join(',') }}{% if not loop.last %}|{% endif %}{% endfor %}";
+          on_response:
+            then:
+              - lambda: |-
+                  if (response->status_code != 200) {
+                    ESP_LOGE("grouping", "Group status refresh failed: HTTP %d", response->status_code);
+                    return;
+                  }
+
+                  size_t to_read = response->content_length;
+                  if (to_read == 0 || to_read > 2048) to_read = 2048;
+
+                  std::string body;
+                  body.resize(to_read);
+                  int bytes_read = response->read((uint8_t*)body.data(), to_read);
+                  if (bytes_read <= 0) {
+                    ESP_LOGE("grouping", "Failed to read group status response");
+                    return;
+                  }
+                  body.resize(bytes_read);
+
+                  ESP_LOGI("grouping", "Group status response: %s", body.c_str());
+
+                  // Reset all group status to 0 (none)
+                  id(player_0_group_status) = 0; id(player_0_group_size) = 0; id(player_0_group_leader) = "";
+                  id(player_1_group_status) = 0; id(player_1_group_size) = 0; id(player_1_group_leader) = "";
+                  id(player_2_group_status) = 0; id(player_2_group_size) = 0; id(player_2_group_leader) = "";
+                  id(player_3_group_status) = 0; id(player_3_group_size) = 0; id(player_3_group_leader) = "";
+                  id(player_4_group_status) = 0; id(player_4_group_size) = 0; id(player_4_group_leader) = "";
+                  id(player_5_group_status) = 0; id(player_5_group_size) = 0; id(player_5_group_leader) = "";
+                  id(player_6_group_status) = 0; id(player_6_group_size) = 0; id(player_6_group_leader) = "";
+                  id(player_7_group_status) = 0; id(player_7_group_size) = 0; id(player_7_group_leader) = "";
+
+                  // Our player entity IDs for lookup
+                  std::string entities[8] = {
+                    id(player_0_entity_id), id(player_1_entity_id), id(player_2_entity_id), id(player_3_entity_id),
+                    id(player_4_entity_id), id(player_5_entity_id), id(player_6_entity_id), id(player_7_entity_id)
+                  };
+
+                  // Parse: "entity1:m1,m2|entity2:m1,m2|..."
+                  size_t pos = 0;
+                  while (pos < body.length()) {
+                    // Find next segment (until | or end)
+                    size_t seg_end = body.find('|', pos);
+                    if (seg_end == std::string::npos) seg_end = body.length();
+
+                    std::string segment = body.substr(pos, seg_end - pos);
+                    pos = seg_end + 1;
+
+                    // Parse "entity:members"
+                    size_t colon = segment.find(':');
+                    if (colon == std::string::npos) continue;
+
+                    std::string entity = segment.substr(0, colon);
+                    std::string members_str = segment.substr(colon + 1);
+
+                    // Count members (comma-separated)
+                    int member_count = 0;
+                    if (!members_str.empty()) {
+                      member_count = 1;
+                      for (char c : members_str) {
+                        if (c == ',') member_count++;
+                      }
+                    }
+
+                    // Find which slot this entity belongs to
+                    for (int i = 0; i < 8; i++) {
+                      if (entities[i] == entity) {
+                        if (member_count > 1) {
+                          // This player has group members - it's a leader
+                          // First member in the list is typically the leader itself
+                          switch (i) {
+                            case 0: id(player_0_group_status) = 1; id(player_0_group_size) = member_count; break;
+                            case 1: id(player_1_group_status) = 1; id(player_1_group_size) = member_count; break;
+                            case 2: id(player_2_group_status) = 1; id(player_2_group_size) = member_count; break;
+                            case 3: id(player_3_group_status) = 1; id(player_3_group_size) = member_count; break;
+                            case 4: id(player_4_group_status) = 1; id(player_4_group_size) = member_count; break;
+                            case 5: id(player_5_group_status) = 1; id(player_5_group_size) = member_count; break;
+                            case 6: id(player_6_group_status) = 1; id(player_6_group_size) = member_count; break;
+                            case 7: id(player_7_group_status) = 1; id(player_7_group_size) = member_count; break;
+                          }
+                          ESP_LOGD("grouping", "Player %d (%s) is LEADER with %d members", i, entity.c_str(), member_count);
+
+                          // Mark other players in this group as members
+                          size_t mpos = 0;
+                          while (mpos < members_str.length()) {
+                            size_t mend = members_str.find(',', mpos);
+                            if (mend == std::string::npos) mend = members_str.length();
+                            std::string member = members_str.substr(mpos, mend - mpos);
+                            mpos = mend + 1;
+
+                            // Find this member in our slots (skip if it's the leader)
+                            if (member != entity) {
+                              for (int j = 0; j < 8; j++) {
+                                if (entities[j] == member) {
+                                  switch (j) {
+                                    case 0: id(player_0_group_status) = 2; id(player_0_group_leader) = entity; break;
+                                    case 1: id(player_1_group_status) = 2; id(player_1_group_leader) = entity; break;
+                                    case 2: id(player_2_group_status) = 2; id(player_2_group_leader) = entity; break;
+                                    case 3: id(player_3_group_status) = 2; id(player_3_group_leader) = entity; break;
+                                    case 4: id(player_4_group_status) = 2; id(player_4_group_leader) = entity; break;
+                                    case 5: id(player_5_group_status) = 2; id(player_5_group_leader) = entity; break;
+                                    case 6: id(player_6_group_status) = 2; id(player_6_group_leader) = entity; break;
+                                    case 7: id(player_7_group_status) = 2; id(player_7_group_leader) = entity; break;
+                                  }
+                                  ESP_LOGD("grouping", "Player %d (%s) is MEMBER of %s", j, member.c_str(), entity.c_str());
+                                  break;
+                                }
+                              }
+                            }
+                          }
+                        }
+                        break;
+                      }
+                    }
+                  }
+
+                  ESP_LOGI("grouping", "Group status refresh complete");
+
+  # ---------------------------------------------------------------------------
+  # Unjoin Selected Player
+  # ---------------------------------------------------------------------------
+  # Removes the currently selected player from its group
+  # Called from the unjoin button on Players screen
+  - id: unjoin_selected_player
+    mode: single
+    then:
+      - lambda: |-
+          std::string player = id(selected_player_id);
+          if (player.empty()) {
+            ESP_LOGW("grouping", "No player selected, cannot unjoin");
+            return;
+          }
+          ESP_LOGI("grouping", "Unjoining player: %s", player.c_str());
+
+      - homeassistant.service:
+          service: media_player.unjoin
+          data:
+            entity_id: !lambda 'return id(selected_player_id);'
+
+      - delay: 500ms
+
+      # Refresh group status and update UI
+      - script.execute: refresh_player_group_status
+      - delay: 300ms
+      - script.execute: update_player_rows
+
+# =============================================================================
+# Usage Notes
+# =============================================================================
+#
+# GROUPING WORKFLOW:
+# 1. User navigates to grouping screen (from Player Management)
+# 2. grouping_init is called to populate checkboxes
+# 3. User toggles checkboxes via grouping_toggle_checkbox
+# 4. User taps Apply button → grouping_apply validates and sends command
+# 5. On success, active target updates to group leader (T101)
+# 6. User returns to previous screen
+#
+# CHECKBOX STATE STORAGE (T095):
+# States are stored in a bitmask (grouping_checkbox_states):
+#   Bit 0 = Player 0 checked
+#   Bit 1 = Player 1 checked
+#   ... etc
+#
+# VALIDATION (T102 / FR-045):
+# - Minimum 2 players required
+# - All selected players must be online
+# - Music Assistant handles type compatibility
+#
+# PARTIAL FAILURE HANDLING (T098 / FR-044):
+# - grouping_error_message stores failure reason
+# - UI displays error in status label (orange text)
+# - User can retry or cancel
+#
+# =============================================================================

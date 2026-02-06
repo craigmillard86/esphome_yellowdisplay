@@ -60,6 +60,14 @@ font:
       - "\U000F0025"  # mdi:album (albums)
       - "\U000F0006"  # mdi:account-music (artists)
       - "\U000F0349"  # mdi:magnify (search)
+      # Grouping icons (T091-T103)
+      - "\U000F0131"  # mdi:checkbox-blank-outline (unchecked)
+      - "\U000F0132"  # mdi:checkbox-marked (checked)
+      - "\U000F0156"  # mdi:close (cancel/close button)
+      - "\U000F0D38"  # mdi:speaker-multiple (group button)
+      - "\U000F04C3"  # mdi:speaker-off (unjoin/solo button)
+      - "\U000F01A5"  # mdi:crown (group leader indicator)
+      - "\U000F0337"  # mdi:link (group member indicator)
 
 # =============================================================================
 # LVGL Configuration
