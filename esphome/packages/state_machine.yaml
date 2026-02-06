@@ -73,6 +73,9 @@ select:
           // Log state transition at INFO level per constitution §1.5
           ESP_LOGI("ui", "State transition: %s -> %s", prev_state, x.c_str());
 
+      # Update UI controls enabled/disabled state on every transition (T105)
+      - script.execute: update_controls_enabled_state
+
 # =============================================================================
 # Text Sensors for Home Assistant
 # =============================================================================
@@ -206,6 +209,126 @@ api:
 #   id(system_state) == 2  // 2 = Ready
 
 script:
+  # Update controls enabled/disabled state based on system state (T105)
+  # Called on every state transition to enable/disable UI controls
+  - id: update_controls_enabled_state
+    mode: restart
+    then:
+      - lambda: |-
+          bool is_ready = (id(system_state) == 2);  // Ready state
+          ESP_LOGI("ui", "Updating controls enabled state: %s", is_ready ? "enabled" : "disabled");
+
+      # Update media control buttons
+      - if:
+          condition:
+            lambda: 'return id(system_state) == 2;'
+          then:
+            # Enable controls - Ready state
+            - lvgl.widget.update:
+                id: btn_play
+                state:
+                  disabled: false
+            - lvgl.widget.update:
+                id: btn_prev
+                state:
+                  disabled: false
+            - lvgl.widget.update:
+                id: btn_next
+                state:
+                  disabled: false
+            - lvgl.widget.update:
+                id: btn_mute
+                state:
+                  disabled: false
+            - lvgl.widget.update:
+                id: slider_volume
+                state:
+                  disabled: false
+            - lvgl.widget.update:
+                id: progress_slider
+                state:
+                  disabled: false
+            # Restore icon colors to normal
+            - lvgl.label.update:
+                id: lbl_play_icon
+                text_color: 0x121212
+            - lvgl.label.update:
+                id: lbl_prev_icon
+                text_color: 0xFFFFFF
+            - lvgl.label.update:
+                id: lbl_next_icon
+                text_color: 0xFFFFFF
+            - lvgl.label.update:
+                id: lbl_volume_icon
+                text_color: 0xB3B3B3
+            # Update status label to show connected
+            - lvgl.label.update:
+                id: lbl_status
+                text: "Connected"
+                text_color: 0x00D1FF
+          else:
+            # Disable controls - Not ready
+            - lvgl.widget.update:
+                id: btn_play
+                state:
+                  disabled: true
+            - lvgl.widget.update:
+                id: btn_prev
+                state:
+                  disabled: true
+            - lvgl.widget.update:
+                id: btn_next
+                state:
+                  disabled: true
+            - lvgl.widget.update:
+                id: btn_mute
+                state:
+                  disabled: true
+            - lvgl.widget.update:
+                id: slider_volume
+                state:
+                  disabled: true
+            - lvgl.widget.update:
+                id: progress_slider
+                state:
+                  disabled: true
+            # Grey out icon colors when disabled
+            - lvgl.label.update:
+                id: lbl_play_icon
+                text_color: 0x666666
+            - lvgl.label.update:
+                id: lbl_prev_icon
+                text_color: 0x666666
+            - lvgl.label.update:
+                id: lbl_next_icon
+                text_color: 0x666666
+            - lvgl.label.update:
+                id: lbl_volume_icon
+                text_color: 0x444444
+            # Update status label based on state
+            - if:
+                condition:
+                  lambda: 'return id(system_state) == 3;'  # Offline
+                then:
+                  - lvgl.label.update:
+                      id: lbl_status
+                      text: "Offline"
+                      text_color: 0xFF6B35
+                else:
+                  - if:
+                      condition:
+                        lambda: 'return id(system_state) == 1;'  # Connecting
+                      then:
+                        - lvgl.label.update:
+                            id: lbl_status
+                            text: "Connecting..."
+                            text_color: 0xB3B3B3
+                      else:
+                        - lvgl.label.update:
+                            id: lbl_status
+                            text: "Not Ready"
+                            text_color: 0xB3B3B3
+
   # Helper script to set error state with message
   - id: set_error_state
     mode: restart

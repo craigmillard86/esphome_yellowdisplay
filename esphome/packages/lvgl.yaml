@@ -224,6 +224,13 @@ lvgl:
       pad_all: 0
       shadow_width: 0
 
+    # Disabled button style (T105) - Greyed out appearance
+    - id: style_btn_disabled
+      bg_color: 0x2A2A2A
+      bg_opa: COVER
+      text_color: 0x666666
+      border_color: 0x3A3A3A
+
   # =============================================================================
   # Pages - UI Screens
   # =============================================================================
@@ -711,6 +718,9 @@ lvgl:
             align: TOP_LEFT
             x: 148
             y: 128
+            disabled:
+              bg_color: 0x2A2A2A
+              border_color: 0x3A3A3A
             on_click:
               then:
                 - logger.log:
@@ -720,6 +730,7 @@ lvgl:
                 - script.execute: media_next_track
             widgets:
               - label:
+                  id: lbl_next_icon
                   text: "\U000F04AE"
                   text_font: icons_24
                   text_color: 0xFFFFFF
@@ -734,6 +745,8 @@ lvgl:
             align: TOP_LEFT
             x: 204
             y: 126
+            disabled:
+              bg_color: 0x3A3A3A
             on_click:
               then:
                 - logger.log:
@@ -758,6 +771,9 @@ lvgl:
             align: TOP_LEFT
             x: 264
             y: 128
+            disabled:
+              bg_color: 0x2A2A2A
+              border_color: 0x3A3A3A
             on_click:
               then:
                 - logger.log:
@@ -767,6 +783,7 @@ lvgl:
                 - script.execute: media_previous_track
             widgets:
               - label:
+                  id: lbl_prev_icon
                   text: "\U000F04AD"
                   text_font: icons_24
                   text_color: 0xFFFFFF
@@ -793,6 +810,8 @@ lvgl:
             border_width: 0
             shadow_width: 0
             pad_all: 0
+            disabled:
+              bg_opa: TRANSP
             on_click:
               then:
                 - logger.log:

@@ -116,6 +116,30 @@ text_sensor:
 
         - component.update: media_state_display
 
+        # T109: Check for MA service unavailable (HA connected but player unavailable)
+        - if:
+            condition:
+              lambda: 'return x == "unavailable" && id(system_state) == 2;'
+            then:
+              - lvgl.label.update:
+                  id: lbl_status
+                  text: "Service Unavailable"
+                  text_color: 0xFF6B35
+              - logger.log:
+                  tag: "media"
+                  level: WARN
+                  format: "Media player unavailable - Music Assistant may be down"
+            else:
+              # Restore "Connected" status when player becomes available again
+              - if:
+                  condition:
+                    lambda: 'return id(system_state) == 2;'
+                  then:
+                    - lvgl.label.update:
+                        id: lbl_status
+                        text: "Connected"
+                        text_color: 0x00D1FF
+
         # Update play/pause button icon based on media state
         - if:
             condition:
@@ -448,6 +472,12 @@ script:
     mode: single
     then:
       - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Play ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
           uint32_t now = millis();
           uint32_t elapsed = now - id(last_media_button_press_ms);
 
@@ -478,6 +508,12 @@ script:
     mode: single
     then:
       - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Pause ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
           uint32_t now = millis();
           uint32_t elapsed = now - id(last_media_button_press_ms);
 
@@ -508,6 +544,12 @@ script:
     mode: single
     then:
       - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Play/Pause ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
           uint32_t now = millis();
           uint32_t elapsed = now - id(last_media_button_press_ms);
 
@@ -555,6 +597,12 @@ script:
     mode: single
     then:
       - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Next track ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
           uint32_t now = millis();
           uint32_t elapsed = now - id(last_media_button_press_ms);
 
@@ -583,6 +631,12 @@ script:
     mode: single
     then:
       - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Previous track ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
           uint32_t now = millis();
           uint32_t elapsed = now - id(last_media_button_press_ms);
 
@@ -613,6 +667,12 @@ script:
       volume_percent: int
     then:
       - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Volume set ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
           // Clamp volume to valid range
           int clamped = volume_percent;
           if (clamped < 0) clamped = 0;
@@ -640,6 +700,12 @@ script:
     mode: single
     then:
       - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Volume up ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
           uint32_t now = millis();
           uint32_t elapsed = now - id(last_media_button_press_ms);
 
@@ -673,6 +739,12 @@ script:
     mode: single
     then:
       - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Volume down ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
           uint32_t now = millis();
           uint32_t elapsed = now - id(last_media_button_press_ms);
 
@@ -730,6 +802,12 @@ script:
     mode: single
     then:
       - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Mute toggle ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
           uint32_t now = millis();
           uint32_t elapsed = now - id(last_media_button_press_ms);
 
@@ -783,6 +861,12 @@ script:
       seek_percent: float
     then:
       - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Seek ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
           // Get media duration
           float duration = 0;
           if (id(ha_media_duration).has_state()) {

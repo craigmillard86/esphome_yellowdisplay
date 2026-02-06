@@ -464,14 +464,31 @@
 
 ### Implementation for User Story 6
 
-- [ ] T104 [US6] Ensure all controls safely ignore taps when offline in esphome/packages/media_player.yaml
-- [ ] T105 [US6] Visually disable controls when offline (greyed styling) in esphome/ui/now_playing.yaml
-- [ ] T106 [US6] Display last known state when offline in esphome/packages/state_machine.yaml
-- [ ] T107 [US6] Implement retry limiting to prevent retry storms (FR-063) in esphome/packages/connectivity.yaml
-- [ ] T108 [US6] Show clear "Offline" indicator on all screens in esphome/ui/components/status_indicator.yaml
-- [ ] T109 [US6] Show "Service Unavailable" when MA unavailable but HA connected in esphome/ui/components/status_indicator.yaml
-- [ ] T110 [US6] Auto-recover UI when connectivity restored in esphome/packages/connectivity.yaml
-- [ ] T111 [US6] Update UI immediately (within 30 seconds) on reconnection in esphome/packages/connectivity.yaml
+- [x] T104 [US6] Ensure all controls safely ignore taps when offline in esphome/packages/media_player.yaml
+  - Added system_state check at start of all media control scripts (play, pause, play_pause, next, prev, volume_set, volume_up, volume_down, mute_toggle, seek)
+  - Controls return early with warning log if system_state != 2 (Ready)
+- [x] T105 [US6] Visually disable controls when offline (greyed styling) in esphome/ui/now_playing.yaml
+  - Added disabled state styling to btn_play, btn_prev, btn_next, btn_mute, slider_volume, progress_slider
+  - Icon colors change to grey (0x666666) when disabled
+  - Script `update_controls_enabled_state` called on every state transition
+- [x] T106 [US6] Display last known state when offline in esphome/packages/state_machine.yaml
+  - Already working: HA text sensors retain last known values when connection lost
+  - Track title, artist, album, progress all persist during offline periods
+- [x] T107 [US6] Implement retry limiting to prevent retry storms (FR-063) in esphome/packages/connectivity.yaml
+  - Already implemented in Phase 2: exponential backoff on reconnection in wifi.yaml
+- [x] T108 [US6] Show clear "Offline" indicator on all screens in esphome/ui/components/status_indicator.yaml
+  - Already implemented: lbl_status updated to show "Offline" (orange) on state transition
+  - Shows "Connecting..." during connection attempts
+  - Shows "Connected" (cyan) when ready
+- [x] T109 [US6] Show "Service Unavailable" when MA unavailable but HA connected in esphome/ui/components/status_indicator.yaml
+  - Detects when ha_media_state == "unavailable" while system_state == Ready
+  - Shows "Service Unavailable" in orange on lbl_status
+  - Restores "Connected" when player becomes available again
+- [x] T110 [US6] Auto-recover UI when connectivity restored in esphome/packages/connectivity.yaml
+  - Already implemented: on_client_connected triggers nav_initialize and library_index_sync
+  - update_controls_enabled_state re-enables controls on Ready transition
+- [x] T111 [US6] Update UI immediately (within 30 seconds) on reconnection in esphome/packages/connectivity.yaml
+  - State transitions trigger immediate UI updates via update_controls_enabled_state script
 
 **Checkpoint**: UI never freezes offline, controls disabled gracefully, auto-recovery works within 30 seconds
 
