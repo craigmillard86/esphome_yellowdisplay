@@ -370,7 +370,7 @@
 
 ---
 
-## Phase 7: User Story 5 - Manage Speaker Groups (Priority: P3)
+## Phase 7: User Story 5 - Manage Speaker Groups (Priority: P3) ✅ COMPLETE
 
 **Goal**: Allow users to create, modify, and dissolve speaker groups for synchronized multi-room playback
 
@@ -378,21 +378,43 @@
 
 ### Implementation for User Story 5
 
-- [ ] T091 [US5] Create Multi-room Grouping screen with checklist layout in esphome/ui/grouping.yaml
-- [ ] T092 [P] [US5] Create checkbox component for group selection in esphome/ui/components/checkbox.yaml
-- [ ] T093 [US5] Display all players with checkboxes in esphome/ui/grouping.yaml
-- [ ] T094 [US5] Pre-check players already in current group in esphome/ui/grouping.yaml
-- [ ] T095 [US5] Store checkbox states locally before apply (bitmask/array) in esphome/packages/grouping.yaml
-- [ ] T096 [US5] Implement Apply button at bottom in esphome/ui/grouping.yaml
-- [ ] T097 [US5] On Apply: validate selections, send group command to MA in esphome/packages/grouping.yaml
-- [ ] T098 [US5] Handle partial group creation failure (FR-044) in esphome/packages/grouping.yaml
-- [ ] T099 [US5] Display which players failed and why in esphome/ui/grouping.yaml
-- [ ] T100 [US5] Implement Cancel button to discard changes in esphome/ui/grouping.yaml
-- [ ] T101 [US5] Update active target to new group after creation in esphome/packages/grouping.yaml
-- [ ] T102 [US5] Prevent invalid grouping combinations (FR-045) in esphome/packages/grouping.yaml
-- [ ] T103 [US5] Add Group button to Player Management header in esphome/ui/players.yaml
+- [x] T091 [US5] Create Multi-room Grouping screen with checklist layout in esphome/ui/grouping.yaml
+- [x] T092 [P] [US5] Create checkbox component for group selection in esphome/ui/components/checkbox.yaml
+- [x] T093 [US5] Display all players with checkboxes in esphome/ui/grouping.yaml
+- [x] T094 [US5] Pre-check players already in current group in esphome/ui/grouping.yaml
+  - **Enhancement**: Pre-checks ALL group members when editing existing group, not just selected player
+- [x] T095 [US5] Store checkbox states locally before apply (bitmask/array) in esphome/packages/grouping.yaml
+- [x] T096 [US5] Implement Apply button at bottom in esphome/ui/grouping.yaml
+  - **Enhancement**: Dynamic button text "Create Group" vs "Update Group" based on mode
+- [x] T097 [US5] On Apply: validate selections, send group command to MA in esphome/packages/grouping.yaml
+  - **Enhancement**: Uses designated leader from user selection, not first-checked player
+- [x] T098 [US5] Handle partial group creation failure (FR-044) in esphome/packages/grouping.yaml
+- [x] T099 [US5] Display which players failed and why in esphome/ui/grouping.yaml
+- [x] T100 [US5] Implement Cancel button to discard changes in esphome/ui/grouping.yaml
+- [x] T101 [US5] Update active target to new group after creation in esphome/packages/grouping.yaml
+- [x] T102 [US5] Prevent invalid grouping combinations (FR-045) in esphome/packages/grouping.yaml
+- [x] T103 [US5] Add Group button to Player Management header in esphome/ui/players.yaml
+  - **Enhancement**: Uses mdi:speaker-multiple icon instead of link-variant
 
-**Checkpoint**: Grouping interface works, checkboxes toggle, Apply creates group, partial failures reported, Cancel discards changes
+### Additional Enhancements (Post-Phase 7)
+
+- [x] T103a [US5] Add Unjoin button to Player Management header (visible when player is grouped)
+  - Uses mdi:speaker-off icon
+- [x] T103b [US5] Implement leader selection with crown icon in grouping screen
+  - Tap status area to change designated leader
+  - Crown icon (gold) shows current leader
+  - Link icon (green) shows group members
+- [x] T103c [US5] Add dynamic title: "Create Group" vs "Edit Group" based on mode
+- [x] T103d [US5] Implement tree view sorting on Players screen
+  - Leaders appear first with crown icon and gold border
+  - Group members appear directly below leader with link icon
+  - Ungrouped players appear at bottom
+- [x] T103e [US5] Fix player selection mapping for sorted display order
+  - Added display_order_row_X globals to track row-to-player mapping
+  - Click/volume handlers use mapped indices for correct player selection
+- [x] T103f [US5] Remove power buttons from player rows, use freed space for wider volume slider
+
+**Checkpoint**: Grouping interface works, checkboxes toggle, Apply creates group, partial failures reported, Cancel discards changes, tree view shows group hierarchy
 
 ---
 
@@ -402,20 +424,33 @@
 
 - [ ] HT-017 **HUMAN TEST**: Test grouping interface:
   - [ ] All players appear with checkboxes
-  - [ ] Current group members are pre-checked
+  - [ ] Current group members are pre-checked when editing
   - [ ] Checkboxes toggle correctly on tap
+  - [ ] Title shows "Create Group" for new group, "Edit Group" for existing
+  - [ ] Crown icon visible on designated leader
+  - [ ] Tap status area changes leader (crown moves)
 
 - [ ] HT-018 **HUMAN TEST**: Test group creation:
-  - [ ] Select 2+ players, tap Apply
+  - [ ] Select 2+ players, tap Apply/Create Group
   - [ ] Group is created in Music Assistant
-  - [ ] New group becomes active target
+  - [ ] Designated leader (with crown) becomes the actual group leader
   - [ ] Playback is synchronized across group members
   - [ ] Cancel button discards changes (no group created)
 
 - [ ] HT-019 **HUMAN TEST**: Test group modification:
   - [ ] Can remove player from existing group
   - [ ] Can add player to existing group
+  - [ ] Can change group leader via crown selection
   - [ ] Partial failures reported clearly (if testable)
+
+- [ ] HT-019a **HUMAN TEST**: Test Players screen tree view:
+  - [ ] Group leaders show crown icon and gold border
+  - [ ] Group members appear directly below their leader
+  - [ ] Group members show link icon and "Grouped" status
+  - [ ] Ungrouped players appear at bottom with "Online" status
+  - [ ] Clicking any row selects the correct player (not wrong due to sorting)
+  - [ ] Volume sliders affect the correct player
+  - [ ] Unjoin button visible when grouped player selected
 
 **Pass criteria**: All items checked.
 
