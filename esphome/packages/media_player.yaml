@@ -97,6 +97,9 @@ text_sensor:
     internal: true
     on_value:
       then:
+        # T127: Reset idle timer on media state change
+        - script.execute: reset_idle_timer
+
         - lambda: |-
             // Clear optimistic update flag when real state arrives
             id(optimistic_update_pending) = false;

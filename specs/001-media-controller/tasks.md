@@ -520,7 +520,7 @@
 
 ---
 
-## Phase 9: User Story 7 - Adjust Device Settings (Priority: P3)
+## Phase 9: User Story 7 - Adjust Device Settings (Priority: P3) ✅ COMPLETE
 
 **Goal**: Allow users to adjust screen brightness and idle behavior for their environment
 
@@ -528,23 +528,41 @@
 
 ### Implementation for User Story 7
 
-- [ ] T112 [US7] Create Device Settings screen layout in esphome/ui/settings.yaml
-- [ ] T113 [P] [US7] Create slider component for brightness in esphome/ui/components/settings_slider.yaml
-- [ ] T114 [P] [US7] Create dropdown/selector component for timeout values in esphome/ui/components/settings_dropdown.yaml
-- [ ] T115 [P] [US7] Create toggle switch component for debug mode in esphome/ui/components/toggle_switch.yaml
-- [ ] T116 [US7] Implement brightness slider with immediate apply (FR-075) in esphome/ui/settings.yaml
-- [ ] T117 [US7] Implement idle dim timeout selector in esphome/ui/settings.yaml
-- [ ] T118 [US7] Implement screen-off timeout selector in esphome/ui/settings.yaml
-- [ ] T119 [US7] Implement debug mode toggle with 30-minute auto-disable (Constitution §10.2) in esphome/ui/settings.yaml
-- [ ] T120 [US7] Create settings persistence service using NVS in esphome/packages/settings.yaml
-- [ ] T121 [US7] Persist all settings to NVS (FR-074) in esphome/packages/settings.yaml
-- [ ] T122 [US7] Load settings on boot from NVS in esphome/packages/settings.yaml
-- [ ] T123 [US7] Implement idle timer based on touch activity in esphome/packages/idle.yaml
-- [ ] T124 [US7] Dim backlight after idle timeout in esphome/packages/idle.yaml
-- [ ] T125 [US7] Turn off backlight after screen-off timeout in esphome/packages/idle.yaml
-- [ ] T126 [US7] Wake immediately on touch from dimmed/off state in esphome/packages/idle.yaml
-- [ ] T127 [US7] Reset idle timer on playback state changes (not just touch) in esphome/packages/idle.yaml
-- [ ] T128 [US7] Add Settings navigation from Home or system menu
+- [x] T112 [US7] Create Device Settings screen layout in esphome/ui/settings.yaml
+  - Full settings screen with brightness slider, timeout dropdowns, debug toggle
+  - Back button, header with title, vertically stacked settings
+- [x] T113 [P] [US7] Create slider component for brightness in esphome/ui/components/settings_slider.yaml
+  - Inline in settings.yaml - LVGL slider with percentage label
+- [x] T114 [P] [US7] Create dropdown/selector component for timeout values in esphome/ui/components/settings_dropdown.yaml
+  - Inline in settings.yaml - Button-style dropdown that cycles through options
+- [x] T115 [P] [US7] Create toggle switch component for debug mode in esphome/ui/components/toggle_switch.yaml
+  - Inline in settings.yaml - ON/OFF indicator with timer countdown
+- [x] T116 [US7] Implement brightness slider with immediate apply (FR-075) in esphome/ui/settings.yaml
+  - Slider updates backlight immediately via light.turn_on call
+- [x] T117 [US7] Implement idle dim timeout selector in esphome/ui/settings.yaml
+  - Cycles through: Off, 30s, 1min, 2min, 5min
+- [x] T118 [US7] Implement screen-off timeout selector in esphome/ui/settings.yaml
+  - Cycles through: Off, 1min, 2min, 5min, 10min
+- [x] T119 [US7] Implement debug mode toggle with 30-minute auto-disable (Constitution §10.2) in esphome/ui/settings.yaml
+  - Toggle with countdown timer, auto-disables after 30 minutes
+- [x] T120 [US7] Create settings persistence service using NVS in esphome/packages/settings.yaml
+  - Globals with restore_value: yes for automatic NVS persistence
+- [x] T121 [US7] Persist all settings to NVS (FR-074) in esphome/packages/settings.yaml
+  - brightness_level, idle_dim_timeout, screen_off_timeout, debug_mode_enabled
+- [x] T122 [US7] Load settings on boot from NVS in esphome/packages/settings.yaml
+  - Automatic restoration via ESPHome preferences system
+- [x] T123 [US7] Implement idle timer based on touch activity in esphome/packages/idle.yaml
+  - Tracks last_activity_timestamp_ms, updated on touch/media events
+- [x] T124 [US7] Dim backlight after idle timeout in esphome/packages/idle.yaml
+  - Dims to 20% after configured timeout
+- [x] T125 [US7] Turn off backlight after screen-off timeout in esphome/packages/idle.yaml
+  - Turns off backlight completely after configured timeout
+- [x] T126 [US7] Wake immediately on touch from dimmed/off state in esphome/packages/idle.yaml
+  - Touch handler in touch.yaml calls reset_idle_timer
+- [x] T127 [US7] Reset idle timer on playback state changes (not just touch) in esphome/packages/idle.yaml
+  - ha_media_state on_value handler resets idle timer
+- [x] T128 [US7] Add Settings navigation from Home or system menu
+  - Settings gear icon button in top-right of Home screen
 
 **Checkpoint**: All settings adjustable and persistent, idle dim/off works, wake-on-touch immediate
 

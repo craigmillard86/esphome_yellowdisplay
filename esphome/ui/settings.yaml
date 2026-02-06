@@ -1,0 +1,612 @@
+# =============================================================================
+# UI Screen: Device Settings (T112-T119)
+# Purpose: Screen for configuring device settings (brightness, timeouts, debug)
+# Dependencies: packages/lvgl.yaml (LVGL framework, theme, fonts, icons)
+#               packages/settings.yaml (settings globals and save script)
+#               packages/navigation.yaml (screen navigation)
+# Exposes: page_settings LVGL page with device settings controls
+# Display: 320x240 ILI9341 in landscape orientation
+# =============================================================================
+
+# This file implements:
+# - T112: Create Device Settings screen layout
+# - T113-T115: Setting controls (inline, no separate component files)
+# - T116: Brightness slider with immediate apply
+# - T117: Idle dim timeout selector (dropdown style)
+# - T118: Screen-off timeout selector (dropdown style)
+# - T119: Debug mode toggle with 30-minute auto-disable
+
+# Screen Layout (320x240):
+# +--------------------------------------------------+
+# | [<] Settings                                     |  <- Header (44px)
+# +--------------------------------------------------+
+# | Brightness                               75%     |
+# | [===================O----------]                 |  <- Slider (immediate apply)
+# |                                                  |
+# | Dim After         [ 1 min      ▼]                |  <- Dropdown style
+# |                                                  |
+# | Screen Off        [ 5 min      ▼]                |  <- Dropdown style
+# |                                                  |
+# | Debug Mode        [  OFF  ]                      |  <- Toggle switch
+# |                                                  |
+# +--------------------------------------------------+
+
+lvgl:
+  pages:
+    # =========================================================================
+    # Settings Screen (T112)
+    # =========================================================================
+    - id: page_settings
+      bg_color: 0x121212
+      border_width: 0
+      shadow_width: 0
+      widgets:
+        # =====================================================================
+        # HEADER AREA (44px height)
+        # =====================================================================
+
+        # Back Button - Top Left (44x44px touch target)
+        - button:
+            id: btn_settings_back
+            x: 0
+            y: 0
+            width: 44
+            height: 44
+            bg_opa: TRANSP
+            border_width: 0
+            shadow_width: 0
+            pad_all: 0
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Settings screen back button pressed"
+              - script.execute: navigate_back
+            widgets:
+              - label:
+                  text: "\U000F004D"  # mdi:arrow-left
+                  text_font: icons_24
+                  text_color: 0xB3B3B3
+                  align: CENTER
+
+        # Screen Title
+        - label:
+            text: "Settings"
+            text_font: roboto_16
+            text_color: 0xFFFFFF
+            x: 48
+            y: 12
+
+        # Settings Icon (decorative)
+        - label:
+            text: "\U000F0493"  # mdi:cog (using shuffle icon as placeholder)
+            text_font: icons_24
+            text_color: 0x00D1FF
+            align: TOP_RIGHT
+            x: -12
+            y: 10
+
+        # Header Divider Line
+        - obj:
+            x: 0
+            y: 43
+            width: 320
+            height: 1
+            bg_color: 0x2A2A2A
+            bg_opa: COVER
+            border_width: 0
+
+        # =====================================================================
+        # SETTINGS CONTENT AREA
+        # =====================================================================
+
+        # ---------------------------------------------------------------------
+        # BRIGHTNESS SETTING (T116)
+        # ---------------------------------------------------------------------
+        # Label: "Brightness"
+        - label:
+            id: lbl_brightness_title
+            text: "Brightness"
+            text_font: roboto_16
+            text_color: 0xFFFFFF
+            x: 12
+            y: 52
+
+        # Brightness percentage display
+        - label:
+            id: lbl_brightness_value
+            text: "75%"
+            text_font: roboto_16
+            text_color: 0x00D1FF
+            align: TOP_RIGHT
+            x: -12
+            y: 52
+
+        # Brightness slider (immediate apply to backlight)
+        # Range: 0-100, updates setting_brightness_level global and backlight
+        - slider:
+            id: slider_brightness
+            x: 12
+            y: 76
+            width: 296
+            height: 24
+            min_value: 0
+            max_value: 100
+            value: 75
+            bg_color: 0x1E1E1E
+            bg_opa: COVER
+            radius: 4
+            indicator:
+              bg_color: 0x00D1FF
+              bg_opa: COVER
+              radius: 4
+            knob:
+              bg_color: 0xFFFFFF
+              bg_opa: COVER
+              radius: 10
+              width: 20
+              height: 20
+            on_value:
+              then:
+                - lambda: |-
+                    // Update percentage label
+                    char buf[8];
+                    snprintf(buf, sizeof(buf), "%d%%", (int)x);
+                    lv_label_set_text(id(lbl_brightness_value), buf);
+
+                    // Immediate apply to brightness global
+                    id(setting_brightness_level) = x / 100.0f;
+
+                    // Apply to backlight immediately
+                    auto call = id(backlight).turn_on();
+                    call.set_brightness(id(setting_brightness_level));
+                    call.perform();
+
+                    ESP_LOGD("settings_ui", "Brightness set to %d%%", (int)x);
+            on_release:
+              then:
+                - logger.log:
+                    tag: "settings"
+                    level: INFO
+                    format: "Brightness changed to %d%%, saving..."
+                    args: ['(int)x']
+                # Save setting to NVS
+                - script.execute: save_settings
+
+        # ---------------------------------------------------------------------
+        # IDLE DIM TIMEOUT SETTING (T117)
+        # ---------------------------------------------------------------------
+        # Label: "Dim After"
+        - label:
+            text: "Dim After"
+            text_font: roboto_16
+            text_color: 0xFFFFFF
+            x: 12
+            y: 112
+
+        # Dim timeout selector button (dropdown style)
+        # Options: Off, 30s, 1min, 2min, 5min
+        - button:
+            id: btn_dim_timeout
+            x: 140
+            y: 108
+            width: 168
+            height: 32
+            bg_color: 0x1E1E1E
+            radius: 6
+            border_width: 1
+            border_color: 0x2A2A2A
+            shadow_width: 0
+            pad_all: 8
+            pressed:
+              bg_color: 0x2A2A2A
+            on_click:
+              - logger.log:
+                  tag: "settings"
+                  level: INFO
+                  format: "Dim timeout selector pressed"
+              - script.execute: settings_cycle_dim_timeout
+            widgets:
+              # Current selection text
+              - label:
+                  id: lbl_dim_timeout_value
+                  text: "1 min"
+                  text_font: roboto_16
+                  text_color: 0xFFFFFF
+                  x: 8
+                  y: 0
+              # Dropdown arrow icon
+              - label:
+                  text: "\U000F0140"  # mdi:chevron-down (using generic icon)
+                  text_font: icons_24
+                  text_color: 0x666666
+                  align: RIGHT_MID
+                  x: -4
+                  y: 0
+
+        # ---------------------------------------------------------------------
+        # SCREEN OFF TIMEOUT SETTING (T118)
+        # ---------------------------------------------------------------------
+        # Label: "Screen Off"
+        - label:
+            text: "Screen Off"
+            text_font: roboto_16
+            text_color: 0xFFFFFF
+            x: 12
+            y: 152
+
+        # Screen off timeout selector button (dropdown style)
+        # Options: Off, 1min, 2min, 5min, 10min
+        - button:
+            id: btn_screen_off_timeout
+            x: 140
+            y: 148
+            width: 168
+            height: 32
+            bg_color: 0x1E1E1E
+            radius: 6
+            border_width: 1
+            border_color: 0x2A2A2A
+            shadow_width: 0
+            pad_all: 8
+            pressed:
+              bg_color: 0x2A2A2A
+            on_click:
+              - logger.log:
+                  tag: "settings"
+                  level: INFO
+                  format: "Screen off timeout selector pressed"
+              - script.execute: settings_cycle_screen_off_timeout
+            widgets:
+              # Current selection text
+              - label:
+                  id: lbl_screen_off_value
+                  text: "5 min"
+                  text_font: roboto_16
+                  text_color: 0xFFFFFF
+                  x: 8
+                  y: 0
+              # Dropdown arrow icon
+              - label:
+                  text: "\U000F0140"  # mdi:chevron-down
+                  text_font: icons_24
+                  text_color: 0x666666
+                  align: RIGHT_MID
+                  x: -4
+                  y: 0
+
+        # ---------------------------------------------------------------------
+        # DEBUG MODE TOGGLE (T119)
+        # ---------------------------------------------------------------------
+        # Label: "Debug Mode"
+        - label:
+            text: "Debug Mode"
+            text_font: roboto_16
+            text_color: 0xFFFFFF
+            x: 12
+            y: 192
+
+        # Debug mode toggle switch button
+        # Tap to toggle on/off, auto-disable after 30 minutes when enabled
+        - button:
+            id: btn_debug_toggle
+            align: TOP_RIGHT
+            x: -12
+            y: 188
+            width: 80
+            height: 32
+            bg_color: 0x2A2A2A
+            radius: 16
+            border_width: 0
+            shadow_width: 0
+            pad_all: 2
+            pressed:
+              bg_color: 0x3A3A3A
+            on_click:
+              - logger.log:
+                  tag: "settings"
+                  level: INFO
+                  format: "Debug mode toggle pressed"
+              - script.execute: settings_toggle_debug_mode
+            widgets:
+              # OFF state container (visible when debug off)
+              - obj:
+                  id: debug_off_indicator
+                  x: 0
+                  y: 0
+                  width: 76
+                  height: 28
+                  bg_opa: TRANSP
+                  border_width: 0
+                  widgets:
+                    # OFF label
+                    - label:
+                        text: "OFF"
+                        text_font: roboto_12
+                        text_color: 0x666666
+                        align: CENTER
+                        x: 0
+                        y: 0
+
+              # ON state container (hidden by default, shown when debug on)
+              - obj:
+                  id: debug_on_indicator
+                  x: 0
+                  y: 0
+                  width: 76
+                  height: 28
+                  bg_opa: TRANSP
+                  border_width: 0
+                  hidden: true
+                  widgets:
+                    # Sliding knob (green when on)
+                    - obj:
+                        id: debug_toggle_knob
+                        align: RIGHT_MID
+                        x: 0
+                        y: 0
+                        width: 36
+                        height: 24
+                        bg_color: 0x00D1FF
+                        bg_opa: COVER
+                        radius: 12
+                        border_width: 0
+                        widgets:
+                          # ON label
+                          - label:
+                              text: "ON"
+                              text_font: roboto_12
+                              text_color: 0x121212
+                              align: CENTER
+
+        # Debug mode timer info (shown when debug enabled)
+        - label:
+            id: lbl_debug_timer
+            text: "Auto-off in 30:00"
+            text_font: roboto_12
+            text_color: 0xFF6B35  # Warning orange
+            x: 12
+            y: 222
+            hidden: true
+
+# =============================================================================
+# Scripts - Settings UI Control
+# =============================================================================
+
+script:
+  # ---------------------------------------------------------------------------
+  # Cycle Dim Timeout (T117)
+  # ---------------------------------------------------------------------------
+  # Cycles through dim timeout options: Off → 30s → 1min → 2min → 5min → Off
+  - id: settings_cycle_dim_timeout
+    mode: restart
+    then:
+      - lambda: |-
+          // Current timeout in seconds
+          int current = id(setting_idle_dim_timeout);
+          int next_timeout = 0;
+          const char* label = "Off";
+
+          // Cycle through options
+          if (current == 0) {
+            next_timeout = 30;
+            label = "30 sec";
+          } else if (current == 30) {
+            next_timeout = 60;
+            label = "1 min";
+          } else if (current == 60) {
+            next_timeout = 120;
+            label = "2 min";
+          } else if (current == 120) {
+            next_timeout = 300;
+            label = "5 min";
+          } else {
+            next_timeout = 0;
+            label = "Off";
+          }
+
+          // Update global
+          id(setting_idle_dim_timeout) = next_timeout;
+
+          // Update UI label
+          lv_label_set_text(id(lbl_dim_timeout_value), label);
+
+          ESP_LOGI("settings", "Dim timeout set to %d seconds (%s)", next_timeout, label);
+
+      # Save setting to NVS
+      - script.execute: save_settings
+
+  # ---------------------------------------------------------------------------
+  # Cycle Screen Off Timeout (T118)
+  # ---------------------------------------------------------------------------
+  # Cycles through screen off options: Off → 1min → 2min → 5min → 10min → Off
+  - id: settings_cycle_screen_off_timeout
+    mode: restart
+    then:
+      - lambda: |-
+          // Current timeout in seconds
+          int current = id(setting_screen_off_timeout);
+          int next_timeout = 0;
+          const char* label = "Off";
+
+          // Cycle through options
+          if (current == 0) {
+            next_timeout = 60;
+            label = "1 min";
+          } else if (current == 60) {
+            next_timeout = 120;
+            label = "2 min";
+          } else if (current == 120) {
+            next_timeout = 300;
+            label = "5 min";
+          } else if (current == 300) {
+            next_timeout = 600;
+            label = "10 min";
+          } else {
+            next_timeout = 0;
+            label = "Off";
+          }
+
+          // Update global
+          id(setting_screen_off_timeout) = next_timeout;
+
+          // Update UI label
+          lv_label_set_text(id(lbl_screen_off_value), label);
+
+          ESP_LOGI("settings", "Screen off timeout set to %d seconds (%s)", next_timeout, label);
+
+      # Save setting to NVS
+      - script.execute: save_settings
+
+  # ---------------------------------------------------------------------------
+  # Toggle Debug Mode (T119)
+  # ---------------------------------------------------------------------------
+  # Toggles debug mode on/off, starts 30-minute auto-disable timer when enabled
+  - id: settings_toggle_debug_mode
+    mode: restart
+    then:
+      - lambda: |-
+          bool current = id(setting_debug_mode_enabled);
+          bool new_state = !current;
+
+          // Update global
+          id(setting_debug_mode_enabled) = new_state;
+
+          ESP_LOGI("settings", "Debug mode toggled to %s", new_state ? "ON" : "OFF");
+
+          // Update UI toggle appearance
+          if (new_state) {
+            // Show ON state
+            lv_obj_add_flag(id(debug_off_indicator), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_clear_flag(id(debug_on_indicator), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_bg_color(id(btn_debug_toggle), lv_color_hex(0x1E1E1E), 0);
+
+            // Show timer label
+            lv_obj_clear_flag(id(lbl_debug_timer), LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(id(lbl_debug_timer), "Auto-off in 30:00");
+          } else {
+            // Show OFF state
+            lv_obj_add_flag(id(debug_on_indicator), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_clear_flag(id(debug_off_indicator), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_bg_color(id(btn_debug_toggle), lv_color_hex(0x2A2A2A), 0);
+
+            // Hide timer label
+            lv_obj_add_flag(id(lbl_debug_timer), LV_OBJ_FLAG_HIDDEN);
+          }
+
+      # Save setting to NVS
+      - script.execute: save_settings
+
+      # Start/stop debug auto-disable timer (handled in settings.yaml package)
+      - if:
+          condition:
+            lambda: 'return id(setting_debug_mode_enabled);'
+          then:
+            - script.execute: debug_auto_disable_timer
+
+  # ---------------------------------------------------------------------------
+  # Update Settings UI (T112)
+  # ---------------------------------------------------------------------------
+  # Loads current settings and updates all UI widgets
+  # Called when navigating to settings screen
+  - id: settings_update_ui
+    mode: restart
+    then:
+      - lambda: |-
+          ESP_LOGI("settings_ui", "Updating settings UI from globals...");
+
+          // Update brightness slider and label
+          int brightness_pct = (int)(id(setting_brightness_level) * 100.0f);
+          lv_slider_set_value(id(slider_brightness), brightness_pct, LV_ANIM_OFF);
+          char buf[8];
+          snprintf(buf, sizeof(buf), "%d%%", brightness_pct);
+          lv_label_set_text(id(lbl_brightness_value), buf);
+
+          // Update dim timeout label
+          int dim_timeout = id(setting_idle_dim_timeout);
+          const char* dim_label = "Off";
+          if (dim_timeout == 30) dim_label = "30 sec";
+          else if (dim_timeout == 60) dim_label = "1 min";
+          else if (dim_timeout == 120) dim_label = "2 min";
+          else if (dim_timeout == 300) dim_label = "5 min";
+          lv_label_set_text(id(lbl_dim_timeout_value), dim_label);
+
+          // Update screen off timeout label
+          int screen_off_timeout = id(setting_screen_off_timeout);
+          const char* screen_off_label = "Off";
+          if (screen_off_timeout == 60) screen_off_label = "1 min";
+          else if (screen_off_timeout == 120) screen_off_label = "2 min";
+          else if (screen_off_timeout == 300) screen_off_label = "5 min";
+          else if (screen_off_timeout == 600) screen_off_label = "10 min";
+          lv_label_set_text(id(lbl_screen_off_value), screen_off_label);
+
+          // Update debug mode toggle
+          bool debug_enabled = id(setting_debug_mode_enabled);
+          if (debug_enabled) {
+            lv_obj_add_flag(id(debug_off_indicator), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_clear_flag(id(debug_on_indicator), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_bg_color(id(btn_debug_toggle), lv_color_hex(0x1E1E1E), 0);
+            lv_obj_clear_flag(id(lbl_debug_timer), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(debug_on_indicator), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_clear_flag(id(debug_off_indicator), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_bg_color(id(btn_debug_toggle), lv_color_hex(0x2A2A2A), 0);
+            lv_obj_add_flag(id(lbl_debug_timer), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          ESP_LOGI("settings_ui", "Settings UI updated");
+
+# =============================================================================
+# Usage Notes
+# =============================================================================
+#
+# NAVIGATION:
+# Navigate to settings screen using:
+#   - script.execute:
+#       id: navigate_to
+#       target_screen: 12  # SETTINGS screen index (add to navigation.yaml)
+#
+# INITIALIZATION:
+# When navigating to this screen, call settings_update_ui to load current values:
+#   - script.execute: settings_update_ui
+#
+# SETTINGS GLOBALS (defined in packages/settings.yaml):
+# - setting_brightness_level (float 0.0-1.0)
+# - setting_idle_dim_timeout (int seconds: 0, 30, 60, 120, 300)
+# - setting_screen_off_timeout (int seconds: 0, 60, 120, 300, 600)
+# - setting_debug_mode_enabled (bool)
+#
+# REQUIRED SCRIPTS (defined in packages/settings.yaml):
+# - save_settings: Saves all settings to NVS
+# - debug_auto_disable_timer: 30-minute countdown that auto-disables debug mode
+#
+# BACKLIGHT INTEGRATION:
+# The brightness slider updates setting_brightness_level immediately.
+# The settings.yaml package should apply this to the backlight component:
+#   - lambda: |-
+#       auto backlight = id(backlight_pwm);  # Adjust to your backlight ID
+#       backlight->set_level(id(setting_brightness_level));
+#
+# LAYOUT:
+# - Header: 44px (back button, title, settings icon)
+# - Brightness: 52px title + 32px slider = 84px
+# - Dim timeout: 40px
+# - Screen off timeout: 40px
+# - Debug toggle: 40px + 20px timer = 60px
+# - Total: 44 + 84 + 40 + 40 + 60 = 268px (exceeds 240px, scrolling may be needed)
+#
+# VISUAL DESIGN:
+# - Background: #121212 (dark)
+# - Accent: #00D1FF (cyan)
+# - Warning: #FF6B35 (orange for debug timer)
+# - Sliders have white knob, cyan indicator
+# - Dropdown-style buttons have chevron-down icon
+# - Toggle switch uses visual ON/OFF states with sliding knob effect
+#
+# ACCESSIBILITY:
+# - All touch targets are minimum 32px height (44px for buttons)
+# - High contrast text (white on dark background)
+# - Clear visual feedback for all interactions
+# - Immediate visual updates on all controls
+#
+# =============================================================================

@@ -40,6 +40,7 @@ globals:
   # 9 = BROWSE_ALBUMS
   # 10 = BROWSE_ARTISTS
   # 11 = GROUPING (page_grouping - multi-room speaker groups)
+  # 12 = SETTINGS (page_settings - device settings)
   - id: current_screen
     type: int
     restore_value: no
@@ -112,7 +113,7 @@ script:
           int current = id(current_screen);
 
           // Validate target screen
-          if (target < 0 || target > 11) {
+          if (target < 0 || target > 12) {
             ESP_LOGE("navigation", "Invalid target screen: %d", target);
             return;
           }
@@ -308,6 +309,16 @@ script:
             - script.execute: grouping_init
             - delay: 50ms
             - script.execute: grouping_update_checkboxes
+      - if:
+          condition:
+            lambda: 'return target_screen == 12;'
+          then:
+            - lvgl.page.show:
+                id: page_settings
+                animation: OUT_LEFT
+                time: 250ms
+            # Load current settings and update UI
+            - script.execute: settings_update_ui
 
       # Wait for animation and unlock
       - delay: 300ms
@@ -488,6 +499,16 @@ script:
                 id: page_grouping
                 animation: OUT_RIGHT
                 time: 250ms
+      - if:
+          condition:
+            lambda: 'return id(current_screen) == 12;'
+          then:
+            - lvgl.page.show:
+                id: page_settings
+                animation: OUT_RIGHT
+                time: 250ms
+            # Update settings UI when navigating back
+            - script.execute: settings_update_ui
 
       # Wait for animation and unlock
       - delay: 300ms

@@ -68,6 +68,9 @@ font:
       - "\U000F04C3"  # mdi:speaker-off (unjoin/solo button)
       - "\U000F01A5"  # mdi:crown (group leader indicator)
       - "\U000F0337"  # mdi:link (group member indicator)
+      # Settings icons (T112-T119)
+      # Note: Using mdi:shuffle (\U000F0493) for cog since it's already defined above
+      - "\U000F0140"  # mdi:chevron-down (dropdown indicator)
 
 # =============================================================================
 # LVGL Configuration
@@ -265,6 +268,35 @@ lvgl:
       styles: style_screen
 
       widgets:
+        # =====================================================================
+        # SETTINGS BUTTON - Top Right Corner (T128)
+        # =====================================================================
+        # Small gear icon button for accessing device settings
+        - button:
+            id: btn_home_settings
+            x: 276
+            y: 0
+            width: 44
+            height: 44
+            bg_opa: TRANSP
+            border_width: 0
+            shadow_width: 0
+            pad_all: 0
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Settings button pressed"
+              - script.execute:
+                  id: navigate_to
+                  target_screen: 12  # SETTINGS
+            widgets:
+              - label:
+                  text: "\U000F0493"  # mdi:cog
+                  text_font: icons_24
+                  text_color: 0xB3B3B3
+                  align: CENTER
+
         # =====================================================================
         # TOP LEFT TILE - NOW PLAYING (T048)
         # =====================================================================

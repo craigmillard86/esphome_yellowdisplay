@@ -98,12 +98,15 @@ packages:
   browse: !include packages/browse.yaml  # Browse system with pagination (T079, T082)
   search: !include packages/search.yaml  # Search system (T086)
   grouping: !include packages/grouping.yaml  # Speaker grouping (T091-T103)
+  idle: !include packages/idle.yaml  # Idle timer and screen dimming (T123-T127)
+  settings: !include packages/settings.yaml  # Settings persistence to NVS (T120-T122)
   # UI Screens
   players_ui: !include ui/players.yaml  # Player management screen (T055)
   grouping_ui: !include ui/grouping.yaml  # Multi-room grouping screen (T091)
   library_ui: !include ui/library.yaml  # Music Library Hub (T070)
   browse_ui: !include ui/browse_unified.yaml  # Unified browse page (memory optimized)
   search_ui: !include ui/search.yaml  # Search with QWERTY keyboard (T083-T087)
+  settings_ui: !include ui/settings.yaml  # Device Settings screen (T112-T119)
   # UI Components
   header: !include ui/components/header.yaml  # Header with player name (T065)
 
@@ -145,6 +148,19 @@ api:
         - logger.log:
             format: "Volume set to: %.0f%%"
             args: ['volume']
+
+    # Settings services (T120)
+    - service: set_debug_mode
+      variables:
+        enabled: bool
+      then:
+        - script.execute:
+            id: set_debug_mode
+            enabled: !lambda 'return enabled;'
+
+    - service: reset_settings
+      then:
+        - script.execute: reset_settings
 
 # =============================================================================
 # Preferences (NVS Storage for persistent globals)

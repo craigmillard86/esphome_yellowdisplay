@@ -20,3 +20,6 @@ touchscreen:
       y_max: 3860
     transform:
       swap_xy: true
+    # Reset idle timer on any touch (T126)
+    on_touch:
+      - script.execute: reset_idle_timer

@@ -1,0 +1,373 @@
+# =============================================================================
+# Package: Idle Timer and Screen Dimming/Off
+# Purpose: Automatic backlight dimming and screen-off based on user activity
+# Dependencies: packages/backlight.yaml (backlight), packages/touch.yaml,
+#               packages/media_player.yaml (ha_media_state)
+# Exposes: Idle management system with configurable timeouts
+# =============================================================================
+
+# This package implements:
+# - Idle timer tracking last touch or media state change
+# - Automatic backlight dimming after configurable timeout
+# - Automatic screen-off after configurable timeout
+# - Immediate wake on touch from dimmed/off state
+# - Activity tracking from both touch and playback state changes
+
+# =============================================================================
+# Global Variables - Settings
+# =============================================================================
+
+globals:
+  # Idle dim timeout in seconds (0 = disabled)
+  # After this time of inactivity, backlight dims to 20%
+  - id: setting_idle_dim_timeout
+    type: int
+    restore_value: true
+    initial_value: '60'  # Default: 60 seconds
+
+  # Screen-off timeout in seconds (0 = disabled)
+  # After this time of inactivity, backlight turns off completely
+  - id: setting_screen_off_timeout
+    type: int
+    restore_value: true
+    initial_value: '180'  # Default: 180 seconds (3 minutes)
+
+  # Normal brightness level (0.0 - 1.0)
+  # Brightness to restore when waking from dim/off
+  - id: setting_brightness_level
+    type: float
+    restore_value: true
+    initial_value: '0.5'  # Default: 50%
+
+  # Last activity timestamp (milliseconds)
+  # Updated on touch or media state change
+  - id: last_activity_timestamp_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+  # Current idle state
+  # 0 = ACTIVE (normal brightness)
+  # 1 = DIM (reduced brightness at 20%)
+  # 2 = OFF (backlight off)
+  - id: idle_state
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Flag to prevent wake handler from triggering during normal operation
+  # Set true when manually dimming/turning off
+  - id: idle_mode_active
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+# =============================================================================
+# Number Components - Settings UI
+# =============================================================================
+
+number:
+  # Idle dim timeout setting (seconds)
+  - platform: template
+    id: num_idle_dim_timeout
+    name: "Idle Dim Timeout"
+    icon: "mdi:brightness-6"
+    min_value: 0
+    max_value: 600
+    step: 10
+    unit_of_measurement: "s"
+    mode: box
+    optimistic: true
+    restore_value: true
+    initial_value: 60
+    set_action:
+      - lambda: |-
+          id(setting_idle_dim_timeout) = (int)x;
+          ESP_LOGI("idle", "Idle dim timeout set to %d seconds", (int)x);
+
+  # Screen-off timeout setting (seconds)
+  - platform: template
+    id: num_screen_off_timeout
+    name: "Screen Off Timeout"
+    icon: "mdi:power"
+    min_value: 0
+    max_value: 1800
+    step: 30
+    unit_of_measurement: "s"
+    mode: box
+    optimistic: true
+    restore_value: true
+    initial_value: 180
+    set_action:
+      - lambda: |-
+          id(setting_screen_off_timeout) = (int)x;
+          ESP_LOGI("idle", "Screen-off timeout set to %d seconds", (int)x);
+
+  # Brightness level setting (percentage)
+  - platform: template
+    id: num_brightness_level
+    name: "Brightness Level"
+    icon: "mdi:brightness-7"
+    min_value: 10
+    max_value: 100
+    step: 5
+    unit_of_measurement: "%"
+    mode: slider
+    optimistic: true
+    restore_value: true
+    initial_value: 50
+    set_action:
+      - lambda: |-
+          id(setting_brightness_level) = x / 100.0;
+          ESP_LOGI("idle", "Brightness level set to %.0f%%", x);
+
+          // If currently active, update backlight immediately
+          if (id(idle_state) == 0) {
+            auto call = id(backlight).turn_on();
+            call.set_brightness(id(setting_brightness_level));
+            call.perform();
+          }
+
+# =============================================================================
+# Scripts - Idle Management
+# =============================================================================
+
+script:
+  # Reset idle timer (called on any user activity)
+  # This updates the last activity timestamp and restores full brightness if dimmed/off
+  - id: reset_idle_timer
+    mode: restart
+    then:
+      - lambda: |-
+          uint32_t now = millis();
+          uint32_t last = id(last_activity_timestamp_ms);
+
+          // Update timestamp
+          id(last_activity_timestamp_ms) = now;
+
+          // If we were dimmed or off, restore brightness
+          if (id(idle_state) != 0) {
+            ESP_LOGI("idle", "Activity detected - waking from %s state",
+                     id(idle_state) == 1 ? "DIM" : "OFF");
+
+            // Restore to ACTIVE state
+            id(idle_state) = 0;
+            id(idle_mode_active) = false;
+
+            // Restore full brightness
+            auto call = id(backlight).turn_on();
+            call.set_brightness(id(setting_brightness_level));
+            call.set_transition_length(300);  // 300ms smooth transition
+            call.perform();
+          } else {
+            // Just log activity during active state
+            ESP_LOGD("idle", "Activity detected - timer reset");
+          }
+
+  # Check idle state and apply dimming/off as needed
+  # Called by interval every 1 second
+  - id: check_idle_state
+    mode: single
+    then:
+      - lambda: |-
+          // Skip if no activity timestamp set yet
+          if (id(last_activity_timestamp_ms) == 0) {
+            return;
+          }
+
+          uint32_t now = millis();
+          uint32_t idle_time_ms = now - id(last_activity_timestamp_ms);
+          uint32_t idle_time_sec = idle_time_ms / 1000;
+
+          // Get timeout settings
+          int dim_timeout = id(setting_idle_dim_timeout);
+          int off_timeout = id(setting_screen_off_timeout);
+
+          // Check for screen-off (higher priority)
+          if (off_timeout > 0 && idle_time_sec >= off_timeout && id(idle_state) != 2) {
+            ESP_LOGI("idle", "Idle timeout reached (%d seconds) - turning off screen", idle_time_sec);
+            id(idle_state) = 2;  // OFF
+            id(idle_mode_active) = true;
+
+            // Turn off backlight
+            auto call = id(backlight).turn_off();
+            call.set_transition_length(500);  // 500ms fade out
+            call.perform();
+          }
+          // Check for dim (only if not already off and dim timeout is less than off timeout)
+          else if (dim_timeout > 0 && idle_time_sec >= dim_timeout && id(idle_state) == 0) {
+            // Only dim if we're not about to turn off (within 5 seconds)
+            bool will_turn_off_soon = (off_timeout > 0 && idle_time_sec >= (off_timeout - 5));
+
+            if (!will_turn_off_soon) {
+              ESP_LOGI("idle", "Idle timeout reached (%d seconds) - dimming to 20%%", idle_time_sec);
+              id(idle_state) = 1;  // DIM
+              id(idle_mode_active) = true;
+
+              // Dim to 20%
+              auto call = id(backlight).turn_on();
+              call.set_brightness(0.20);
+              call.set_transition_length(500);  // 500ms fade
+              call.perform();
+            }
+          }
+
+# =============================================================================
+# Interval - Idle State Checker
+# =============================================================================
+
+interval:
+  # Check idle state every 1 second
+  - interval: 1s
+    then:
+      - script.execute: check_idle_state
+
+# =============================================================================
+# LVGL Touch Handler - Wake on Touch
+# =============================================================================
+
+# Note: LVGL automatically handles touch events, but we need to hook into them
+# for idle timer reset. This is done via a custom lambda in the main LVGL config.
+# The integration point is in packages/lvgl.yaml where we'll add:
+#
+# on_idle:
+#   - script.execute: check_idle_state  # Optional: check on LVGL idle events
+#
+# And modify touch handling to call reset_idle_timer.
+# For now, we rely on the interval-based check and external calls to reset_idle_timer.
+
+# =============================================================================
+# Media Player State Monitor - Reset Timer on State Change
+# =============================================================================
+
+# Monitor media player state changes (T127 requirement)
+# We hook into the existing ha_media_state sensor from media_player.yaml
+# by adding an additional on_value action
+
+# Note: This requires coordination with packages/media_player.yaml
+# The media_player package will need to call script.execute: reset_idle_timer
+# when ha_media_state changes. This can be added to the on_value handler.
+
+# For reference, the integration point in media_player.yaml should be:
+# text_sensor:
+#   - platform: homeassistant
+#     id: ha_media_state
+#     entity_id: ${default_media_player}
+#     internal: true
+#     on_value:
+#       then:
+#         - script.execute: reset_idle_timer  # <-- Add this line
+#         - lambda: |-
+#             ... existing code ...
+
+# =============================================================================
+# Boot Initialization
+# =============================================================================
+
+esphome:
+  on_boot:
+    priority: 600  # After backlight init (800) but before UI
+    then:
+      - lambda: |-
+          // Initialize activity timestamp
+          id(last_activity_timestamp_ms) = millis();
+          id(idle_state) = 0;  // ACTIVE
+          id(idle_mode_active) = false;
+
+          ESP_LOGI("idle", "Idle timer initialized");
+          ESP_LOGI("idle", "Settings - Dim timeout: %d sec, Off timeout: %d sec, Brightness: %.0f%%",
+                   id(setting_idle_dim_timeout),
+                   id(setting_screen_off_timeout),
+                   id(setting_brightness_level) * 100);
+
+# =============================================================================
+# Sensor - Idle Time Display (Optional Diagnostic)
+# =============================================================================
+
+sensor:
+  # Current idle time in seconds (for debugging/display)
+  - platform: template
+    id: idle_time_seconds
+    name: "Idle Time"
+    icon: "mdi:timer-sand"
+    unit_of_measurement: "s"
+    accuracy_decimals: 0
+    update_interval: 5s
+    lambda: |-
+      if (id(last_activity_timestamp_ms) == 0) {
+        return 0;
+      }
+      uint32_t now = millis();
+      uint32_t idle_time_ms = now - id(last_activity_timestamp_ms);
+      return idle_time_ms / 1000;
+
+# =============================================================================
+# Text Sensor - Idle State Display (Optional Diagnostic)
+# =============================================================================
+
+text_sensor:
+  # Current idle state as text
+  - platform: template
+    id: idle_state_text
+    name: "Idle State"
+    icon: "mdi:power-sleep"
+    update_interval: 5s
+    lambda: |-
+      switch (id(idle_state)) {
+        case 0: return {"ACTIVE"};
+        case 1: return {"DIM"};
+        case 2: return {"OFF"};
+        default: return {"UNKNOWN"};
+      }
+
+# =============================================================================
+# Notes on Integration
+# =============================================================================
+#
+# To complete the idle timer system, the following integrations are needed:
+#
+# 1. Touch Event Integration (packages/lvgl.yaml):
+#    Add touch event handler to reset idle timer on any touch:
+#
+#    display:
+#      - platform: ili9341
+#        ...
+#        on_touch:
+#          - script.execute: reset_idle_timer
+#
+#    OR in LVGL component root object event handler:
+#
+#    lvgl:
+#      ...
+#      pages:
+#        - id: page_main
+#          widgets:
+#            ...
+#          on_event:  # Add to root or screen object
+#            - event: PRESSED
+#              then:
+#                - script.execute: reset_idle_timer
+#
+# 2. Media State Change Integration (packages/media_player.yaml):
+#    Add to ha_media_state on_value handler:
+#
+#    text_sensor:
+#      - platform: homeassistant
+#        id: ha_media_state
+#        ...
+#        on_value:
+#          then:
+#            - script.execute: reset_idle_timer  # <-- Add this
+#            - lambda: |-
+#                ... existing code ...
+#
+# 3. Optional: Add wake button to UI for manual wake
+#    Can expose a button component or service:
+#
+#    button:
+#      - platform: template
+#        name: "Wake Screen"
+#        on_press:
+#          - script.execute: reset_idle_timer
+#
+# =============================================================================
