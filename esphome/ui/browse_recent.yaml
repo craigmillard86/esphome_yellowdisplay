@@ -1,0 +1,975 @@
+# =============================================================================
+# UI Screen: Recently Played Browse List (T074, T080, T081, T088)
+# Purpose: Display recently played tracks/albums
+# Dependencies: packages/lvgl.yaml (LVGL framework, theme, fonts, icons)
+#               packages/navigation.yaml (screen navigation)
+#               packages/browse.yaml (browse scripts, play_media_item)
+#               ui/components/list_item.yaml (list item pattern)
+#               ui/components/loading.yaml (loading indicator pattern)
+#               ui/components/empty_state.yaml (empty state pattern)
+# Exposes: page_browse_recent LVGL page with scrollable list
+# Display: 320x240 ILI9341 in landscape orientation
+# =============================================================================
+
+# This file implements:
+# - T074: Implement Recently Played list view
+# - T080: Add loading indicator during content fetch
+# - T081: Add empty state message for empty categories
+# - T088: Add navigation breadcrumbs or back button
+#
+# Screen Layout (Screen G per ui-technical-spec.md):
+# +--------------------------------------------------+
+# | [<] Recently Played                    1-10 of N |  <- Header (44px)
+# +--------------------------------------------------+
+# | +----------------------------------------------+ |
+# | | Track Title 1                                | |  <- List items
+# | | Artist - Album                               | |  <- 36px each
+# | +----------------------------------------------+ |
+# | | Track Title 2                                | |
+# | | Artist - Album                               | |
+# | +----------------------------------------------+ |
+# | | ...                                          | |
+# | +----------------------------------------------+ |
+# +--------------------------------------------------+
+# |         [< Prev]              [Next >]         |  <- Pagination footer
+# +--------------------------------------------------+
+
+lvgl:
+  pages:
+    # =========================================================================
+    # Recently Played Browse Screen (T074)
+    # =========================================================================
+    - id: page_browse_recent
+      bg_color: 0x121212
+      border_width: 0
+      shadow_width: 0
+      on_load:
+        # Load recently played content when screen is shown
+        - logger.log:
+            tag: "browse"
+            level: INFO
+            format: "Recently Played screen loaded"
+        # Show loading indicator
+        - lambda: |-
+            lv_obj_clear_flag(id(loading_indicator_recent), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(empty_state_recent), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(recent_pagination_footer), LV_OBJ_FLAG_HIDDEN);
+        # Load content
+        - script.execute:
+            id: browse_category
+            category: 1  # RECENT
+      widgets:
+        # =====================================================================
+        # HEADER AREA (44px height)
+        # =====================================================================
+
+        # Back Button - Top Left (44x44px touch target)
+        - button:
+            id: btn_recent_back
+            x: 0
+            y: 0
+            width: 44
+            height: 44
+            bg_opa: TRANSP
+            border_width: 0
+            shadow_width: 0
+            pad_all: 0
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Recently Played back button pressed"
+              - script.execute: navigate_back
+            widgets:
+              - label:
+                  text: "\U000F004D"  # mdi:arrow-left
+                  text_font: icons_24
+                  text_color: 0xB3B3B3
+                  align: CENTER
+
+        # Screen Title
+        - label:
+            id: lbl_recent_title
+            text: "Recently Played"
+            text_font: roboto_16
+            text_color: 0xFFFFFF
+            align: TOP_MID
+            x: 0
+            y: 12
+            text_align: CENTER
+
+        # Page Indicator (right aligned)
+        - label:
+            id: lbl_recent_page_indicator
+            text: ""
+            text_font: roboto_12
+            text_color: 0x808080
+            align: TOP_RIGHT
+            x: -8
+            y: 14
+
+        # Header Divider Line
+        - obj:
+            x: 0
+            y: 43
+            width: 320
+            height: 1
+            bg_color: 0x2A2A2A
+            bg_opa: COVER
+            border_width: 0
+
+        # =====================================================================
+        # SCROLLABLE LIST CONTAINER
+        # =====================================================================
+        # Container for list items with vertical scroll
+        - obj:
+            id: recent_list_container
+            x: 8
+            y: 48
+            width: 304
+            height: 160  # Reduced to make room for pagination footer
+            bg_opa: TRANSP
+            border_width: 0
+            scrollable: true
+            scroll_dir: VER
+            widgets:
+              # List items (10 items, 36px height each, 4px gap)
+
+              # List Item 0
+              - button:
+                  id: recent_item_0
+                  x: 0
+                  y: 0
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true  # Hidden until data loaded
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - logger.log:
+                        tag: "browse"
+                        level: INFO
+                        format: "Recent item 0 tapped"
+                    # Play media item (T082)
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_0_media_id);'
+                        item_title: !lambda 'return id(browse_item_0_title);'
+                  widgets:
+                    # Primary text (title)
+                    - label:
+                        id: lbl_recent_item_0_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    # Secondary text (artist - album)
+                    - label:
+                        id: lbl_recent_item_0_subtitle
+                        text: "Artist - Album"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+              # List Item 1
+              - button:
+                  id: recent_item_1
+                  x: 0
+                  y: 40
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - logger.log:
+                        tag: "browse"
+                        level: INFO
+                        format: "Recent item 1 tapped"
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_1_media_id);'
+                        item_title: !lambda 'return id(browse_item_1_title);'
+                  widgets:
+                    - label:
+                        id: lbl_recent_item_1_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    - label:
+                        id: lbl_recent_item_1_subtitle
+                        text: "Artist - Album"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+              # List Item 2
+              - button:
+                  id: recent_item_2
+                  x: 0
+                  y: 80
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - logger.log:
+                        tag: "browse"
+                        level: INFO
+                        format: "Recent item 2 tapped"
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_2_media_id);'
+                        item_title: !lambda 'return id(browse_item_2_title);'
+                  widgets:
+                    - label:
+                        id: lbl_recent_item_2_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    - label:
+                        id: lbl_recent_item_2_subtitle
+                        text: "Artist - Album"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+              # List Item 3
+              - button:
+                  id: recent_item_3
+                  x: 0
+                  y: 120
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - logger.log:
+                        tag: "browse"
+                        level: INFO
+                        format: "Recent item 3 tapped"
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_3_media_id);'
+                        item_title: !lambda 'return id(browse_item_3_title);'
+                  widgets:
+                    - label:
+                        id: lbl_recent_item_3_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    - label:
+                        id: lbl_recent_item_3_subtitle
+                        text: "Artist - Album"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+              # List Item 4
+              - button:
+                  id: recent_item_4
+                  x: 0
+                  y: 160
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - logger.log:
+                        tag: "browse"
+                        level: INFO
+                        format: "Recent item 4 tapped"
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_4_media_id);'
+                        item_title: !lambda 'return id(browse_item_4_title);'
+                  widgets:
+                    - label:
+                        id: lbl_recent_item_4_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    - label:
+                        id: lbl_recent_item_4_subtitle
+                        text: "Artist - Album"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+              # List Item 5
+              - button:
+                  id: recent_item_5
+                  x: 0
+                  y: 200
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - logger.log:
+                        tag: "browse"
+                        level: INFO
+                        format: "Recent item 5 tapped"
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_5_media_id);'
+                        item_title: !lambda 'return id(browse_item_5_title);'
+                  widgets:
+                    - label:
+                        id: lbl_recent_item_5_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    - label:
+                        id: lbl_recent_item_5_subtitle
+                        text: "Artist - Album"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+              # List Item 6
+              - button:
+                  id: recent_item_6
+                  x: 0
+                  y: 240
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - logger.log:
+                        tag: "browse"
+                        level: INFO
+                        format: "Recent item 6 tapped"
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_6_media_id);'
+                        item_title: !lambda 'return id(browse_item_6_title);'
+                  widgets:
+                    - label:
+                        id: lbl_recent_item_6_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    - label:
+                        id: lbl_recent_item_6_subtitle
+                        text: "Artist - Album"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+              # List Item 7
+              - button:
+                  id: recent_item_7
+                  x: 0
+                  y: 280
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - logger.log:
+                        tag: "browse"
+                        level: INFO
+                        format: "Recent item 7 tapped"
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_7_media_id);'
+                        item_title: !lambda 'return id(browse_item_7_title);'
+                  widgets:
+                    - label:
+                        id: lbl_recent_item_7_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    - label:
+                        id: lbl_recent_item_7_subtitle
+                        text: "Artist - Album"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+              # List Item 8
+              - button:
+                  id: recent_item_8
+                  x: 0
+                  y: 320
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - logger.log:
+                        tag: "browse"
+                        level: INFO
+                        format: "Recent item 8 tapped"
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_8_media_id);'
+                        item_title: !lambda 'return id(browse_item_8_title);'
+                  widgets:
+                    - label:
+                        id: lbl_recent_item_8_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    - label:
+                        id: lbl_recent_item_8_subtitle
+                        text: "Artist - Album"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+              # List Item 9
+              - button:
+                  id: recent_item_9
+                  x: 0
+                  y: 360
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - logger.log:
+                        tag: "browse"
+                        level: INFO
+                        format: "Recent item 9 tapped"
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_9_media_id);'
+                        item_title: !lambda 'return id(browse_item_9_title);'
+                  widgets:
+                    - label:
+                        id: lbl_recent_item_9_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    - label:
+                        id: lbl_recent_item_9_subtitle
+                        text: "Artist - Album"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+        # =====================================================================
+        # PAGINATION FOOTER
+        # =====================================================================
+        - obj:
+            id: recent_pagination_footer
+            x: 8
+            y: 212
+            width: 304
+            height: 28
+            bg_opa: TRANSP
+            border_width: 0
+            hidden: true
+            widgets:
+              # Previous button
+              - button:
+                  id: btn_recent_prev
+                  x: 0
+                  y: 0
+                  width: 70
+                  height: 26
+                  bg_color: 0x2A2A2A
+                  bg_opa: COVER
+                  radius: 4
+                  border_width: 0
+                  shadow_width: 0
+                  on_click:
+                    - script.execute: browse_page_prev
+                  widgets:
+                    - label:
+                        text: "< Prev"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              # Next button
+              - button:
+                  id: btn_recent_next
+                  x: 234
+                  y: 0
+                  width: 70
+                  height: 26
+                  bg_color: 0x2A2A2A
+                  bg_opa: COVER
+                  radius: 4
+                  border_width: 0
+                  shadow_width: 0
+                  on_click:
+                    - script.execute: browse_page_next
+                  widgets:
+                    - label:
+                        text: "Next >"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+
+        # =====================================================================
+        # LOADING INDICATOR (T080)
+        # =====================================================================
+        # Shown during content fetch, hidden when complete
+        - obj:
+            id: loading_indicator_recent
+            x: 0
+            y: 44
+            width: 320
+            height: 196
+            bg_opa: TRANSP
+            border_width: 0
+            hidden: false  # Shown initially
+            widgets:
+              # Spinner
+              - spinner:
+                  id: spinner_recent
+                  align: CENTER
+                  width: 48
+                  height: 48
+                  spin_time: 1s
+                  arc_length: 60
+                  arc_width: 4
+                  arc_color: 0x00D1FF
+                  indicator:
+                    arc_color: 0x1E1E1E
+                    arc_width: 4
+              # Loading message
+              - label:
+                  id: lbl_loading_recent
+                  text: "Loading recent tracks..."
+                  text_font: roboto_12
+                  text_color: 0xB3B3B3
+                  align: CENTER
+                  y: 40
+
+        # =====================================================================
+        # EMPTY STATE (T081)
+        # =====================================================================
+        # Shown when no content is available
+        - obj:
+            id: empty_state_recent
+            x: 0
+            y: 44
+            width: 320
+            height: 196
+            bg_opa: TRANSP
+            border_width: 0
+            hidden: true  # Hidden initially
+            widgets:
+              # Icon
+              - label:
+                  text: "\U000F075A"  # mdi:music
+                  text_font: icons_24
+                  text_color: 0x666666
+                  align: CENTER
+                  y: -30
+              # Primary message
+              - label:
+                  id: lbl_empty_recent_primary
+                  text: "No Recent Tracks"
+                  text_font: roboto_16
+                  text_color: 0xB3B3B3
+                  align: CENTER
+                  y: 10
+              # Secondary message
+              - label:
+                  id: lbl_empty_recent_secondary
+                  text: "Play music to see recent tracks"
+                  text_font: roboto_12
+                  text_color: 0x666666
+                  align: CENTER
+                  y: 35
+                  width: 280
+                  text_align: CENTER
+
+# =============================================================================
+# Scripts - UI Update Logic
+# =============================================================================
+
+script:
+  # ---------------------------------------------------------------------------
+  # Update Recent List UI
+  # ---------------------------------------------------------------------------
+  # Populates list items from browse global variables
+  # Called automatically by browse.yaml after data loads
+  - id: update_recent_list
+    mode: single
+    then:
+      - lambda: |-
+          ESP_LOGI("browse_ui", "Updating Recent list UI");
+
+          int loaded_count = id(browse_loaded_items);
+          int offset = id(browse_page_offset);
+          int total = id(browse_total_items);
+
+          // Hide loading indicator
+          lv_obj_add_flag(id(loading_indicator_recent), LV_OBJ_FLAG_HIDDEN);
+
+          // Show empty state if no items loaded
+          if (loaded_count == 0) {
+            ESP_LOGI("browse_ui", "No items loaded, showing empty state");
+            lv_obj_clear_flag(id(empty_state_recent), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(recent_pagination_footer), LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(id(lbl_recent_page_indicator), "");
+            // Hide all list items
+            lv_obj_add_flag(id(recent_item_0), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(recent_item_1), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(recent_item_2), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(recent_item_3), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(recent_item_4), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(recent_item_5), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(recent_item_6), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(recent_item_7), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(recent_item_8), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(recent_item_9), LV_OBJ_FLAG_HIDDEN);
+            return;
+          }
+
+          // Hide empty state
+          lv_obj_add_flag(id(empty_state_recent), LV_OBJ_FLAG_HIDDEN);
+
+          // Update page indicator
+          char page_text[32];
+          if (total > 0) {
+            snprintf(page_text, sizeof(page_text), "%d-%d of %d", offset + 1, offset + loaded_count, total);
+          } else {
+            snprintf(page_text, sizeof(page_text), "%d-%d", offset + 1, offset + loaded_count);
+          }
+          lv_label_set_text(id(lbl_recent_page_indicator), page_text);
+
+          // Show/hide pagination buttons based on position
+          if (loaded_count > 0 && (offset > 0 || (total > 0 && offset + loaded_count < total))) {
+            lv_obj_clear_flag(id(recent_pagination_footer), LV_OBJ_FLAG_HIDDEN);
+
+            // Prev button visibility
+            if (offset > 0) {
+              lv_obj_clear_flag(id(btn_recent_prev), LV_OBJ_FLAG_HIDDEN);
+            } else {
+              lv_obj_add_flag(id(btn_recent_prev), LV_OBJ_FLAG_HIDDEN);
+            }
+
+            // Next button visibility
+            if (total > 0 && offset + loaded_count < total) {
+              lv_obj_clear_flag(id(btn_recent_next), LV_OBJ_FLAG_HIDDEN);
+            } else if (total == 0 && loaded_count == 10) {
+              // If we don't know total but got full page, assume more
+              lv_obj_clear_flag(id(btn_recent_next), LV_OBJ_FLAG_HIDDEN);
+            } else {
+              lv_obj_add_flag(id(btn_recent_next), LV_OBJ_FLAG_HIDDEN);
+            }
+          } else {
+            lv_obj_add_flag(id(recent_pagination_footer), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Update Item 0
+          if (loaded_count > 0) {
+            lv_label_set_text(id(lbl_recent_item_0_title), id(browse_item_0_title).c_str());
+            lv_label_set_text(id(lbl_recent_item_0_subtitle), id(browse_item_0_subtitle).c_str());
+            lv_obj_clear_flag(id(recent_item_0), LV_OBJ_FLAG_HIDDEN);
+            ESP_LOGD("browse_ui", "Item 0: %s - %s", id(browse_item_0_title).c_str(), id(browse_item_0_subtitle).c_str());
+          } else {
+            lv_obj_add_flag(id(recent_item_0), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Update Item 1
+          if (loaded_count > 1) {
+            lv_label_set_text(id(lbl_recent_item_1_title), id(browse_item_1_title).c_str());
+            lv_label_set_text(id(lbl_recent_item_1_subtitle), id(browse_item_1_subtitle).c_str());
+            lv_obj_clear_flag(id(recent_item_1), LV_OBJ_FLAG_HIDDEN);
+            ESP_LOGD("browse_ui", "Item 1: %s - %s", id(browse_item_1_title).c_str(), id(browse_item_1_subtitle).c_str());
+          } else {
+            lv_obj_add_flag(id(recent_item_1), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Update Item 2
+          if (loaded_count > 2) {
+            lv_label_set_text(id(lbl_recent_item_2_title), id(browse_item_2_title).c_str());
+            lv_label_set_text(id(lbl_recent_item_2_subtitle), id(browse_item_2_subtitle).c_str());
+            lv_obj_clear_flag(id(recent_item_2), LV_OBJ_FLAG_HIDDEN);
+            ESP_LOGD("browse_ui", "Item 2: %s - %s", id(browse_item_2_title).c_str(), id(browse_item_2_subtitle).c_str());
+          } else {
+            lv_obj_add_flag(id(recent_item_2), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Update Item 3
+          if (loaded_count > 3) {
+            lv_label_set_text(id(lbl_recent_item_3_title), id(browse_item_3_title).c_str());
+            lv_label_set_text(id(lbl_recent_item_3_subtitle), id(browse_item_3_subtitle).c_str());
+            lv_obj_clear_flag(id(recent_item_3), LV_OBJ_FLAG_HIDDEN);
+            ESP_LOGD("browse_ui", "Item 3: %s - %s", id(browse_item_3_title).c_str(), id(browse_item_3_subtitle).c_str());
+          } else {
+            lv_obj_add_flag(id(recent_item_3), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Update Item 4
+          if (loaded_count > 4) {
+            lv_label_set_text(id(lbl_recent_item_4_title), id(browse_item_4_title).c_str());
+            lv_label_set_text(id(lbl_recent_item_4_subtitle), id(browse_item_4_subtitle).c_str());
+            lv_obj_clear_flag(id(recent_item_4), LV_OBJ_FLAG_HIDDEN);
+            ESP_LOGD("browse_ui", "Item 4: %s - %s", id(browse_item_4_title).c_str(), id(browse_item_4_subtitle).c_str());
+          } else {
+            lv_obj_add_flag(id(recent_item_4), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Update Item 5
+          if (loaded_count > 5) {
+            lv_label_set_text(id(lbl_recent_item_5_title), id(browse_item_5_title).c_str());
+            lv_label_set_text(id(lbl_recent_item_5_subtitle), id(browse_item_5_subtitle).c_str());
+            lv_obj_clear_flag(id(recent_item_5), LV_OBJ_FLAG_HIDDEN);
+            ESP_LOGD("browse_ui", "Item 5: %s - %s", id(browse_item_5_title).c_str(), id(browse_item_5_subtitle).c_str());
+          } else {
+            lv_obj_add_flag(id(recent_item_5), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Update Item 6
+          if (loaded_count > 6) {
+            lv_label_set_text(id(lbl_recent_item_6_title), id(browse_item_6_title).c_str());
+            lv_label_set_text(id(lbl_recent_item_6_subtitle), id(browse_item_6_subtitle).c_str());
+            lv_obj_clear_flag(id(recent_item_6), LV_OBJ_FLAG_HIDDEN);
+            ESP_LOGD("browse_ui", "Item 6: %s - %s", id(browse_item_6_title).c_str(), id(browse_item_6_subtitle).c_str());
+          } else {
+            lv_obj_add_flag(id(recent_item_6), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Update Item 7
+          if (loaded_count > 7) {
+            lv_label_set_text(id(lbl_recent_item_7_title), id(browse_item_7_title).c_str());
+            lv_label_set_text(id(lbl_recent_item_7_subtitle), id(browse_item_7_subtitle).c_str());
+            lv_obj_clear_flag(id(recent_item_7), LV_OBJ_FLAG_HIDDEN);
+            ESP_LOGD("browse_ui", "Item 7: %s - %s", id(browse_item_7_title).c_str(), id(browse_item_7_subtitle).c_str());
+          } else {
+            lv_obj_add_flag(id(recent_item_7), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Update Item 8
+          if (loaded_count > 8) {
+            lv_label_set_text(id(lbl_recent_item_8_title), id(browse_item_8_title).c_str());
+            lv_label_set_text(id(lbl_recent_item_8_subtitle), id(browse_item_8_subtitle).c_str());
+            lv_obj_clear_flag(id(recent_item_8), LV_OBJ_FLAG_HIDDEN);
+            ESP_LOGD("browse_ui", "Item 8: %s - %s", id(browse_item_8_title).c_str(), id(browse_item_8_subtitle).c_str());
+          } else {
+            lv_obj_add_flag(id(recent_item_8), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Update Item 9
+          if (loaded_count > 9) {
+            lv_label_set_text(id(lbl_recent_item_9_title), id(browse_item_9_title).c_str());
+            lv_label_set_text(id(lbl_recent_item_9_subtitle), id(browse_item_9_subtitle).c_str());
+            lv_obj_clear_flag(id(recent_item_9), LV_OBJ_FLAG_HIDDEN);
+            ESP_LOGD("browse_ui", "Item 9: %s - %s", id(browse_item_9_title).c_str(), id(browse_item_9_subtitle).c_str());
+          } else {
+            lv_obj_add_flag(id(recent_item_9), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Scroll list to top
+          lv_obj_scroll_to_y(id(recent_list_container), 0, LV_ANIM_OFF);
+
+          ESP_LOGI("browse_ui", "Recent list UI updated: %d items visible", loaded_count);
+
+# =============================================================================
+# Implementation Notes
+# =============================================================================
+#
+# Data Population:
+# - on_load trigger calls browse_category script with category: 1 (RECENT)
+# - browse.yaml populates browse_item_X_* global variables
+# - Lambda code updates LVGL widgets from global variables
+# - Show/hide list items based on browse_loaded_items count
+#
+# Loading State Flow:
+# 1. on_load: Show loading_indicator_recent, hide empty_state_recent
+# 2. browse_category: Fetch data from Music Assistant
+# 3. On success: Hide loading_indicator_recent, show list items
+# 4. On empty: Hide loading_indicator_recent, show empty_state_recent
+# 5. On error: Hide loading_indicator_recent, show error message
+#
+# Tap-to-Play Flow (T082):
+# 1. User taps list item button
+# 2. on_click calls play_media_item script
+# 3. Script reads media_id from browse_item_X_media_id
+# 4. Calls music_assistant.play_media service
+# 5. Playback starts on selected player
+#
+# Memory Management:
+# - Maximum 10 visible items per page with pagination
+# - Each item ~200 bytes (button + 2 labels, smaller font)
+# - Total: ~2KB for all 10 items (safe for ESP32)
+# - Clear data on screen exit (navigate_back)
+#
+# =============================================================================

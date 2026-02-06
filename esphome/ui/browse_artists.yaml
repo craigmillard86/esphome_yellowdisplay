@@ -1,0 +1,1326 @@
+# =============================================================================
+# UI Screen: Artists Browse List (T078, T080, T081, T088)
+# Purpose: Display artists from Music Assistant library with pagination and A-Z nav
+# Category: 5 (ARTISTS)
+# =============================================================================
+
+lvgl:
+  pages:
+    - id: page_browse_artists
+      bg_color: 0x121212
+      border_width: 0
+      shadow_width: 0
+      on_load:
+        - logger.log:
+            tag: "browse"
+            level: INFO
+            format: "Artists screen loaded"
+        # Show loading indicator, hide empty state
+        - lambda: |-
+            lv_obj_clear_flag(id(loading_indicator_artists), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(empty_state_artists), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(artists_pagination_footer), LV_OBJ_FLAG_HIDDEN);
+        # Load content
+        - script.execute:
+            id: browse_category
+            category: 5  # ARTISTS
+      widgets:
+        # Header - Back button
+        - button:
+            id: btn_artists_back
+            x: 0
+            y: 0
+            width: 44
+            height: 44
+            bg_opa: TRANSP
+            border_width: 0
+            shadow_width: 0
+            pad_all: 0
+            on_click:
+              - script.execute: navigate_back
+            widgets:
+              - label:
+                  text: "\U000F004D"
+                  text_font: icons_24
+                  text_color: 0xB3B3B3
+                  align: CENTER
+
+        # Header - Title
+        - label:
+            text: "Artists"
+            text_font: roboto_16
+            text_color: 0xFFFFFF
+            align: TOP_MID
+            y: 12
+
+        # Header - Page indicator
+        - label:
+            id: lbl_artists_page_indicator
+            text: ""
+            text_font: roboto_12
+            text_color: 0x808080
+            align: TOP_RIGHT
+            x: -8
+            y: 14
+
+        # Header divider
+        - obj:
+            x: 0
+            y: 43
+            width: 320
+            height: 1
+            bg_color: 0x2A2A2A
+            bg_opa: COVER
+            border_width: 0
+
+        # List container (narrower for alphabet picker: 280px instead of 304px)
+        - obj:
+            id: artists_list_container
+            x: 8
+            y: 48
+            width: 280
+            height: 160
+            bg_opa: TRANSP
+            border_width: 0
+            scrollable: true
+            scroll_dir: VER
+            widgets:
+              # List Item 0
+              - button:
+                  id: artists_item_0
+                  x: 0
+                  y: 0
+                  width: 264
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_0_media_id);'
+                        item_title: !lambda 'return id(browse_item_0_title);'
+                  widgets:
+                    - label:
+                        id: lbl_artists_item_0_title
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 248
+                        long_mode: DOT
+                    - label:
+                        id: lbl_artists_item_0_subtitle
+                        text: "Genre"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 248
+                        long_mode: DOT
+
+              # List Item 1
+              - button:
+                  id: artists_item_1
+                  x: 0
+                  y: 40
+                  width: 264
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_1_media_id);'
+                        item_title: !lambda 'return id(browse_item_1_title);'
+                  widgets:
+                    - label:
+                        id: lbl_artists_item_1_title
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 248
+                        long_mode: DOT
+                    - label:
+                        id: lbl_artists_item_1_subtitle
+                        text: "Genre"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 248
+                        long_mode: DOT
+
+              # List Item 2
+              - button:
+                  id: artists_item_2
+                  x: 0
+                  y: 80
+                  width: 264
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_2_media_id);'
+                        item_title: !lambda 'return id(browse_item_2_title);'
+                  widgets:
+                    - label:
+                        id: lbl_artists_item_2_title
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 248
+                        long_mode: DOT
+                    - label:
+                        id: lbl_artists_item_2_subtitle
+                        text: "Genre"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 248
+                        long_mode: DOT
+
+              # List Item 3
+              - button:
+                  id: artists_item_3
+                  x: 0
+                  y: 120
+                  width: 264
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_3_media_id);'
+                        item_title: !lambda 'return id(browse_item_3_title);'
+                  widgets:
+                    - label:
+                        id: lbl_artists_item_3_title
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 248
+                        long_mode: DOT
+                    - label:
+                        id: lbl_artists_item_3_subtitle
+                        text: "Genre"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 248
+                        long_mode: DOT
+
+              # List Item 4
+              - button:
+                  id: artists_item_4
+                  x: 0
+                  y: 160
+                  width: 264
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_4_media_id);'
+                        item_title: !lambda 'return id(browse_item_4_title);'
+                  widgets:
+                    - label:
+                        id: lbl_artists_item_4_title
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 248
+                        long_mode: DOT
+                    - label:
+                        id: lbl_artists_item_4_subtitle
+                        text: "Genre"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 248
+                        long_mode: DOT
+
+              # List Item 5
+              - button:
+                  id: artists_item_5
+                  x: 0
+                  y: 200
+                  width: 264
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_5_media_id);'
+                        item_title: !lambda 'return id(browse_item_5_title);'
+                  widgets:
+                    - label:
+                        id: lbl_artists_item_5_title
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 248
+                        long_mode: DOT
+                    - label:
+                        id: lbl_artists_item_5_subtitle
+                        text: "Genre"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 248
+                        long_mode: DOT
+
+              # List Item 6
+              - button:
+                  id: artists_item_6
+                  x: 0
+                  y: 240
+                  width: 264
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_6_media_id);'
+                        item_title: !lambda 'return id(browse_item_6_title);'
+                  widgets:
+                    - label:
+                        id: lbl_artists_item_6_title
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 248
+                        long_mode: DOT
+                    - label:
+                        id: lbl_artists_item_6_subtitle
+                        text: "Genre"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 248
+                        long_mode: DOT
+
+              # List Item 7
+              - button:
+                  id: artists_item_7
+                  x: 0
+                  y: 280
+                  width: 264
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_7_media_id);'
+                        item_title: !lambda 'return id(browse_item_7_title);'
+                  widgets:
+                    - label:
+                        id: lbl_artists_item_7_title
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 248
+                        long_mode: DOT
+                    - label:
+                        id: lbl_artists_item_7_subtitle
+                        text: "Genre"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 248
+                        long_mode: DOT
+
+              # List Item 8
+              - button:
+                  id: artists_item_8
+                  x: 0
+                  y: 320
+                  width: 264
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_8_media_id);'
+                        item_title: !lambda 'return id(browse_item_8_title);'
+                  widgets:
+                    - label:
+                        id: lbl_artists_item_8_title
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 248
+                        long_mode: DOT
+                    - label:
+                        id: lbl_artists_item_8_subtitle
+                        text: "Genre"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 248
+                        long_mode: DOT
+
+              # List Item 9
+              - button:
+                  id: artists_item_9
+                  x: 0
+                  y: 360
+                  width: 264
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_9_media_id);'
+                        item_title: !lambda 'return id(browse_item_9_title);'
+                  widgets:
+                    - label:
+                        id: lbl_artists_item_9_title
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 248
+                        long_mode: DOT
+                    - label:
+                        id: lbl_artists_item_9_subtitle
+                        text: "Genre"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 248
+                        long_mode: DOT
+
+        # Alphabet Picker Strip (right edge, 24px wide)
+        - obj:
+            id: artists_alpha_picker
+            x: 294
+            y: 48
+            width: 24
+            height: 160
+            bg_color: 0x1A1A1A
+            bg_opa: COVER
+            border_width: 0
+            radius: 4
+            scrollable: true
+            scroll_dir: VER
+            widgets:
+              # Clear filter button
+              - button:
+                  id: artists_alpha_all
+                  x: 0
+                  y: 0
+                  width: 24
+                  height: 18
+                  bg_color: 0x00D1FF
+                  bg_opa: COVER
+                  radius: 2
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: ""
+                  widgets:
+                    - label:
+                        text: "All"
+                        text_font: roboto_12
+                        text_color: 0x000000
+                        align: CENTER
+              # A-Z buttons
+              - button:
+                  x: 0
+                  y: 20
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "A"
+                  widgets:
+                    - label:
+                        text: "A"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 36
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "B"
+                  widgets:
+                    - label:
+                        text: "B"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 52
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "C"
+                  widgets:
+                    - label:
+                        text: "C"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 68
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "D"
+                  widgets:
+                    - label:
+                        text: "D"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 84
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "E"
+                  widgets:
+                    - label:
+                        text: "E"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 100
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "F"
+                  widgets:
+                    - label:
+                        text: "F"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 116
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "G"
+                  widgets:
+                    - label:
+                        text: "G"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 132
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "H"
+                  widgets:
+                    - label:
+                        text: "H"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 148
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "I"
+                  widgets:
+                    - label:
+                        text: "I"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 164
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "J"
+                  widgets:
+                    - label:
+                        text: "J"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 180
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "K"
+                  widgets:
+                    - label:
+                        text: "K"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 196
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "L"
+                  widgets:
+                    - label:
+                        text: "L"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 212
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "M"
+                  widgets:
+                    - label:
+                        text: "M"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 228
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "N"
+                  widgets:
+                    - label:
+                        text: "N"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 244
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "O"
+                  widgets:
+                    - label:
+                        text: "O"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 260
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "P"
+                  widgets:
+                    - label:
+                        text: "P"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 276
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "Q"
+                  widgets:
+                    - label:
+                        text: "Q"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 292
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "R"
+                  widgets:
+                    - label:
+                        text: "R"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 308
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "S"
+                  widgets:
+                    - label:
+                        text: "S"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 324
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "T"
+                  widgets:
+                    - label:
+                        text: "T"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 340
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "U"
+                  widgets:
+                    - label:
+                        text: "U"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 356
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "V"
+                  widgets:
+                    - label:
+                        text: "V"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 372
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "W"
+                  widgets:
+                    - label:
+                        text: "W"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 388
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "X"
+                  widgets:
+                    - label:
+                        text: "X"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 404
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "Y"
+                  widgets:
+                    - label:
+                        text: "Y"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 420
+                  width: 24
+                  height: 16
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "Z"
+                  widgets:
+                    - label:
+                        text: "Z"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+
+        # Pagination Footer
+        - obj:
+            id: artists_pagination_footer
+            x: 8
+            y: 208
+            width: 280
+            height: 28
+            bg_opa: TRANSP
+            border_width: 0
+            hidden: true
+            widgets:
+              # Previous button
+              - button:
+                  id: btn_artists_prev
+                  x: 0
+                  y: 0
+                  width: 70
+                  height: 26
+                  bg_color: 0x2A2A2A
+                  bg_opa: COVER
+                  radius: 4
+                  border_width: 0
+                  shadow_width: 0
+                  on_click:
+                    - script.execute: browse_page_prev
+                  widgets:
+                    - label:
+                        text: "< Prev"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              # Next button
+              - button:
+                  id: btn_artists_next
+                  x: 210
+                  y: 0
+                  width: 70
+                  height: 26
+                  bg_color: 0x2A2A2A
+                  bg_opa: COVER
+                  radius: 4
+                  border_width: 0
+                  shadow_width: 0
+                  on_click:
+                    - script.execute: browse_page_next
+                  widgets:
+                    - label:
+                        text: "Next >"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+
+        # Loading indicator
+        - obj:
+            id: loading_indicator_artists
+            x: 0
+            y: 44
+            width: 320
+            height: 196
+            bg_opa: TRANSP
+            border_width: 0
+            widgets:
+              - spinner:
+                  align: CENTER
+                  width: 48
+                  height: 48
+                  spin_time: 1s
+                  arc_length: 60
+                  arc_width: 4
+                  arc_color: 0x00D1FF
+                  indicator:
+                    arc_color: 0x1E1E1E
+                    arc_width: 4
+              - label:
+                  text: "Loading artists..."
+                  text_font: roboto_12
+                  text_color: 0xB3B3B3
+                  align: CENTER
+                  y: 40
+
+        # Empty state
+        - obj:
+            id: empty_state_artists
+            x: 0
+            y: 44
+            width: 320
+            height: 196
+            bg_opa: TRANSP
+            border_width: 0
+            hidden: true
+            widgets:
+              - label:
+                  text: "\U000F0006"  # mdi:account-music
+                  text_font: icons_24
+                  text_color: 0x666666
+                  align: CENTER
+                  y: -30
+              - label:
+                  text: "No Artists Found"
+                  text_font: roboto_16
+                  text_color: 0xB3B3B3
+                  align: CENTER
+                  y: 10
+              - label:
+                  text: "Check your Music Assistant library"
+                  text_font: roboto_12
+                  text_color: 0x666666
+                  align: CENTER
+                  y: 35
+                  width: 280
+                  text_align: CENTER
+
+# =============================================================================
+# Scripts - UI Update Logic
+# =============================================================================
+
+script:
+  - id: update_artists_list
+    mode: single
+    then:
+      - lambda: |-
+          ESP_LOGI("browse_ui", "Updating Artists list UI");
+
+          int loaded_count = id(browse_loaded_items);
+          int offset = id(browse_page_offset);
+          int total = id(browse_total_items);
+
+          // Hide loading indicator
+          lv_obj_add_flag(id(loading_indicator_artists), LV_OBJ_FLAG_HIDDEN);
+
+          // Show empty state if no items loaded
+          if (loaded_count == 0) {
+            lv_obj_clear_flag(id(empty_state_artists), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(artists_pagination_footer), LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(id(lbl_artists_page_indicator), "");
+            return;
+          }
+
+          // Hide empty state
+          lv_obj_add_flag(id(empty_state_artists), LV_OBJ_FLAG_HIDDEN);
+
+          // Update page indicator
+          char page_text[32];
+          if (total > 0) {
+            snprintf(page_text, sizeof(page_text), "%d-%d of %d", offset + 1, offset + loaded_count, total);
+          } else {
+            snprintf(page_text, sizeof(page_text), "%d-%d", offset + 1, offset + loaded_count);
+          }
+          lv_label_set_text(id(lbl_artists_page_indicator), page_text);
+
+          // Show/hide pagination buttons based on position
+          if (loaded_count > 0 && (offset > 0 || (total > 0 && offset + loaded_count < total))) {
+            lv_obj_clear_flag(id(artists_pagination_footer), LV_OBJ_FLAG_HIDDEN);
+
+            if (offset > 0) {
+              lv_obj_clear_flag(id(btn_artists_prev), LV_OBJ_FLAG_HIDDEN);
+            } else {
+              lv_obj_add_flag(id(btn_artists_prev), LV_OBJ_FLAG_HIDDEN);
+            }
+
+            if (total > 0 && offset + loaded_count < total) {
+              lv_obj_clear_flag(id(btn_artists_next), LV_OBJ_FLAG_HIDDEN);
+            } else if (total == 0 && loaded_count == 10) {
+              lv_obj_clear_flag(id(btn_artists_next), LV_OBJ_FLAG_HIDDEN);
+            } else {
+              lv_obj_add_flag(id(btn_artists_next), LV_OBJ_FLAG_HIDDEN);
+            }
+          } else {
+            lv_obj_add_flag(id(artists_pagination_footer), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Update items 0-9
+          if (loaded_count > 0) {
+            lv_label_set_text(id(lbl_artists_item_0_title), id(browse_item_0_title).c_str());
+            lv_label_set_text(id(lbl_artists_item_0_subtitle), id(browse_item_0_subtitle).c_str());
+            lv_obj_clear_flag(id(artists_item_0), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(artists_item_0), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (loaded_count > 1) {
+            lv_label_set_text(id(lbl_artists_item_1_title), id(browse_item_1_title).c_str());
+            lv_label_set_text(id(lbl_artists_item_1_subtitle), id(browse_item_1_subtitle).c_str());
+            lv_obj_clear_flag(id(artists_item_1), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(artists_item_1), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (loaded_count > 2) {
+            lv_label_set_text(id(lbl_artists_item_2_title), id(browse_item_2_title).c_str());
+            lv_label_set_text(id(lbl_artists_item_2_subtitle), id(browse_item_2_subtitle).c_str());
+            lv_obj_clear_flag(id(artists_item_2), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(artists_item_2), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (loaded_count > 3) {
+            lv_label_set_text(id(lbl_artists_item_3_title), id(browse_item_3_title).c_str());
+            lv_label_set_text(id(lbl_artists_item_3_subtitle), id(browse_item_3_subtitle).c_str());
+            lv_obj_clear_flag(id(artists_item_3), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(artists_item_3), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (loaded_count > 4) {
+            lv_label_set_text(id(lbl_artists_item_4_title), id(browse_item_4_title).c_str());
+            lv_label_set_text(id(lbl_artists_item_4_subtitle), id(browse_item_4_subtitle).c_str());
+            lv_obj_clear_flag(id(artists_item_4), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(artists_item_4), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (loaded_count > 5) {
+            lv_label_set_text(id(lbl_artists_item_5_title), id(browse_item_5_title).c_str());
+            lv_label_set_text(id(lbl_artists_item_5_subtitle), id(browse_item_5_subtitle).c_str());
+            lv_obj_clear_flag(id(artists_item_5), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(artists_item_5), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (loaded_count > 6) {
+            lv_label_set_text(id(lbl_artists_item_6_title), id(browse_item_6_title).c_str());
+            lv_label_set_text(id(lbl_artists_item_6_subtitle), id(browse_item_6_subtitle).c_str());
+            lv_obj_clear_flag(id(artists_item_6), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(artists_item_6), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (loaded_count > 7) {
+            lv_label_set_text(id(lbl_artists_item_7_title), id(browse_item_7_title).c_str());
+            lv_label_set_text(id(lbl_artists_item_7_subtitle), id(browse_item_7_subtitle).c_str());
+            lv_obj_clear_flag(id(artists_item_7), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(artists_item_7), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (loaded_count > 8) {
+            lv_label_set_text(id(lbl_artists_item_8_title), id(browse_item_8_title).c_str());
+            lv_label_set_text(id(lbl_artists_item_8_subtitle), id(browse_item_8_subtitle).c_str());
+            lv_obj_clear_flag(id(artists_item_8), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(artists_item_8), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (loaded_count > 9) {
+            lv_label_set_text(id(lbl_artists_item_9_title), id(browse_item_9_title).c_str());
+            lv_label_set_text(id(lbl_artists_item_9_subtitle), id(browse_item_9_subtitle).c_str());
+            lv_obj_clear_flag(id(artists_item_9), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(artists_item_9), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Scroll list to top
+          lv_obj_scroll_to_y(id(artists_list_container), 0, LV_ANIM_OFF);
+
+          ESP_LOGI("browse_ui", "Artists list UI updated: %d items visible", loaded_count);

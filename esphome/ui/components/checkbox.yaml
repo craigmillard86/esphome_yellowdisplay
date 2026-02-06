@@ -1,0 +1,108 @@
+# =============================================================================
+# UI Component: Checkbox (T092)
+# Purpose: Reusable checkbox component for group selection
+# Dependencies: packages/lvgl.yaml (LVGL framework, theme, fonts, icons)
+# Exposes: Checkbox widget pattern with checked/unchecked visual states
+# Display: 320x240 ILI9341 in landscape orientation
+# =============================================================================
+
+# This file implements:
+# - T092: Create checkbox component for group selection
+#
+# Checkbox Visual States:
+#   - Unchecked: Empty square outline (0x666666)
+#   - Checked: Filled square with checkmark (0x00D1FF cyan)
+#   - Disabled: Greyed out (0x444444)
+#
+# Usage Pattern:
+# The checkbox is implemented as a button containing two overlapping labels:
+#   - One for the unchecked state (square outline icon)
+#   - One for the checked state (check-square icon, hidden by default)
+#
+# To toggle checkbox state, call the toggle_checkbox script or
+# use LVGL hidden flags directly:
+#   lv_obj_add_flag(id(checkbox_N_unchecked), LV_OBJ_FLAG_HIDDEN);
+#   lv_obj_clear_flag(id(checkbox_N_checked), LV_OBJ_FLAG_HIDDEN);
+#
+# Touch Target: 44x44px minimum per constitution 6.4
+# Icon Size: 24x24px centered within touch target
+
+# =============================================================================
+# Checkbox Component Template
+# =============================================================================
+#
+# Copy this template for each checkbox instance. Replace:
+#   - checkbox_N → unique ID (e.g., checkbox_0, checkbox_player_0)
+#   - Coordinates x, y as needed
+#   - on_click action as needed
+#
+# Template:
+# ```yaml
+# - button:
+#     id: checkbox_N
+#     x: 4
+#     y: 4
+#     width: 44
+#     height: 44
+#     bg_opa: TRANSP
+#     border_width: 0
+#     shadow_width: 0
+#     on_click:
+#       - lambda: |-
+#           // Toggle checkbox state
+#           bool is_checked = lv_obj_has_flag(id(checkbox_N_checked), LV_OBJ_FLAG_HIDDEN);
+#           if (is_checked) {
+#             // Currently unchecked, make checked
+#             lv_obj_add_flag(id(checkbox_N_unchecked), LV_OBJ_FLAG_HIDDEN);
+#             lv_obj_clear_flag(id(checkbox_N_checked), LV_OBJ_FLAG_HIDDEN);
+#           } else {
+#             // Currently checked, make unchecked
+#             lv_obj_clear_flag(id(checkbox_N_unchecked), LV_OBJ_FLAG_HIDDEN);
+#             lv_obj_add_flag(id(checkbox_N_checked), LV_OBJ_FLAG_HIDDEN);
+#           }
+#     widgets:
+#       # Unchecked state icon (empty square)
+#       - label:
+#           id: checkbox_N_unchecked
+#           text: "\U000F0131"  # mdi:checkbox-blank-outline
+#           text_font: icons_24
+#           text_color: 0x666666
+#           align: CENTER
+#       # Checked state icon (filled square with check)
+#       - label:
+#           id: checkbox_N_checked
+#           text: "\U000F0132"  # mdi:checkbox-marked
+#           text_font: icons_24
+#           text_color: 0x00D1FF
+#           align: CENTER
+#           hidden: true  # Hidden by default (unchecked)
+# ```
+#
+# =============================================================================
+# Checkbox Icons Reference (MDI)
+# =============================================================================
+#
+# Unchecked states:
+#   \U000F0131 - mdi:checkbox-blank-outline (square outline)
+#   \U000F0765 - mdi:circle-outline (circle outline)
+#
+# Checked states:
+#   \U000F0132 - mdi:checkbox-marked (filled square with check)
+#   \U000F012C - mdi:check-circle (filled circle with check)
+#
+# Alternative styles:
+#   \U000F043D - mdi:radiobox-blank (radio button unchecked)
+#   \U000F043E - mdi:radiobox-marked (radio button checked)
+#
+# =============================================================================
+# Color Reference
+# =============================================================================
+#
+# Primary cyan (checked/active): 0x00D1FF
+# Grey (unchecked): 0x666666
+# Disabled grey: 0x444444
+# White (text): 0xFFFFFF
+# Background dark: 0x1E1E1E
+# Border: 0x2A2A2A
+#
+# =============================================================================

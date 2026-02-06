@@ -1,0 +1,104 @@
+# =============================================================================
+# UI Component: List Item (T071)
+# Purpose: Text-only list item component for browse screens
+# Dependencies: packages/lvgl.yaml (LVGL framework, theme, fonts)
+# Usage: Included in browse screens for content lists
+# Display: 320x240 ILI9341 in landscape orientation
+# =============================================================================
+
+# This component implements:
+# - T071: Create list item component (text only)
+#
+# Component Design:
+# - Rectangular button with full-width layout
+# - Text-only display (no thumbnails per spec)
+# - Primary text (title) in white
+# - Secondary text (subtitle/metadata) in gray
+# - Press state with cyan border highlight
+# - Minimum 44px height for touch target compliance
+#
+# Usage Example:
+# - button:
+#     id: list_item_1
+#     width: 304  # Full width minus 16px margin
+#     height: 56
+#     styles: style_list_item_normal
+#     pressed:
+#       styles: style_list_item_pressed
+#     on_click:
+#       - script.execute: play_media_item
+#     widgets:
+#       - label:
+#           text: "Item Title"
+#           text_font: roboto_16
+#           text_color: 0xFFFFFF
+#           align: TOP_LEFT
+#           x: 12
+#           y: 8
+#       - label:
+#           text: "Subtitle or metadata"
+#           text_font: roboto_12
+#           text_color: 0xB3B3B3
+#           align: TOP_LEFT
+#           x: 12
+#           y: 28
+
+# =============================================================================
+# Style Definitions
+# =============================================================================
+# Note: These styles are defined in lvgl.yaml style_definitions section
+# This file documents the component pattern for reference
+
+# List Item - Normal State
+# - id: style_list_item_normal
+#   bg_color: 0x1E1E1E
+#   bg_opa: COVER
+#   radius: 8
+#   border_width: 1
+#   border_color: 0x2A2A2A
+#   border_opa: COVER
+#   pad_all: 0
+#   shadow_width: 0
+
+# List Item - Pressed State
+# - id: style_list_item_pressed
+#   bg_color: 0x1E1E1E
+#   bg_opa: COVER
+#   radius: 8
+#   border_width: 2
+#   border_color: 0x00D1FF
+#   border_opa: COVER
+#   pad_all: 0
+#   shadow_width: 0
+
+# =============================================================================
+# Implementation Notes
+# =============================================================================
+#
+# Layout Guidelines:
+# - Full width: 304px (320px - 16px margins)
+# - Height: 56px minimum (44px touch target + 12px padding)
+# - Internal padding: 12px horizontal, 8px vertical
+# - Gap between items: 4px
+#
+# Text Layout:
+# - Primary text: Top-left aligned, 12px from left, 8px from top
+# - Secondary text: Top-left aligned, 12px from left, 28px from top
+# - Long text: Use SCROLL_CIRCULAR mode for overflow
+#
+# Touch Feedback:
+# - Border changes from 1px gray to 2px cyan on press
+# - No shadow (shadow_width: 0 to remove LVGL default)
+# - Background color remains constant for consistency
+#
+# Accessibility:
+# - Minimum 44px touch target height
+# - High contrast text (white on dark gray)
+# - Clear visual feedback on interaction
+#
+# Memory Optimization:
+# - Text-only design (no images) to minimize RAM usage
+# - Reuse styles across all list items
+# - Use LVGL label widgets (lightweight)
+#
+# =============================================================================
