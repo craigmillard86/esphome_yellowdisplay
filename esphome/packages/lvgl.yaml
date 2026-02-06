@@ -12,22 +12,23 @@
 
 font:
   # Primary text font - 24pt for titles
+  # Extended glyphs include: curly quotes, accented chars, symbols
   - file: "gfonts://Roboto@500"
     id: roboto_24
     size: 24
-    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~–—…×÷±°©®™€£¥áàâäãåæçéèêëíìîïñóòôöõøúùûüýÿÁÀÂÄÃÅÆÇÉÈÊËÍÌÎÏÑÓÒÔÖÕØÚÙÛÜÝ¿¡\u2018\u2019\u201C\u201D"
 
   # Body text font - 16pt for buttons, labels
   - file: "gfonts://Roboto"
     id: roboto_16
     size: 16
-    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~–—…×÷±°©®™€£¥áàâäãåæçéèêëíìîïñóòôöõøúùûüýÿÁÀÂÄÃÅÆÇÉÈÊËÍÌÎÏÑÓÒÔÖÕØÚÙÛÜÝ¿¡\u2018\u2019\u201C\u201D"
 
   # Small text font - 12pt for metadata, time
   - file: "gfonts://Roboto"
     id: roboto_12
     size: 12
-    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~–—…×÷±°©®™€£¥áàâäãåæçéèêëíìîïñóòôöõøúùûüýÿÁÀÂÄÃÅÆÇÉÈÊËÍÌÎÏÑÓÒÔÖÕØÚÙÛÜÝ¿¡\u2018\u2019\u201C\u201D"
 
   # Material Design Icons for UI controls
   - file: "https://github.com/Templarian/MaterialDesign-Webfont/raw/master/fonts/materialdesignicons-webfont.ttf"

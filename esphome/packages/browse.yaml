@@ -1541,12 +1541,14 @@ script:
 
           if (category == 5) {
             // Save artist index
+            ESP_LOGI("letter_index", "Artist Z offset before save: %d", id(artist_offsets_array)[25]);
             id(artist_letter_offsets) = array_to_csv(id(artist_offsets_array), 26);
             id(artist_letter_confidence) = array_to_csv(id(artist_confidence_array), 26);
             id(artist_index_timestamp) = id(ha_time).now().timestamp;
             ESP_LOGI("letter_index", "Artist index saved: %s", id(artist_letter_offsets).c_str());
           } else {
             // Save album index
+            ESP_LOGI("letter_index", "Album Z offset before save: %d", id(album_offsets_array)[25]);
             id(album_letter_offsets) = array_to_csv(id(album_offsets_array), 26);
             id(album_letter_confidence) = array_to_csv(id(album_confidence_array), 26);
             id(album_index_timestamp) = id(ha_time).now().timestamp;
@@ -1839,13 +1841,9 @@ script:
               ESP_LOGI("index_sync", "Letter %c: no items", 'A' + letter);
             }
 
-            // Move to next letter (or count total if Z just completed)
-            if (letter == 25) {
-              // Z completed, count remaining items for accurate total
-              return;  // Will call library_index_count_total below
-            }
+            // Move to next letter
             id(index_sync_current_letter)++;
-            return;  // Will continue to library_index_sync_letter
+            return;  // Will continue to library_index_sync_letter or count_total
           }
 
           // Calculate midpoint
@@ -1858,10 +1856,10 @@ script:
             lambda: 'return id(sync_binary_low) > id(sync_binary_high);'
           then:
             - delay: 25ms  # Small delay between letters
-            # If Z (letter 25) just completed, count total instead of continuing
+            # If Z (letter 25) just completed and incremented to 26, count total instead of continuing
             - if:
                 condition:
-                  lambda: 'return id(index_sync_current_letter) == 25;'
+                  lambda: 'return id(index_sync_current_letter) == 26;'
                 then:
                   - script.execute: library_index_count_total
                 else:
@@ -1957,15 +1955,13 @@ script:
                           offsets[letter] = -1;
                           confidence[letter] = 1;  // Lower confidence on error
                         }
-                        // Don't increment if Z - count total script will handle it
-                        if (letter != 25) {
-                          id(index_sync_current_letter)++;
-                        }
+                        // Move to next letter
+                        id(index_sync_current_letter)++;
                     - delay: 100ms
-                    # If Z completed (even with error), count total
+                    # If Z (letter 25) just completed and incremented to 26, count total
                     - if:
                         condition:
-                          lambda: 'return id(index_sync_current_letter) == 25;'
+                          lambda: 'return id(index_sync_current_letter) == 26;'
                         then:
                           - script.execute: library_index_count_total
                         else:
@@ -1981,6 +1977,9 @@ script:
       - lambda: |-
           int cat = id(index_sync_category);
           int* offsets = cat == 5 ? id(artist_offsets_array) : id(album_offsets_array);
+
+          ESP_LOGI("index_sync", "count_total: Z offset = %d, Y offset = %d",
+                   offsets[25], offsets[24]);
 
           // Find highest valid offset (Z or earlier if Z has no items)
           int highest_offset = 0;
