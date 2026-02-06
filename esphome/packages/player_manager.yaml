@@ -50,6 +50,7 @@ globals:
   - id: selected_player_id
     type: std::string
     restore_value: yes  # Restore from NVS on boot (T067)
+    max_restore_data_length: 64  # Entity IDs are typically ~50 chars
     initial_value: '""'
 
   # Selected player friendly name (for UI display)

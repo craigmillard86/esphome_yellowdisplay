@@ -184,6 +184,10 @@ api:
     # Initialize navigation and show Home Dashboard
     - script.execute: nav_initialize
 
+    # Trigger library index sync for letter navigation
+    # This runs on initial connection AND reconnection
+    - script.execute: library_index_sync
+
   # API disconnected - transition to Offline
   on_client_disconnected:
     - logger.log:

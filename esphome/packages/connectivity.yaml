@@ -140,6 +140,7 @@ interval:
                        id(reconnect_backoff_seconds));
 
               // State machine will transition to Ready via on_client_connected in state_machine.yaml
+              // Library index sync is triggered there as well
             } else {
               // === DISCONNECTION DETECTED ===
               ESP_LOGW("connectivity", "Connection lost - WiFi: %s, API: %s - starting debounce timer",

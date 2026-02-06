@@ -1,0 +1,2310 @@
+# =============================================================================
+# Package: Browse System (T079, T082)
+# Purpose: Backend logic for browsing Music Assistant library content
+# Dependencies: packages/homeassistant.yaml (HA API connection)
+#               packages/player_manager.yaml (active player state)
+# Exposes: Browse scripts, content management, tap-to-play functionality
+# =============================================================================
+
+# This package implements:
+# - T079: Implement paginated/chunked loading for large lists
+# - T082: Implement tap-to-play on list items
+#
+# Music Assistant Integration:
+# - Uses Home Assistant service calls to Music Assistant
+# - Service: music_assistant.play_media for playback initiation
+# - Service: music_assistant.search for search queries
+#
+# Memory Management:
+# - ESP32 heap constraint: ~80KB free heap minimum
+# - Maximum items in memory: 20 items per page
+# - Chunked loading to avoid memory exhaustion
+# - Clear previous page data before loading next
+
+# =============================================================================
+# Substitutions
+# =============================================================================
+
+substitutions:
+  # Maximum items per page (memory constraint) - hardcoded in scripts as 4
+  browse_page_size: "4"
+
+  # Browse cache timeout (seconds)
+  browse_cache_timeout: "300"  # 5 minutes
+
+  # Home Assistant REST API configuration
+  ha_api_url: !secret ha_url
+  ha_api_token: !secret ha_long_lived_token
+
+  # Music Assistant config entry ID (find via HA Developer Tools → Config Entries API)
+  ma_config_entry_id: !secret ma_config_entry_id
+
+  # Music Assistant direct API (for library queries with proper filtering)
+  ma_api_url: !secret ma_url
+  ma_api_token: !secret ma_api_token
+
+# =============================================================================
+# HTTP Request Component (required for API calls)
+# =============================================================================
+
+http_request:
+  useragent: "ESPHome CYD Music Remote"
+  timeout: 15s  # Template queries can take longer than image fetches
+  verify_ssl: false  # Local HA typically uses self-signed certs
+
+# =============================================================================
+# Global Variables - Browse State Management
+# =============================================================================
+# Note: ha_api_connected binary sensor is defined in packages/connectivity.yaml
+
+globals:
+  # Current browse category
+  # 0 = None, 1 = Recent, 2 = Favorites, 3 = Playlists, 4 = Albums, 5 = Artists
+  - id: current_browse_category
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Current page offset for pagination
+  - id: browse_page_offset
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Total items available in current category
+  - id: browse_total_items
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Number of items loaded in current page
+  - id: browse_loaded_items
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Flag: Browse operation in progress
+  - id: browse_loading
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # Browse list item storage (up to 20 items per page)
+  # Each item has: media_id, title, subtitle
+
+  # Item 0
+  - id: browse_item_0_media_id
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: browse_item_0_title
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: browse_item_0_subtitle
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+  # Item 1
+  - id: browse_item_1_media_id
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: browse_item_1_title
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: browse_item_1_subtitle
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+  # Item 2
+  - id: browse_item_2_media_id
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: browse_item_2_title
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: browse_item_2_subtitle
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+  # Item 3
+  - id: browse_item_3_media_id
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: browse_item_3_title
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: browse_item_3_subtitle
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+  # Alphabetical filter for Albums/Artists (single letter or empty)
+  - id: browse_alpha_filter
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+  # ========== Artist Letter Index (NVS-persisted) ==========
+  # Offsets stored as comma-separated: "0,45,89,120,..." (26 values for A-Z)
+  # -1 = no items for this letter, >=0 = start offset
+  - id: artist_letter_offsets
+    type: std::string
+    restore_value: yes
+    max_restore_data_length: 150  # CSV of 26 offsets ~100 chars
+    initial_value: '""'
+
+  # Confidence levels: "1,2,1,0,..." (0=unknown, 1=checkpoint, 2=exact)
+  - id: artist_letter_confidence
+    type: std::string
+    restore_value: yes
+    max_restore_data_length: 80  # CSV of 26 single-digit values ~52 chars
+    initial_value: '""'
+
+  - id: artist_index_total
+    type: int
+    restore_value: yes
+    initial_value: '0'
+
+  - id: artist_index_timestamp
+    type: uint32_t
+    restore_value: yes
+    initial_value: '0'
+
+  # ========== Album Letter Index (NVS-persisted) ==========
+  - id: album_letter_offsets
+    type: std::string
+    restore_value: yes
+    max_restore_data_length: 150  # CSV of 26 offsets ~100 chars
+    initial_value: '""'
+
+  - id: album_letter_confidence
+    type: std::string
+    restore_value: yes
+    max_restore_data_length: 80  # CSV of 26 single-digit values ~52 chars
+    initial_value: '""'
+
+  - id: album_index_total
+    type: int
+    restore_value: yes
+    initial_value: '0'
+
+  - id: album_index_timestamp
+    type: uint32_t
+    restore_value: yes
+    initial_value: '0'
+
+  # ========== Letter Index Runtime State (not persisted) ==========
+  - id: index_loaded_from_nvs
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # Runtime arrays for parsed index data (populated from NVS strings on load)
+  # These are working copies - modifications saved back to NVS strings
+  - id: artist_offsets_array
+    type: int[26]
+    restore_value: no
+    initial_value: '{-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2}'
+
+  - id: artist_confidence_array
+    type: int[26]
+    restore_value: no
+    initial_value: '{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}'
+
+  - id: album_offsets_array
+    type: int[26]
+    restore_value: no
+    initial_value: '{-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2}'
+
+  - id: album_confidence_array
+    type: int[26]
+    restore_value: no
+    initial_value: '{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}'
+
+  # ========== Upfront Index Sync State ==========
+  - id: index_sync_in_progress
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  - id: index_sync_category
+    type: int  # 4=albums, 5=artists
+    restore_value: no
+    initial_value: '0'
+
+  - id: index_sync_current_letter
+    type: int  # 0-25 for A-Z
+    restore_value: no
+    initial_value: '0'
+
+  # Binary search state for sync
+  - id: sync_binary_low
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  - id: sync_binary_high
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  - id: sync_binary_result
+    type: int  # Stores best found offset for current letter
+    restore_value: no
+    initial_value: '-1'
+
+  - id: sync_count_offset
+    type: int  # Offset to count items from (for total calculation)
+    restore_value: no
+    initial_value: '0'
+
+# =============================================================================
+# Scripts - Browse Operations
+# =============================================================================
+
+script:
+  # ---------------------------------------------------------------------------
+  # Browse Configure Page (Set up UI before showing)
+  # ---------------------------------------------------------------------------
+  # Configures the unified browse page for a specific category
+  # Parameters:
+  #   category: int (1=Recent, 2=Favorites, 3=Playlists, 4=Albums, 5=Artists)
+  - id: browse_configure_page
+    mode: restart
+    parameters:
+      category: int
+    then:
+      - lambda: |-
+          // Set title based on category
+          const char* title = "Browse";
+          bool show_alpha = false;
+
+          switch (category) {
+            case 1: title = "Recently Played"; break;
+            case 2: title = "Favorites"; break;
+            case 3: title = "Playlists"; break;
+            case 4: title = "Albums"; show_alpha = true; break;
+            case 5: title = "Artists"; show_alpha = true; break;
+          }
+
+          // Update title label
+          lv_label_set_text(id(lbl_browse_title), title);
+
+          // Show/hide alpha picker and adjust list width
+          // Alpha picker at x=264, width=48 (ends at 312)
+          if (show_alpha) {
+            lv_obj_clear_flag(id(browse_alpha_picker), LV_OBJ_FLAG_HIDDEN);
+            // Bring alpha picker to front to ensure it receives touch events
+            lv_obj_move_foreground(id(browse_alpha_picker));
+            // Ensure alpha picker captures clicks
+            lv_obj_add_flag(id(browse_alpha_picker), LV_OBJ_FLAG_CLICKABLE);
+            // Explicitly disable ALL scroll behavior on list container
+            lv_obj_clear_flag(id(browse_list_container), LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_clear_flag(id(browse_list_container), LV_OBJ_FLAG_SCROLL_ELASTIC);
+            lv_obj_clear_flag(id(browse_list_container), LV_OBJ_FLAG_SCROLL_MOMENTUM);
+            lv_obj_clear_flag(id(browse_list_container), LV_OBJ_FLAG_SCROLL_CHAIN);
+            lv_obj_set_width(id(browse_list_container), 252);
+            lv_obj_set_width(id(browse_pagination_footer), 252);
+            // Adjust item widths (252 - 8 padding = 244)
+            lv_obj_set_width(id(browse_item_0), 244);
+            lv_obj_set_width(id(browse_item_1), 244);
+            lv_obj_set_width(id(browse_item_2), 244);
+            lv_obj_set_width(id(browse_item_3), 244);
+            // Adjust label widths (244 - 16 = 228)
+            lv_obj_set_width(id(lbl_browse_item_0_title), 228);
+            lv_obj_set_width(id(lbl_browse_item_0_subtitle), 228);
+            lv_obj_set_width(id(lbl_browse_item_1_title), 228);
+            lv_obj_set_width(id(lbl_browse_item_1_subtitle), 228);
+            lv_obj_set_width(id(lbl_browse_item_2_title), 228);
+            lv_obj_set_width(id(lbl_browse_item_2_subtitle), 228);
+            lv_obj_set_width(id(lbl_browse_item_3_title), 228);
+            lv_obj_set_width(id(lbl_browse_item_3_subtitle), 228);
+            // Move Next button for narrower footer (252 - 80 = 172)
+            lv_obj_set_x(id(btn_browse_next), 172);
+          } else {
+            lv_obj_add_flag(id(browse_alpha_picker), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_width(id(browse_list_container), 286);
+            lv_obj_set_width(id(browse_pagination_footer), 286);
+            // Adjust item widths (286 - 8 padding = 278)
+            lv_obj_set_width(id(browse_item_0), 278);
+            lv_obj_set_width(id(browse_item_1), 278);
+            lv_obj_set_width(id(browse_item_2), 278);
+            lv_obj_set_width(id(browse_item_3), 278);
+            // Adjust label widths (278 - 16 = 262)
+            lv_obj_set_width(id(lbl_browse_item_0_title), 262);
+            lv_obj_set_width(id(lbl_browse_item_0_subtitle), 262);
+            lv_obj_set_width(id(lbl_browse_item_1_title), 262);
+            lv_obj_set_width(id(lbl_browse_item_1_subtitle), 262);
+            lv_obj_set_width(id(lbl_browse_item_2_title), 262);
+            lv_obj_set_width(id(lbl_browse_item_2_subtitle), 262);
+            lv_obj_set_width(id(lbl_browse_item_3_title), 262);
+            lv_obj_set_width(id(lbl_browse_item_3_subtitle), 262);
+            // Move Next button for wider footer (286 - 80 = 206)
+            lv_obj_set_x(id(btn_browse_next), 206);
+          }
+
+          // Show loading, hide items and empty state
+          lv_obj_clear_flag(id(browse_loading_indicator), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(id(browse_empty_state), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(id(browse_pagination_footer), LV_OBJ_FLAG_HIDDEN);
+
+          // Hide all items
+          lv_obj_add_flag(id(browse_item_0), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(id(browse_item_1), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(id(browse_item_2), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(id(browse_item_3), LV_OBJ_FLAG_HIDDEN);
+
+          // Clear page indicator
+          lv_label_set_text(id(lbl_browse_page_indicator), "");
+
+          ESP_LOGI("browse", "Configured page for category %d (%s), alpha=%s",
+                   category, title, show_alpha ? "yes" : "no");
+
+  # ---------------------------------------------------------------------------
+  # Browse Category (Load First Page)
+  # ---------------------------------------------------------------------------
+  # Loads first page of content for a given category
+  # Parameters:
+  #   category: int (1=Recent, 2=Favorites, 3=Playlists, 4=Albums, 5=Artists)
+  - id: browse_category
+    mode: restart
+    parameters:
+      category: int
+    then:
+      - lambda: |-
+          ESP_LOGI("browse", "Browse category %d", category);
+
+          // Check if already loading (atomic check-and-set to prevent race condition)
+          if (id(browse_loading)) {
+            ESP_LOGW("browse", "Browse operation already in progress, ignoring");
+            return;
+          }
+          // Set loading flag IMMEDIATELY to prevent concurrent requests
+          id(browse_loading) = true;
+
+          // Check HA API connection
+          if (!id(ha_api_connected).state) {
+            ESP_LOGE("browse", "Home Assistant API not connected");
+            id(browse_loading) = false;  // Reset flag on error
+            return;
+          }
+          id(current_browse_category) = category;
+          id(browse_page_offset) = 0;
+          id(browse_loaded_items) = 0;
+          // Use stored totals for Albums/Artists (from upfront sync)
+          if (category == 4) {
+            id(browse_total_items) = id(album_index_total);
+          } else if (category == 5) {
+            id(browse_total_items) = id(artist_index_total);
+          } else {
+            id(browse_total_items) = 0;
+          }
+          id(browse_alpha_filter) = "";  // Reset filter for new category
+
+          // Clear previous data
+          id(browse_item_0_media_id) = "";
+          id(browse_item_0_title) = "";
+          id(browse_item_0_subtitle) = "";
+          id(browse_item_1_media_id) = "";
+          id(browse_item_1_title) = "";
+          id(browse_item_1_subtitle) = "";
+          id(browse_item_2_media_id) = "";
+          id(browse_item_2_title) = "";
+          id(browse_item_2_subtitle) = "";
+          id(browse_item_3_media_id) = "";
+          id(browse_item_3_title) = "";
+          id(browse_item_3_subtitle) = "";
+
+      - logger.log:
+          tag: "browse"
+          level: INFO
+          format: "Category %d browse initiated"
+          args: ['category']
+
+      # Query Music Assistant via Home Assistant REST API
+      # Category 1 uses template endpoint, categories 2-5 use MA get_library service
+      # Note: Initial load never has alpha_filter set (cleared in browse_category)
+      - http_request.post:
+          url: !lambda |-
+            if (category == 1) {
+              return std::string("${ha_api_url}/api/template");
+            } else {
+              return std::string("${ha_api_url}/api/services/music_assistant/get_library?return_response");
+            }
+          request_headers:
+            Authorization: "Bearer ${ha_api_token}"
+            Content-Type: "application/json"
+          json: !lambda |-
+            int offset = id(browse_page_offset);
+            switch (category) {
+              case 1: // Recent - Query currently playing from MA players
+                root["template"] =
+                  "{% set ns = namespace(items=[]) %}"
+                  "{% set players = states.media_player | selectattr('attributes.mass_player_id', 'defined') | list %}"
+                  "{% for player in players %}"
+                  "{% if player.attributes.media_content_id and player.attributes.media_title %}"
+                  "{% set item = {'uri': player.attributes.media_content_id, 'name': player.attributes.media_title | default('Unknown'), 'artist': player.attributes.media_artist | default('')} %}"
+                  "{% if item not in ns.items %}{% set ns.items = ns.items + [item] %}{% endif %}"
+                  "{% endif %}"
+                  "{% endfor %}"
+                  "{\"items\":[{% for item in ns.items[:10] %}{\"uri\":\"{{ item.uri }}\",\"name\":\"{{ item.name }}\",\"artist\":\"{{ item.artist }}\"}{% if not loop.last %},{% endif %}{% endfor %}],\"total\":{{ ns.items | length }}}";
+                break;
+
+              case 2: // Favorites - Query favorite tracks from MA
+                root["media_type"] = "track";
+                root["favorite"] = true;
+                root["limit"] = 4;
+                root["offset"] = offset;
+                root["config_entry_id"] = "${ma_config_entry_id}";
+                break;
+
+              case 3: // Playlists - Query playlists from MA
+                root["media_type"] = "playlist";
+                root["limit"] = 4;
+                root["offset"] = offset;
+                root["config_entry_id"] = "${ma_config_entry_id}";
+                break;
+
+              case 4: // Albums - Query albums from MA (no filter on initial load)
+                root["media_type"] = "album";
+                root["limit"] = 4;
+                root["offset"] = offset;
+                root["order_by"] = "name";
+                root["config_entry_id"] = "${ma_config_entry_id}";
+                break;
+
+              case 5: // Artists - Query artists from MA (no filter on initial load)
+                root["media_type"] = "artist";
+                root["limit"] = 4;
+                root["offset"] = offset;
+                root["order_by"] = "name";
+                root["config_entry_id"] = "${ma_config_entry_id}";
+                break;
+
+              default:
+                root["template"] = "{\"items\":[]}";
+                break;
+            }
+
+          on_response:
+            then:
+              - lambda: |-
+                  if (response->status_code != 200) {
+                    // Read error response body for debugging
+                    size_t err_len = response->content_length;
+                    if (err_len > 0 && err_len < 500) {
+                      std::string err_body;
+                      err_body.resize(err_len);
+                      response->read((uint8_t*)err_body.data(), err_len);
+                      ESP_LOGE("browse", "HA API error: HTTP %d - %s", response->status_code, err_body.c_str());
+                    } else {
+                      ESP_LOGE("browse", "HA API error: HTTP %d", response->status_code);
+                    }
+                    id(browse_loading) = false;
+                    return;
+                  }
+
+                  // Read response body
+                  size_t to_read = response->content_length;
+                  // Buffer size: 8KB to handle larger responses
+                  if (to_read == 0 || to_read > 8192) {
+                    to_read = 8192;
+                  }
+
+                  std::string body;
+                  body.resize(to_read);
+                  int bytes_read = response->read((uint8_t*)body.data(), to_read);
+
+                  if (bytes_read <= 0) {
+                    ESP_LOGE("browse", "Failed to read API response");
+                    id(browse_loading) = false;
+                    return;
+                  }
+
+                  body.resize(bytes_read);
+                  ESP_LOGI("browse", "Received %d bytes: %.200s", bytes_read, body.c_str());
+
+                  // Parse JSON response from music_assistant.get_library
+                  // Response format: {"service_response":{"items":[{"uri":"...","name":"...",...}]}}
+                  // Or for Recent (template): {"items":[{"uri":"...","name":"...","artist":"..."}]}
+                  int item_count = 0;
+                  size_t pos = 0;
+
+                  // Helper to extract JSON string value (handles escaped quotes)
+                  auto extract_json_string = [&body](size_t start_pos, const char* key) -> std::string {
+                    std::string search = std::string("\"") + key + "\":\"";
+                    size_t key_pos = body.find(search, start_pos);
+                    if (key_pos == std::string::npos) return "";
+
+                    size_t val_start = key_pos + search.length();
+
+                    // Find end quote, handling escaped quotes (\")
+                    size_t val_end = val_start;
+                    while (val_end < body.length()) {
+                      size_t next_quote = body.find("\"", val_end);
+                      if (next_quote == std::string::npos) return "";
+                      // Check if quote is escaped (preceded by backslash)
+                      if (next_quote > 0 && body[next_quote - 1] == '\\') {
+                        val_end = next_quote + 1;  // Skip escaped quote
+                        continue;
+                      }
+                      val_end = next_quote;
+                      break;
+                    }
+
+                    if (val_end == std::string::npos || val_end <= val_start) return "";
+
+                    std::string result = body.substr(val_start, val_end - val_start);
+
+                    // Unescape escaped quotes in result
+                    size_t escape_pos = 0;
+                    while ((escape_pos = result.find("\\\"", escape_pos)) != std::string::npos) {
+                      result.replace(escape_pos, 2, "\"");
+                      escape_pos++;
+                    }
+
+                    // Limit string length to prevent memory issues
+                    if (result.length() > 100) {
+                      result.resize(97);
+                      result += "...";
+                    }
+
+                    return result;
+                  };
+
+                  // Find the items array start
+                  size_t items_start = body.find("\"items\"");
+                  if (items_start != std::string::npos) {
+                    pos = items_start;
+                  }
+
+                  // Try to extract total count from response (for pagination display)
+                  auto extract_json_int = [&body](const char* key) -> int {
+                    std::string search = std::string("\"") + key + "\":";
+                    size_t key_pos = body.find(search);
+                    if (key_pos == std::string::npos) return -1;
+                    size_t val_start = key_pos + search.length();
+                    // Skip whitespace
+                    while (val_start < body.length() && (body[val_start] == ' ' || body[val_start] == '\t')) {
+                      val_start++;
+                    }
+                    if (val_start >= body.length()) return -1;
+                    // Extract numeric value
+                    std::string num_str;
+                    while (val_start < body.length() && body[val_start] >= '0' && body[val_start] <= '9') {
+                      num_str += body[val_start++];
+                    }
+                    if (num_str.empty()) return -1;
+                    return std::stoi(num_str);
+                  };
+
+                  int total = extract_json_int("total");
+                  if (total > 0) {
+                    id(browse_total_items) = total;
+                    ESP_LOGI("browse", "Total items available: %d", total);
+                  }
+
+                  // Parse each item in array (limit to 10 items)
+                  while (item_count < 4 && pos < body.length()) {
+                    // Find next object start (after "items")
+                    size_t obj_start = body.find("{", pos);
+                    if (obj_start == std::string::npos) break;
+
+                    // Skip the outer service_response object
+                    if (body.find("\"service_response\"", obj_start) == obj_start + 1 ||
+                        body.find("\"items\"", obj_start) < obj_start + 20) {
+                      pos = obj_start + 1;
+                      continue;
+                    }
+
+                    // Find matching closing brace (handles nested objects like artists array)
+                    size_t obj_end = obj_start;
+                    int brace_depth = 0;
+                    for (size_t i = obj_start; i < body.length(); i++) {
+                      if (body[i] == '{') brace_depth++;
+                      else if (body[i] == '}') {
+                        brace_depth--;
+                        if (brace_depth == 0) {
+                          obj_end = i;
+                          break;
+                        }
+                      }
+                    }
+                    if (obj_end == obj_start) break;  // No matching brace found
+
+                    // Extract fields - try "uri" first (MA format), fallback to "id"
+                    std::string media_id = extract_json_string(obj_start, "uri");
+                    if (media_id.empty()) {
+                      media_id = extract_json_string(obj_start, "id");
+                    }
+
+                    // Extract name/title
+                    std::string title = extract_json_string(obj_start, "name");
+                    if (title.empty()) {
+                      title = extract_json_string(obj_start, "title");
+                    }
+
+                    // Extract artist/subtitle - try multiple fields
+                    std::string artist = extract_json_string(obj_start, "artist");
+                    if (artist.empty()) {
+                      artist = extract_json_string(obj_start, "media_type");
+                    }
+
+                    if (media_id.empty() || title.empty()) {
+                      pos = obj_end + 1;
+                      continue;  // Skip invalid entries
+                    }
+
+                    ESP_LOGI("browse", "Item %d: uri=%s, name=%s, type=%s",
+                             item_count, media_id.c_str(), title.c_str(), artist.c_str());
+
+                    // Store in appropriate slot
+                    switch (item_count) {
+                      case 0:
+                        id(browse_item_0_media_id) = media_id;
+                        id(browse_item_0_title) = title;
+                        id(browse_item_0_subtitle) = artist;
+                        break;
+                      case 1:
+                        id(browse_item_1_media_id) = media_id;
+                        id(browse_item_1_title) = title;
+                        id(browse_item_1_subtitle) = artist;
+                        break;
+                      case 2:
+                        id(browse_item_2_media_id) = media_id;
+                        id(browse_item_2_title) = title;
+                        id(browse_item_2_subtitle) = artist;
+                        break;
+                      case 3:
+                        id(browse_item_3_media_id) = media_id;
+                        id(browse_item_3_title) = title;
+                        id(browse_item_3_subtitle) = artist;
+                        break;
+                    }
+
+                    item_count++;
+                    pos = obj_end + 1;
+                  }
+
+                  // Update loaded count and clear loading flag
+                  id(browse_loaded_items) = item_count;
+                  id(browse_loading) = false;
+
+                  ESP_LOGI("browse", "Browse complete: loaded %d items (total: %d)", item_count, id(browse_total_items));
+
+              # Trigger UI update after data is loaded
+              - script.execute: update_browse_ui
+
+          on_error:
+            then:
+              - lambda: |-
+                  ESP_LOGE("browse", "HTTP request failed (network error or timeout)");
+                  id(browse_loading) = false;
+                  id(browse_loaded_items) = 0;
+              # Trigger UI update to show empty/error state
+              - script.execute: update_browse_ui
+
+  # ---------------------------------------------------------------------------
+  # Play Media Item (Tap-to-Play - T082)
+  # ---------------------------------------------------------------------------
+  # Plays a media item when tapped in browse list
+  # Parameters:
+  #   media_id: string (Music Assistant media URI)
+  - id: play_media_item
+    mode: restart
+    parameters:
+      media_id: std::string
+      item_title: std::string
+    then:
+      - lambda: |-
+          ESP_LOGI("browse", "Play media item: %s", media_id.c_str());
+
+          // Check if player is selected
+          std::string player_id = id(selected_player_id);
+          if (player_id.empty()) {
+            ESP_LOGW("browse", "No player selected, cannot play media");
+            return;
+          }
+
+          ESP_LOGI("browse", "Playing '%s' on player: %s", item_title.c_str(), player_id.c_str());
+
+      # Call Music Assistant play_media service
+      # Note: This uses Home Assistant service call to Music Assistant
+      - homeassistant.service:
+          service: music_assistant.play_media
+          data:
+            entity_id: !lambda 'return id(selected_player_id);'
+            media_id: !lambda 'return media_id;'
+
+      - logger.log:
+          tag: "browse"
+          level: INFO
+          format: "Media playback initiated"
+
+  # ---------------------------------------------------------------------------
+  # Refresh Browse List
+  # ---------------------------------------------------------------------------
+  # Reloads current category (useful after playback or favorites change)
+  - id: refresh_browse
+    mode: restart
+    then:
+      - lambda: |-
+          int category = id(current_browse_category);
+          if (category > 0) {
+            ESP_LOGI("browse", "Refreshing browse category %d", category);
+          } else {
+            ESP_LOGW("browse", "No category to refresh");
+            return;
+          }
+
+      # Reload current category
+      - script.execute:
+          id: browse_category
+          category: !lambda 'return id(current_browse_category);'
+
+  # ---------------------------------------------------------------------------
+  # Clear Browse Data
+  # ---------------------------------------------------------------------------
+  # Clears all browse data from memory
+  # Call when exiting browse screens to free memory
+  - id: clear_browse_data
+    mode: single
+    then:
+      - lambda: |-
+          ESP_LOGI("browse", "Clearing browse data");
+
+          id(current_browse_category) = 0;
+          id(browse_page_offset) = 0;
+          id(browse_total_items) = 0;
+          id(browse_loaded_items) = 0;
+          id(browse_loading) = false;
+
+          // Clear all item data
+          id(browse_item_0_media_id) = "";
+          id(browse_item_0_title) = "";
+          id(browse_item_0_subtitle) = "";
+          id(browse_item_1_media_id) = "";
+          id(browse_item_1_title) = "";
+          id(browse_item_1_subtitle) = "";
+          id(browse_item_2_media_id) = "";
+          id(browse_item_2_title) = "";
+          id(browse_item_2_subtitle) = "";
+          id(browse_item_3_media_id) = "";
+          id(browse_item_3_title) = "";
+          id(browse_item_3_subtitle) = "";
+          id(browse_alpha_filter) = "";
+
+          ESP_LOGI("browse", "Browse data cleared");
+
+  # ---------------------------------------------------------------------------
+  # Browse Page Next
+  # ---------------------------------------------------------------------------
+  # Navigates to next page of browse results
+  - id: browse_page_next
+    mode: restart
+    then:
+      - lambda: |-
+          // Force reset loading flag to allow new request (fixes race condition)
+          id(browse_loading) = false;
+
+          int current_offset = id(browse_page_offset);
+          int loaded = id(browse_loaded_items);
+          int total = id(browse_total_items);
+
+          ESP_LOGI("browse", "Page next check: offset=%d, loaded=%d, total=%d", current_offset, loaded, total);
+
+          // Only advance if we have more items:
+          // - If total unknown (0): only advance if we got a full page (might be more)
+          // - If total known: advance if current position + loaded < total
+          if ((loaded == 4 && total == 0) || (total > 0 && current_offset + loaded < total)) {
+            id(browse_page_offset) = current_offset + 4;
+            ESP_LOGI("browse", "Page next: offset %d -> %d", current_offset, id(browse_page_offset));
+          } else {
+            ESP_LOGW("browse", "Already at last page (loaded=%d, total=%d)", loaded, total);
+            return;
+          }
+      - script.execute: browse_load_page
+
+  # ---------------------------------------------------------------------------
+  # Browse Page Previous
+  # ---------------------------------------------------------------------------
+  # Navigates to previous page of browse results
+  - id: browse_page_prev
+    mode: restart
+    then:
+      - lambda: |-
+          // Force reset loading flag to allow new request (fixes race condition)
+          id(browse_loading) = false;
+
+          int current_offset = id(browse_page_offset);
+
+          if (current_offset > 0) {
+            int new_offset = current_offset - 4;
+            if (new_offset < 0) new_offset = 0;
+            id(browse_page_offset) = new_offset;
+            ESP_LOGI("browse", "Page prev: offset %d -> %d", current_offset, new_offset);
+          } else {
+            ESP_LOGI("browse", "Already at first page");
+            return;
+          }
+      - script.execute: browse_load_page
+
+  # ---------------------------------------------------------------------------
+  # Browse Alpha Jump (Simplified - Uses Upfront Sync)
+  # ---------------------------------------------------------------------------
+  # Jumps to items starting with specified letter using pre-synced letter index
+  # The upfront sync (triggered on HA connect) ensures all offsets are ready
+  # Parameters:
+  #   letter: string (single letter A-Z, or "#" for numbers, or "" to clear)
+  - id: browse_alpha_jump
+    mode: restart
+    parameters:
+      letter: std::string
+    then:
+      # Load index from NVS on first use
+      - if:
+          condition:
+            lambda: 'return !id(index_loaded_from_nvs);'
+          then:
+            - script.execute: letter_index_init
+            - lambda: 'id(index_loaded_from_nvs) = true;'
+      - lambda: |-
+          ESP_LOGI("browse", "Alpha jump to: '%s'", letter.c_str());
+
+          // Force reset loading flag to allow new request
+          id(browse_loading) = false;
+
+          int category = id(current_browse_category);
+          bool is_artists = (category == 5);
+          bool is_albums = (category == 4);
+
+          // Set filter
+          id(browse_alpha_filter) = letter;
+          id(browse_total_items) = is_artists ? id(artist_index_total) : id(album_index_total);
+          id(browse_loaded_items) = 0;
+
+          // Show loading indicator immediately
+          lv_obj_clear_flag(id(browse_loading_indicator), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(id(browse_empty_state), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(id(browse_pagination_footer), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(id(browse_item_0), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(id(browse_item_1), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(id(browse_item_2), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(id(browse_item_3), LV_OBJ_FLAG_HIDDEN);
+
+          // Handle clearing filter (show all)
+          if (letter.empty()) {
+            id(browse_page_offset) = 0;
+            ESP_LOGI("browse", "Filter cleared, showing all items");
+            return;  // Will continue to browse_load_page below
+          }
+
+          // Get letter index (0-25 for A-Z)
+          char letter_char = letter[0];
+          if (letter_char >= 'a' && letter_char <= 'z') {
+            letter_char = letter_char - 'a' + 'A';
+          }
+
+          if (letter_char >= 'A' && letter_char <= 'Z') {
+            int letter_idx = letter_char - 'A';
+
+            // Get offset from pre-synced index
+            int* offsets = is_artists ? id(artist_offsets_array) : id(album_offsets_array);
+            int* confidence = is_artists ? id(artist_confidence_array) : id(album_confidence_array);
+
+            int cached_offset = offsets[letter_idx];
+            int cached_confidence = confidence[letter_idx];
+
+            ESP_LOGI("browse", "Letter %c: cached_offset=%d, confidence=%d",
+                     letter_char, cached_offset, cached_confidence);
+
+            if (cached_offset >= 0) {
+              // Use cached offset directly (should be exact from upfront sync)
+              id(browse_page_offset) = cached_offset;
+              ESP_LOGI("browse", "Using cached offset: %d", cached_offset);
+            } else if (cached_offset == -1) {
+              // No items for this letter - show empty state, skip loading
+              ESP_LOGI("browse", "No items for letter %c - showing empty state", letter_char);
+              id(browse_page_offset) = -1;  // Signal to skip loading
+              id(browse_loaded_items) = 0;
+            } else {
+              // Index not yet synced (-2) - estimate based on position
+              // This should rarely happen if upfront sync completes
+              int total = is_artists ? id(artist_index_total) : id(album_index_total);
+              if (total < 100) total = 2000;  // Default estimate
+              int estimate = (letter_idx * total) / 26;
+              id(browse_page_offset) = estimate;
+              ESP_LOGW("browse", "Index not synced for %c, using estimate: %d", letter_char, estimate);
+            }
+          } else {
+            // Non-letter character (e.g., "#" for numbers)
+            id(browse_page_offset) = 0;
+          }
+
+      # Update alpha picker colors based on index state
+      - script.execute:
+          id: letter_index_update_colors
+          category: !lambda 'return id(current_browse_category);'
+
+      # Load the page (skip if no items for letter - offset == -1)
+      - if:
+          condition:
+            lambda: 'return id(browse_page_offset) >= 0;'
+          then:
+            - script.execute: browse_load_page
+          else:
+            # No items for this letter - update UI to show empty state
+            - script.execute: update_browse_ui
+
+  # ---------------------------------------------------------------------------
+  # Browse Load Page (internal helper)
+  # ---------------------------------------------------------------------------
+  # Loads a page of content using current offset and filter settings
+  # Used by pagination scripts - does not reset offset
+  - id: browse_load_page
+    mode: restart
+    then:
+      - lambda: |-
+          int category = id(current_browse_category);
+          if (category <= 0) {
+            ESP_LOGW("browse", "No category set for page load");
+            return;
+          }
+
+          // Check if already loading
+          if (id(browse_loading)) {
+            ESP_LOGW("browse", "Browse operation already in progress");
+            return;
+          }
+          id(browse_loading) = true;
+
+          // Check HA API connection
+          if (!id(ha_api_connected).state) {
+            ESP_LOGE("browse", "Home Assistant API not connected");
+            id(browse_loading) = false;
+            return;
+          }
+
+          // Clear current items
+          id(browse_loaded_items) = 0;
+          id(browse_item_0_media_id) = "";
+          id(browse_item_0_title) = "";
+          id(browse_item_0_subtitle) = "";
+          id(browse_item_1_media_id) = "";
+          id(browse_item_1_title) = "";
+          id(browse_item_1_subtitle) = "";
+          id(browse_item_2_media_id) = "";
+          id(browse_item_2_title) = "";
+          id(browse_item_2_subtitle) = "";
+          id(browse_item_3_media_id) = "";
+          id(browse_item_3_title) = "";
+          id(browse_item_3_subtitle) = "";
+
+          ESP_LOGI("browse", "Loading page: category=%d, offset=%d, filter='%s'",
+                   category, id(browse_page_offset), id(browse_alpha_filter).c_str());
+
+      # Make HTTP request with current settings
+      # Uses HA API exclusively with letter index providing cached offsets
+      - http_request.post:
+          url: !lambda |-
+            int category = id(current_browse_category);
+            // Category 1 (Recent): uses HA template endpoint
+            if (category == 1) {
+              return std::string("${ha_api_url}/api/template");
+            }
+            // All other categories use HA get_library service
+            return std::string("${ha_api_url}/api/services/music_assistant/get_library?return_response");
+          request_headers:
+            Authorization: "Bearer ${ha_api_token}"
+            Content-Type: "application/json"
+          json: !lambda |-
+            int category = id(current_browse_category);
+            int offset = id(browse_page_offset);
+            std::string alpha_filter = id(browse_alpha_filter);
+            switch (category) {
+              case 1: // Recent
+                root["template"] =
+                  "{% set ns = namespace(items=[]) %}"
+                  "{% set players = states.media_player | selectattr('attributes.mass_player_id', 'defined') | list %}"
+                  "{% for player in players %}"
+                  "{% if player.attributes.media_content_id and player.attributes.media_title %}"
+                  "{% set item = {'uri': player.attributes.media_content_id, 'name': player.attributes.media_title | default('Unknown'), 'artist': player.attributes.media_artist | default('')} %}"
+                  "{% if item not in ns.items %}{% set ns.items = ns.items + [item] %}{% endif %}"
+                  "{% endif %}"
+                  "{% endfor %}"
+                  "{\"items\":[{% for item in ns.items[:10] %}{\"uri\":\"{{ item.uri }}\",\"name\":\"{{ item.name }}\",\"artist\":\"{{ item.artist }}\"}{% if not loop.last %},{% endif %}{% endfor %}],\"total\":{{ ns.items | length }}}";
+                break;
+              case 2: // Favorites
+                root["media_type"] = "track";
+                root["favorite"] = true;
+                root["limit"] = 4;
+                root["offset"] = offset;
+                root["config_entry_id"] = "${ma_config_entry_id}";
+                break;
+              case 3: // Playlists
+                root["media_type"] = "playlist";
+                root["limit"] = 4;
+                root["offset"] = offset;
+                root["config_entry_id"] = "${ma_config_entry_id}";
+                break;
+              case 4: // Albums - uses letter index offset (set by browse_alpha_jump)
+                root["media_type"] = "album";
+                root["limit"] = 4;
+                root["offset"] = offset;  // Letter index provides the correct offset
+                root["order_by"] = "name";  // Sorted alphabetically
+                root["config_entry_id"] = "${ma_config_entry_id}";
+                ESP_LOGI("browse", "Albums: offset=%d, filter='%s'", offset, alpha_filter.c_str());
+                break;
+              case 5: // Artists - uses letter index offset (set by browse_alpha_jump)
+                root["media_type"] = "artist";
+                root["limit"] = 4;
+                root["offset"] = offset;  // Letter index provides the correct offset
+                root["order_by"] = "name";  // Sorted alphabetically
+                root["config_entry_id"] = "${ma_config_entry_id}";
+                ESP_LOGI("browse", "Artists: offset=%d, filter='%s'", offset, alpha_filter.c_str());
+                break;
+              default:
+                root["template"] = "{\"items\":[]}";
+                break;
+            }
+
+          on_response:
+            then:
+              - lambda: |-
+                  if (response->status_code != 200) {
+                    size_t err_len = response->content_length;
+                    if (err_len > 0 && err_len < 500) {
+                      std::string err_body;
+                      err_body.resize(err_len);
+                      response->read((uint8_t*)err_body.data(), err_len);
+                      ESP_LOGE("browse", "HA API error: HTTP %d - %s", response->status_code, err_body.c_str());
+                    } else {
+                      ESP_LOGE("browse", "HA API error: HTTP %d", response->status_code);
+                    }
+                    id(browse_loading) = false;
+                    return;
+                  }
+
+                  size_t content_len = response->content_length;
+                  size_t to_read = content_len;
+                  // Buffer size: 8KB to handle filtered queries (25 items ~7KB)
+                  if (to_read == 0 || to_read > 8192) {
+                    to_read = 8192;
+                  }
+
+                  std::string body;
+                  body.resize(to_read);
+
+                  // Read in a loop until all expected data is received
+                  size_t total_read = 0;
+                  int attempts = 0;
+                  while (total_read < to_read && attempts < 50) {
+                    int bytes_read = response->read((uint8_t*)body.data() + total_read, to_read - total_read);
+                    if (bytes_read > 0) {
+                      total_read += bytes_read;
+                    } else if (bytes_read == 0) {
+                      // No data yet, brief delay and retry
+                      delay(10);
+                      attempts++;
+                    } else {
+                      // Error
+                      break;
+                    }
+                  }
+
+                  if (total_read <= 0) {
+                    ESP_LOGE("browse", "Failed to read API response");
+                    id(browse_loading) = false;
+                    return;
+                  }
+
+                  body.resize(total_read);
+                  ESP_LOGI("browse", "Page load: content_len=%d, bytes_read=%d", (int)content_len, (int)total_read);
+
+                  int item_count = 0;
+                  size_t pos = 0;
+
+                  // Helper to extract JSON string value
+                  auto extract_json_string = [&body](size_t start_pos, const char* key) -> std::string {
+                    std::string search = std::string("\"") + key + "\":\"";
+                    size_t key_pos = body.find(search, start_pos);
+                    if (key_pos == std::string::npos) return "";
+                    size_t val_start = key_pos + search.length();
+                    size_t val_end = val_start;
+                    while (val_end < body.length()) {
+                      size_t next_quote = body.find("\"", val_end);
+                      if (next_quote == std::string::npos) return "";
+                      if (next_quote > 0 && body[next_quote - 1] == '\\') {
+                        val_end = next_quote + 1;
+                        continue;
+                      }
+                      val_end = next_quote;
+                      break;
+                    }
+                    if (val_end == std::string::npos || val_end <= val_start) return "";
+                    std::string result = body.substr(val_start, val_end - val_start);
+                    size_t escape_pos = 0;
+                    while ((escape_pos = result.find("\\\"", escape_pos)) != std::string::npos) {
+                      result.replace(escape_pos, 2, "\"");
+                      escape_pos++;
+                    }
+                    if (result.length() > 100) {
+                      result.resize(97);
+                      result += "...";
+                    }
+                    return result;
+                  };
+
+                  // Helper to extract JSON string OR number value (for item_id which may be unquoted)
+                  auto extract_json_value = [&body](size_t start_pos, const char* key) -> std::string {
+                    std::string search = std::string("\"") + key + "\":";
+                    size_t key_pos = body.find(search, start_pos);
+                    if (key_pos == std::string::npos) return "";
+                    size_t val_start = key_pos + search.length();
+                    // Skip whitespace
+                    while (val_start < body.length() && (body[val_start] == ' ' || body[val_start] == '\t')) val_start++;
+                    if (val_start >= body.length()) return "";
+
+                    // Check if quoted string or unquoted number
+                    if (body[val_start] == '"') {
+                      // Quoted string - find closing quote
+                      val_start++;
+                      size_t val_end = body.find("\"", val_start);
+                      if (val_end == std::string::npos) return "";
+                      return body.substr(val_start, val_end - val_start);
+                    } else {
+                      // Unquoted value (number) - read until comma, brace, or bracket
+                      size_t val_end = val_start;
+                      while (val_end < body.length() &&
+                             body[val_end] != ',' && body[val_end] != '}' &&
+                             body[val_end] != ']' && body[val_end] != ' ') {
+                        val_end++;
+                      }
+                      return body.substr(val_start, val_end - val_start);
+                    }
+                  };
+
+                  // Extract total count
+                  auto extract_json_int = [&body](const char* key) -> int {
+                    std::string search = std::string("\"") + key + "\":";
+                    size_t key_pos = body.find(search);
+                    if (key_pos == std::string::npos) return -1;
+                    size_t val_start = key_pos + search.length();
+                    while (val_start < body.length() && (body[val_start] == ' ' || body[val_start] == '\t')) val_start++;
+                    if (val_start >= body.length()) return -1;
+                    std::string num_str;
+                    while (val_start < body.length() && body[val_start] >= '0' && body[val_start] <= '9') {
+                      num_str += body[val_start++];
+                    }
+                    if (num_str.empty()) return -1;
+                    return std::stoi(num_str);
+                  };
+
+                  int total = extract_json_int("total");
+                  if (total > 0) {
+                    id(browse_total_items) = total;
+                  }
+
+                  // HA format: {"service_response":{"items":[{...}]}} or {"items":[{...}]}
+                  size_t items_start = body.find("\"items\"");
+                  if (items_start != std::string::npos) {
+                    pos = items_start;
+                  }
+
+                  // Category for logging
+                  int category = id(current_browse_category);
+
+                  while (item_count < 4 && pos < body.length()) {
+                    size_t obj_start = body.find("{", pos);
+                    if (obj_start == std::string::npos) break;
+                    // Skip wrapper objects
+                    if (body.find("\"service_response\"", obj_start) == obj_start + 1 ||
+                        body.find("\"items\"", obj_start) < obj_start + 20) {
+                      pos = obj_start + 1;
+                      continue;
+                    }
+                    // Find matching closing brace (handles nested objects like artists array)
+                    size_t obj_end = obj_start;
+                    int brace_depth = 0;
+                    for (size_t i = obj_start; i < body.length(); i++) {
+                      if (body[i] == '{') brace_depth++;
+                      else if (body[i] == '}') {
+                        brace_depth--;
+                        if (brace_depth == 0) {
+                          obj_end = i;
+                          break;
+                        }
+                      }
+                    }
+                    if (obj_end == obj_start) break;  // No matching brace found
+
+                    // Extract media_id - HA service returns "uri" field
+                    std::string media_id = extract_json_string(obj_start, "uri");
+                    if (media_id.empty()) media_id = extract_json_value(obj_start, "id");
+
+                    std::string title = extract_json_string(obj_start, "name");
+                    if (title.empty()) title = extract_json_string(obj_start, "title");
+
+                    // Extract artist/subtitle
+                    std::string artist = extract_json_string(obj_start, "artist");
+                    if (artist.empty()) artist = extract_json_string(obj_start, "display_name");
+                    if (artist.empty()) artist = extract_json_string(obj_start, "media_type");
+
+                    if (media_id.empty() || title.empty()) {
+                      pos = obj_end + 1;
+                      continue;
+                    }
+
+                    // No client-side filtering needed - letter index provides correct offset
+                    // Just log the first character for debugging
+                    char first_char = title[0];
+                    if (first_char >= 'a' && first_char <= 'z') {
+                      first_char = first_char - 'a' + 'A';
+                    }
+
+                    switch (item_count) {
+                      case 0: id(browse_item_0_media_id) = media_id; id(browse_item_0_title) = title; id(browse_item_0_subtitle) = artist; break;
+                      case 1: id(browse_item_1_media_id) = media_id; id(browse_item_1_title) = title; id(browse_item_1_subtitle) = artist; break;
+                      case 2: id(browse_item_2_media_id) = media_id; id(browse_item_2_title) = title; id(browse_item_2_subtitle) = artist; break;
+                      case 3: id(browse_item_3_media_id) = media_id; id(browse_item_3_title) = title; id(browse_item_3_subtitle) = artist; break;
+                    }
+                    item_count++;
+                    pos = obj_end + 1;
+                  }
+
+                  id(browse_loaded_items) = item_count;
+                  id(browse_loading) = false;
+                  ESP_LOGI("browse", "Page load complete: %d items (first char: %c)", item_count,
+                           item_count > 0 ? id(browse_item_0_title).c_str()[0] : '-');
+
+              - script.execute: update_browse_ui
+
+          on_error:
+            then:
+              - lambda: |-
+                  ESP_LOGE("browse", "Page load HTTP request failed");
+                  id(browse_loading) = false;
+                  id(browse_loaded_items) = 0;
+              - script.execute: update_browse_ui
+
+  # ---------------------------------------------------------------------------
+  # Update Browse UI
+  # ---------------------------------------------------------------------------
+  # Updates the unified browse screen UI with loaded items
+  # Called automatically after browse_category completes
+  - id: update_browse_ui
+    mode: single
+    then:
+      - lambda: |-
+          int loaded_count = id(browse_loaded_items);
+          int total = id(browse_total_items);
+          int offset = id(browse_page_offset);
+
+          ESP_LOGI("browse_ui", "Updating unified browse UI: %d items loaded, offset %d, total %d",
+                   loaded_count, offset, total);
+
+          // Hide loading indicator
+          lv_obj_add_flag(id(browse_loading_indicator), LV_OBJ_FLAG_HIDDEN);
+
+          // Show empty state if no items
+          if (loaded_count == 0) {
+            lv_obj_clear_flag(id(browse_empty_state), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(browse_pagination_footer), LV_OBJ_FLAG_HIDDEN);
+            ESP_LOGI("browse_ui", "No items to display, showing empty state");
+            return;
+          }
+
+          // Hide empty state
+          lv_obj_add_flag(id(browse_empty_state), LV_OBJ_FLAG_HIDDEN);
+
+          // Update item 0
+          if (loaded_count > 0) {
+            lv_label_set_text(id(lbl_browse_item_0_title), id(browse_item_0_title).c_str());
+            lv_label_set_text(id(lbl_browse_item_0_subtitle), id(browse_item_0_subtitle).c_str());
+            lv_obj_clear_flag(id(browse_item_0), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(browse_item_0), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Update item 1
+          if (loaded_count > 1) {
+            lv_label_set_text(id(lbl_browse_item_1_title), id(browse_item_1_title).c_str());
+            lv_label_set_text(id(lbl_browse_item_1_subtitle), id(browse_item_1_subtitle).c_str());
+            lv_obj_clear_flag(id(browse_item_1), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(browse_item_1), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Update item 2
+          if (loaded_count > 2) {
+            lv_label_set_text(id(lbl_browse_item_2_title), id(browse_item_2_title).c_str());
+            lv_label_set_text(id(lbl_browse_item_2_subtitle), id(browse_item_2_subtitle).c_str());
+            lv_obj_clear_flag(id(browse_item_2), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(browse_item_2), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Update item 3
+          if (loaded_count > 3) {
+            lv_label_set_text(id(lbl_browse_item_3_title), id(browse_item_3_title).c_str());
+            lv_label_set_text(id(lbl_browse_item_3_subtitle), id(browse_item_3_subtitle).c_str());
+            lv_obj_clear_flag(id(browse_item_3), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(browse_item_3), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Scroll to top of list
+          lv_obj_scroll_to_y(id(browse_list_container), 0, LV_ANIM_OFF);
+
+          // Update page indicator
+          if (total > 0) {
+            char indicator[32];
+            int end_item = offset + loaded_count;
+            snprintf(indicator, sizeof(indicator), "%d-%d of %d", offset + 1, end_item, total);
+            lv_label_set_text(id(lbl_browse_page_indicator), indicator);
+          } else if (loaded_count > 0) {
+            char indicator[16];
+            snprintf(indicator, sizeof(indicator), "%d-%d", offset + 1, offset + loaded_count);
+            lv_label_set_text(id(lbl_browse_page_indicator), indicator);
+          } else {
+            lv_label_set_text(id(lbl_browse_page_indicator), "");
+          }
+
+          // Show/hide pagination footer based on whether there are more pages
+          bool has_prev = offset > 0;
+          bool has_next = (total > 0 && offset + loaded_count < total) || (total == 0 && loaded_count == 4);
+          if (has_prev || has_next) {
+            lv_obj_clear_flag(id(browse_pagination_footer), LV_OBJ_FLAG_HIDDEN);
+            // Enable/disable prev button
+            if (has_prev) {
+              lv_obj_clear_state(id(btn_browse_prev), LV_STATE_DISABLED);
+              lv_obj_set_style_bg_color(id(btn_browse_prev), lv_color_hex(0x2A2A2A), 0);
+            } else {
+              lv_obj_add_state(id(btn_browse_prev), LV_STATE_DISABLED);
+              lv_obj_set_style_bg_color(id(btn_browse_prev), lv_color_hex(0x1A1A1A), 0);
+            }
+            // Enable/disable next button
+            if (has_next) {
+              lv_obj_clear_state(id(btn_browse_next), LV_STATE_DISABLED);
+              lv_obj_set_style_bg_color(id(btn_browse_next), lv_color_hex(0x2A2A2A), 0);
+            } else {
+              lv_obj_add_state(id(btn_browse_next), LV_STATE_DISABLED);
+              lv_obj_set_style_bg_color(id(btn_browse_next), lv_color_hex(0x1A1A1A), 0);
+            }
+          } else {
+            lv_obj_add_flag(id(browse_pagination_footer), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          ESP_LOGI("browse_ui", "UI updated: %d items shown, has_prev=%d, has_next=%d",
+                   loaded_count, has_prev, has_next);
+
+  # ===========================================================================
+  # LETTER INDEX SYSTEM - Adaptive Index with NVS Caching
+  # ===========================================================================
+  # Enables efficient alphabetical navigation for large music libraries
+  # (500+ artists, 1000+ albums) on ESP32 with 8KB HTTP buffer limit.
+  #
+  # Architecture:
+  # - Phase 1: Sparse checkpoint index (sample at intervals)
+  # - Phase 2: On-demand binary search refinement
+  # - Phase 3: NVS persistence across reboots
+  # ===========================================================================
+
+  # ---------------------------------------------------------------------------
+  # Letter Index: Initialize (Load from NVS)
+  # ---------------------------------------------------------------------------
+  # Called on boot to load cached index from NVS and check freshness
+  - id: letter_index_init
+    mode: single
+    then:
+      - lambda: |-
+          ESP_LOGI("letter_index", "Initializing letter index system...");
+
+          // Debug: Show raw NVS values before processing
+          ESP_LOGI("nvs_debug", "Raw artist_letter_offsets: '%s' (len=%d)",
+                   id(artist_letter_offsets).c_str(), id(artist_letter_offsets).length());
+          ESP_LOGI("nvs_debug", "Raw album_letter_offsets: '%s' (len=%d)",
+                   id(album_letter_offsets).c_str(), id(album_letter_offsets).length());
+          ESP_LOGI("nvs_debug", "Raw totals: artist=%d, album=%d",
+                   id(artist_index_total), id(album_index_total));
+
+          // Helper to parse comma-separated string into array
+          auto parse_csv_to_array = [](const std::string& csv, int* arr, int size) {
+            if (csv.empty()) {
+              // Initialize with -2 (uninitialized)
+              for (int i = 0; i < size; i++) arr[i] = -2;
+              return false;
+            }
+            size_t pos = 0;
+            int idx = 0;
+            while (idx < size && pos < csv.length()) {
+              size_t comma = csv.find(',', pos);
+              if (comma == std::string::npos) comma = csv.length();
+              std::string val = csv.substr(pos, comma - pos);
+              arr[idx++] = std::stoi(val);
+              pos = comma + 1;
+            }
+            return idx == size;
+          };
+
+          // Load artist index from NVS
+          bool artist_valid = parse_csv_to_array(id(artist_letter_offsets), id(artist_offsets_array), 26);
+          parse_csv_to_array(id(artist_letter_confidence), id(artist_confidence_array), 26);
+
+          // Load album index from NVS
+          bool album_valid = parse_csv_to_array(id(album_letter_offsets), id(album_offsets_array), 26);
+          parse_csv_to_array(id(album_letter_confidence), id(album_confidence_array), 26);
+
+          // Invalidate any offsets that look like old "not found" markers (2001, 2000, etc.)
+          // These were stored when upper bound was 2000 and need to be re-discovered
+          auto invalidate_stale_offsets = [](int* offsets, int* confidence, int size) {
+            int invalidated = 0;
+            for (int i = 0; i < size; i++) {
+              // 2001 was used as "past end" marker, also invalidate anything suspiciously round
+              if (offsets[i] >= 2000 && offsets[i] <= 2010) {
+                offsets[i] = -2;  // Mark as uninitialized
+                confidence[i] = 0;  // Reset confidence
+                invalidated++;
+              }
+            }
+            return invalidated;
+          };
+
+          int artist_invalidated = invalidate_stale_offsets(id(artist_offsets_array), id(artist_confidence_array), 26);
+          int album_invalidated = invalidate_stale_offsets(id(album_offsets_array), id(album_confidence_array), 26);
+          if (artist_invalidated > 0) {
+            ESP_LOGW("letter_index", "Invalidated %d stale artist offsets (old 2001 markers)", artist_invalidated);
+          }
+          if (album_invalidated > 0) {
+            ESP_LOGW("letter_index", "Invalidated %d stale album offsets (old 2001 markers)", album_invalidated);
+          }
+
+          // Stale total detection removed - was incorrectly invalidating valid totals
+          // (artist library with 568 items was being reset because <= 2010 threshold)
+
+          // Check freshness (24 hours = 86400 seconds)
+          // If HA time not available, assume index is valid (will check staleness on next use)
+          uint32_t now = 0;
+          if (id(ha_time).now().is_valid()) {
+            now = id(ha_time).now().timestamp;
+          }
+          uint32_t artist_age = now > 0 ? (now - id(artist_index_timestamp)) : 0;
+          uint32_t album_age = now > 0 ? (now - id(album_index_timestamp)) : 0;
+          bool artist_stale = (now > 0 && artist_age > 86400) || !artist_valid;
+          bool album_stale = (now > 0 && album_age > 86400) || !album_valid;
+
+          ESP_LOGI("letter_index", "Artist index: %s (age: %us, total: %d)",
+                   artist_valid ? (artist_stale ? "stale" : "valid") : "empty",
+                   artist_age, id(artist_index_total));
+          ESP_LOGI("letter_index", "Album index: %s (age: %us, total: %d)",
+                   album_valid ? (album_stale ? "stale" : "valid") : "empty",
+                   album_age, id(album_index_total));
+
+          // Log a few sample offsets for debugging
+          if (artist_valid) {
+            ESP_LOGD("letter_index", "Artist offsets: A=%d, M=%d, Z=%d",
+                     id(artist_offsets_array)[0], id(artist_offsets_array)[12], id(artist_offsets_array)[25]);
+          }
+
+  # ---------------------------------------------------------------------------
+  # Letter Index: Save to NVS
+  # ---------------------------------------------------------------------------
+  # Serializes current index state and saves to NVS-persisted globals
+  - id: letter_index_save
+    mode: single
+    parameters:
+      category: int  # 4=albums, 5=artists
+    then:
+      - lambda: |-
+          ESP_LOGI("letter_index", "Saving %s index to NVS...",
+                   category == 5 ? "artist" : "album");
+
+          // Helper to convert array to comma-separated string
+          auto array_to_csv = [](int* arr, int size) -> std::string {
+            std::string result;
+            for (int i = 0; i < size; i++) {
+              if (i > 0) result += ",";
+              result += std::to_string(arr[i]);
+            }
+            return result;
+          };
+
+          if (category == 5) {
+            // Save artist index
+            id(artist_letter_offsets) = array_to_csv(id(artist_offsets_array), 26);
+            id(artist_letter_confidence) = array_to_csv(id(artist_confidence_array), 26);
+            id(artist_index_timestamp) = id(ha_time).now().timestamp;
+            ESP_LOGI("letter_index", "Artist index saved: %s", id(artist_letter_offsets).c_str());
+          } else {
+            // Save album index
+            id(album_letter_offsets) = array_to_csv(id(album_offsets_array), 26);
+            id(album_letter_confidence) = array_to_csv(id(album_confidence_array), 26);
+            id(album_index_timestamp) = id(ha_time).now().timestamp;
+            ESP_LOGI("letter_index", "Album index saved: %s", id(album_letter_offsets).c_str());
+          }
+
+  # ===========================================================================
+  # UPFRONT LIBRARY INDEX SYNC - Triggered on HA Connection
+  # ===========================================================================
+  # Runs automatically when Home Assistant connects to build complete index
+  # for all letters A-Z using binary search. Results cached in NVS.
+  #
+  # Benefits:
+  # - All letter offsets ready when user browses
+  # - Accurate totals for pagination
+  # - No waiting when tapping letters in alphabet picker
+  # ===========================================================================
+
+  # ---------------------------------------------------------------------------
+  # Library Index Sync: Main Entry Point
+  # ---------------------------------------------------------------------------
+  # Called when HA API connects. Checks if sync needed and runs it.
+  - id: library_index_sync
+    mode: single
+    then:
+      # First, load existing index from NVS if not already done
+      - if:
+          condition:
+            lambda: 'return !id(index_loaded_from_nvs);'
+          then:
+            - script.execute: letter_index_init
+            - lambda: 'id(index_loaded_from_nvs) = true;'
+
+      # Check if sync is needed, then conditionally run sync
+      - if:
+          condition:
+            lambda: |-
+              // Skip if sync already in progress
+              if (id(index_sync_in_progress)) {
+                ESP_LOGI("index_sync", "Sync already in progress, skipping");
+                return false;
+              }
+
+              // Check if we have valid cached data
+              // After NVS load, check if offsets string is populated (not empty)
+              bool album_has_cache = !id(album_letter_offsets).empty();
+              bool artist_has_cache = !id(artist_letter_offsets).empty();
+
+              ESP_LOGI("index_sync", "Cache check: album_offsets=%s, artist_offsets=%s",
+                       album_has_cache ? "loaded" : "empty",
+                       artist_has_cache ? "loaded" : "empty");
+
+              // If no cache, definitely need sync
+              if (!album_has_cache || !artist_has_cache) {
+                ESP_LOGI("index_sync", "No cached index, sync needed");
+                return true;
+              }
+
+              // Check age if time is valid (24h = 86400s)
+              if (id(ha_time).now().is_valid()) {
+                uint32_t now = id(ha_time).now().timestamp;
+                uint32_t album_age = now - id(album_index_timestamp);
+                uint32_t artist_age = now - id(artist_index_timestamp);
+
+                ESP_LOGI("index_sync", "Index age: album=%us, artist=%us", album_age, artist_age);
+
+                if (album_age > 86400 || artist_age > 86400) {
+                  ESP_LOGI("index_sync", "Index stale (>24h), sync needed");
+                  return true;
+                }
+              }
+
+              ESP_LOGI("index_sync", "Index cache valid, skipping sync");
+              return false;
+          then:
+            # Sync is needed - start it
+            - lambda: |-
+                ESP_LOGI("index_sync", "Starting library index sync...");
+            - script.execute:
+                id: library_index_sync_category
+                category: 4
+
+  # ---------------------------------------------------------------------------
+  # Library Index Sync: Sync One Category
+  # ---------------------------------------------------------------------------
+  # Syncs all letter offsets for a category (albums or artists)
+  - id: library_index_sync_category
+    mode: single
+    parameters:
+      category: int  # 4=albums, 5=artists
+    then:
+      - lambda: |-
+          id(index_sync_in_progress) = true;
+          id(index_sync_category) = category;
+          id(index_sync_current_letter) = 0;
+
+          ESP_LOGI("index_sync", "Starting sync for %s...",
+                   category == 5 ? "artists" : "albums");
+
+          // Clear stored total to ensure fresh count
+          if (category == 5) {
+            id(artist_index_total) = 0;
+          } else {
+            id(album_index_total) = 0;
+          }
+
+          // Initialize arrays for this category
+          int* offsets = category == 5 ? id(artist_offsets_array) : id(album_offsets_array);
+          int* confidence = category == 5 ? id(artist_confidence_array) : id(album_confidence_array);
+          for (int i = 0; i < 26; i++) {
+            offsets[i] = -2;  // -2 = not yet searched
+            confidence[i] = 0;
+          }
+
+      # First, get total count
+      - http_request.post:
+          url: "${ha_api_url}/api/services/music_assistant/get_library?return_response"
+          request_headers:
+            Authorization: "Bearer ${ha_api_token}"
+            Content-Type: "application/json"
+          json: !lambda |-
+            int cat = id(index_sync_category);
+            root["media_type"] = cat == 5 ? "artist" : "album";
+            root["limit"] = 1;
+            root["offset"] = 0;
+            root["order_by"] = "name";
+            root["config_entry_id"] = "${ma_config_entry_id}";
+          on_response:
+            then:
+              - lambda: |-
+                  int cat = id(index_sync_category);
+
+                  if (response->status_code != 200) {
+                    ESP_LOGE("index_sync", "Failed to get library count: HTTP %d", response->status_code);
+                    id(index_sync_in_progress) = false;
+                    return;
+                  }
+
+                  size_t to_read = response->content_length;
+                  if (to_read == 0 || to_read > 2048) to_read = 2048;
+                  std::string body;
+                  body.resize(to_read);
+                  int bytes_read = response->read((uint8_t*)body.data(), to_read);
+                  body.resize(bytes_read);
+
+                  ESP_LOGI("index_sync", "Response (%d bytes): %.200s", bytes_read, body.c_str());
+
+                  // Extract total count from response
+                  // HA format: {"service_response":{"items":[...],"total":N}}
+                  int total = 0;
+                  size_t total_pos = body.find("\"total\":");
+                  if (total_pos != std::string::npos) {
+                    size_t val_start = total_pos + 8;
+                    while (val_start < body.length() && (body[val_start] == ' ' || body[val_start] == '\t')) val_start++;
+                    std::string num_str;
+                    while (val_start < body.length() && body[val_start] >= '0' && body[val_start] <= '9') {
+                      num_str += body[val_start++];
+                    }
+                    if (!num_str.empty()) total = std::stoi(num_str);
+                  }
+
+                  // If total extraction failed, use a large default
+                  // Binary search will naturally find the actual end
+                  if (total == 0) {
+                    total = 10000;  // Large enough for most libraries
+                    ESP_LOGW("index_sync", "No total in response, using default %d", total);
+                  }
+
+                  // Store total
+                  if (cat == 5) {
+                    id(artist_index_total) = total;
+                  } else {
+                    id(album_index_total) = total;
+                  }
+
+                  ESP_LOGI("index_sync", "Total %s: %d", cat == 5 ? "artists" : "albums", total);
+
+              # Start binary search for first letter (A)
+              - script.execute: library_index_sync_letter
+
+          on_error:
+            then:
+              - lambda: |-
+                  ESP_LOGE("index_sync", "HTTP error getting library count");
+                  id(index_sync_in_progress) = false;
+
+  # ---------------------------------------------------------------------------
+  # Library Index Sync: Sync One Letter (Binary Search)
+  # ---------------------------------------------------------------------------
+  # Uses binary search to find exact offset for current letter
+  - id: library_index_sync_letter
+    mode: queued
+    max_runs: 2  # Only need one queued run
+    then:
+      - lambda: |-
+          int cat = id(index_sync_category);
+          int letter = id(index_sync_current_letter);
+          int total = cat == 5 ? id(artist_index_total) : id(album_index_total);
+
+          // Check if we've processed all letters (total was set by library_index_count_total)
+          if (letter >= 26) {
+            ESP_LOGI("index_sync", "Completed sync for %s", cat == 5 ? "artists" : "albums");
+
+            // Log sample offsets and final total
+            int* offsets = cat == 5 ? id(artist_offsets_array) : id(album_offsets_array);
+            ESP_LOGI("index_sync", "Offsets: A=%d, M=%d, Z=%d, Total=%d",
+                     offsets[0], offsets[12], offsets[25], total);
+
+            // Save to NVS
+            id(index_sync_in_progress) = false;  // Temporarily mark not in progress for save
+            return;  // Will continue in the then block below
+          }
+
+          char target_char = 'A' + letter;
+
+          // Initialize binary search bounds
+          // Use previous letter's offset as lower bound (optimization)
+          int* offsets = cat == 5 ? id(artist_offsets_array) : id(album_offsets_array);
+          int low = 0;
+          if (letter > 0 && offsets[letter - 1] >= 0) {
+            low = offsets[letter - 1];
+          }
+          int high = total - 1;
+
+          ESP_LOGI("index_sync", "Syncing letter %c (%d/26): bounds [%d, %d]", target_char, letter + 1, low, high);
+
+          id(sync_binary_low) = low;
+          id(sync_binary_high) = high;
+          id(sync_binary_result) = -1;  // Will store first found offset
+
+      # Check if letter sync complete or continue
+      - if:
+          condition:
+            lambda: 'return id(index_sync_current_letter) >= 26;'
+          then:
+            # Save index and move to next category or complete
+            - script.execute:
+                id: letter_index_save
+                category: !lambda 'return id(index_sync_category);'
+            - lambda: |-
+                int cat = id(index_sync_category);
+                if (cat == 4) {
+                  // Albums done, now do artists
+                  ESP_LOGI("index_sync", "Albums complete, starting artists...");
+                } else {
+                  // All done
+                  ESP_LOGI("index_sync", "Library index sync complete!");
+                  id(index_sync_in_progress) = false;
+                }
+            - if:
+                condition:
+                  lambda: 'return id(index_sync_category) == 4;'
+                then:
+                  - script.execute:
+                      id: library_index_sync_category
+                      category: 5
+          else:
+            # Continue with binary search for this letter
+            - script.execute: library_index_sync_binary_step
+
+  # ---------------------------------------------------------------------------
+  # Library Index Sync: Binary Search Step
+  # ---------------------------------------------------------------------------
+  # One iteration of binary search for current letter
+  - id: library_index_sync_binary_step
+    mode: queued
+    max_runs: 2  # Only need one queued run
+    then:
+      - lambda: |-
+          int low = id(sync_binary_low);
+          int high = id(sync_binary_high);
+
+          // Check if search is complete
+          if (low > high) {
+            // No items found for this letter
+            int cat = id(index_sync_category);
+            int letter = id(index_sync_current_letter);
+            int* offsets = cat == 5 ? id(artist_offsets_array) : id(album_offsets_array);
+            int* confidence = cat == 5 ? id(artist_confidence_array) : id(album_confidence_array);
+
+            if (id(sync_binary_result) >= 0) {
+              // Found an exact match during search
+              offsets[letter] = id(sync_binary_result);
+              confidence[letter] = 2;
+              ESP_LOGI("index_sync", "Letter %c: offset=%d (exact)", 'A' + letter, offsets[letter]);
+            } else {
+              // No items for this letter
+              offsets[letter] = -1;
+              confidence[letter] = 2;
+              ESP_LOGI("index_sync", "Letter %c: no items", 'A' + letter);
+            }
+
+            // Move to next letter (or count total if Z just completed)
+            if (letter == 25) {
+              // Z completed, count remaining items for accurate total
+              return;  // Will call library_index_count_total below
+            }
+            id(index_sync_current_letter)++;
+            return;  // Will continue to library_index_sync_letter
+          }
+
+          // Calculate midpoint
+          int mid = (low + high) / 2;
+          ESP_LOGD("index_sync", "Binary search: low=%d, mid=%d, high=%d", low, mid, high);
+
+      # Check if letter search complete, then continue
+      - if:
+          condition:
+            lambda: 'return id(sync_binary_low) > id(sync_binary_high);'
+          then:
+            - delay: 25ms  # Small delay between letters
+            # If Z (letter 25) just completed, count total instead of continuing
+            - if:
+                condition:
+                  lambda: 'return id(index_sync_current_letter) == 25;'
+                then:
+                  - script.execute: library_index_count_total
+                else:
+                  - script.execute: library_index_sync_letter
+          else:
+            # Fetch item at midpoint
+            - http_request.post:
+                url: "${ha_api_url}/api/services/music_assistant/get_library?return_response"
+                request_headers:
+                  Authorization: "Bearer ${ha_api_token}"
+                  Content-Type: "application/json"
+                json: !lambda |-
+                  int cat = id(index_sync_category);
+                  int mid = (id(sync_binary_low) + id(sync_binary_high)) / 2;
+                  root["media_type"] = cat == 5 ? "artist" : "album";
+                  root["limit"] = 1;
+                  root["offset"] = mid;
+                  root["order_by"] = "name";
+                  root["config_entry_id"] = "${ma_config_entry_id}";
+                on_response:
+                  then:
+                    - lambda: |-
+                        int cat = id(index_sync_category);
+                        int letter = id(index_sync_current_letter);
+                        char target = 'A' + letter;
+                        int low = id(sync_binary_low);
+                        int high = id(sync_binary_high);
+                        int mid = (low + high) / 2;
+
+                        bool found = false;
+                        char first = 0;
+
+                        if (response->status_code == 200) {
+                          size_t to_read = response->content_length;
+                          if (to_read == 0 || to_read > 2048) to_read = 2048;
+                          std::string body;
+                          body.resize(to_read);
+                          int bytes_read = response->read((uint8_t*)body.data(), to_read);
+                          body.resize(bytes_read);
+
+                          // Extract name
+                          size_t name_pos = body.find("\"name\":\"");
+                          if (name_pos != std::string::npos) {
+                            size_t val_start = name_pos + 8;
+                            size_t val_end = body.find("\"", val_start);
+                            if (val_end != std::string::npos && val_end > val_start) {
+                              found = true;
+                              first = body[val_start];
+                              if (first >= 'a' && first <= 'z') first = first - 'a' + 'A';
+                            }
+                          }
+                        }
+
+                        ESP_LOGI("index_sync", "  mid=%d: %s '%c' (target=%c) [%d,%d]",
+                                 mid, found ? "found" : "empty", found ? first : '?', target, low, high);
+
+                        if (!found) {
+                          // Past end of library
+                          id(sync_binary_high) = mid - 1;
+                          ESP_LOGD("index_sync", "    -> no item, search lower");
+                        } else if (first < target) {
+                          // Item is before target letter, search higher
+                          id(sync_binary_low) = mid + 1;
+                          ESP_LOGD("index_sync", "    -> '%c' < '%c', search higher", first, target);
+                        } else if (first > target) {
+                          // Item is after target letter, search lower
+                          id(sync_binary_high) = mid - 1;
+                          ESP_LOGD("index_sync", "    -> '%c' > '%c', search lower", first, target);
+                        } else {
+                          // Found target letter! Now find the FIRST occurrence
+                          id(sync_binary_result) = mid;  // Store this match
+                          id(sync_binary_high) = mid - 1;  // Keep searching lower for first
+                          ESP_LOGD("index_sync", "    -> MATCH! Continue searching lower for first");
+                        }
+
+                    # Continue binary search
+                    - delay: 50ms
+                    - script.execute: library_index_sync_binary_step
+
+                on_error:
+                  then:
+                    - lambda: |-
+                        ESP_LOGW("index_sync", "HTTP error during binary search, using current result");
+                        // Mark current letter with whatever we have and move on
+                        int cat = id(index_sync_category);
+                        int letter = id(index_sync_current_letter);
+                        int* offsets = cat == 5 ? id(artist_offsets_array) : id(album_offsets_array);
+                        int* confidence = cat == 5 ? id(artist_confidence_array) : id(album_confidence_array);
+                        if (id(sync_binary_result) >= 0) {
+                          offsets[letter] = id(sync_binary_result);
+                          confidence[letter] = 2;
+                        } else {
+                          offsets[letter] = -1;
+                          confidence[letter] = 1;  // Lower confidence on error
+                        }
+                        // Don't increment if Z - count total script will handle it
+                        if (letter != 25) {
+                          id(index_sync_current_letter)++;
+                        }
+                    - delay: 100ms
+                    # If Z completed (even with error), count total
+                    - if:
+                        condition:
+                          lambda: 'return id(index_sync_current_letter) == 25;'
+                        then:
+                          - script.execute: library_index_count_total
+                        else:
+                          - script.execute: library_index_sync_letter
+
+  # ---------------------------------------------------------------------------
+  # Library Index: Count Total Items
+  # ---------------------------------------------------------------------------
+  # Called after Z sync to count remaining items and set accurate total
+  - id: library_index_count_total
+    mode: single
+    then:
+      - lambda: |-
+          int cat = id(index_sync_category);
+          int* offsets = cat == 5 ? id(artist_offsets_array) : id(album_offsets_array);
+
+          // Find highest valid offset (Z or earlier if Z has no items)
+          int highest_offset = 0;
+          for (int i = 25; i >= 0; i--) {
+            if (offsets[i] >= 0) {
+              highest_offset = offsets[i];
+              break;
+            }
+          }
+
+          if (highest_offset == 0) {
+            // No items found at all, set total to 0
+            if (cat == 5) {
+              id(artist_index_total) = 0;
+            } else {
+              id(album_index_total) = 0;
+            }
+            ESP_LOGI("index_sync", "No items found, total = 0");
+            id(index_sync_current_letter) = 26;  // Signal completion
+            return;
+          }
+
+          ESP_LOGI("index_sync", "Counting items from offset %d...", highest_offset);
+          id(sync_count_offset) = highest_offset;
+
+      # Only make request if we have items to count
+      - if:
+          condition:
+            lambda: 'return id(sync_count_offset) > 0;'
+          then:
+            - http_request.post:
+                url: "${ha_api_url}/api/services/music_assistant/get_library?return_response"
+                request_headers:
+                  Authorization: "Bearer ${ha_api_token}"
+                  Content-Type: "application/json"
+                json: !lambda |-
+                  int cat = id(index_sync_category);
+                  root["media_type"] = cat == 5 ? "artist" : "album";
+                  root["limit"] = 500;  // Get up to 500 items to count
+                  root["offset"] = id(sync_count_offset);
+                  root["order_by"] = "name";
+                  root["config_entry_id"] = "${ma_config_entry_id}";
+                on_response:
+                  then:
+                    - lambda: |-
+                        int cat = id(index_sync_category);
+                        int offset = id(sync_count_offset);
+                        int count = 0;
+
+                        if (response->status_code == 200) {
+                          // Read response and count items
+                          size_t to_read = response->content_length;
+                          if (to_read == 0 || to_read > 8192) to_read = 8192;
+                          std::string body;
+                          body.resize(to_read);
+
+                          // Read loop to get full response
+                          size_t total_read = 0;
+                          int retries = 0;
+                          while (total_read < to_read && retries < 20) {
+                            int bytes = response->read((uint8_t*)body.data() + total_read, to_read - total_read);
+                            if (bytes > 0) {
+                              total_read += bytes;
+                              retries = 0;
+                            } else {
+                              delay(10);
+                              retries++;
+                            }
+                          }
+                          body.resize(total_read);
+
+                          // Count items by counting "name" occurrences in items array
+                          size_t pos = 0;
+                          while ((pos = body.find("\"name\":", pos)) != std::string::npos) {
+                            count++;
+                            pos += 7;
+                          }
+                        }
+
+                        int total = offset + count;
+                        if (cat == 5) {
+                          id(artist_index_total) = total;
+                        } else {
+                          id(album_index_total) = total;
+                        }
+                        ESP_LOGI("index_sync", "Counted %d items from offset %d, total = %d", count, offset, total);
+
+                        // Signal completion
+                        id(index_sync_current_letter) = 26;
+                    - delay: 25ms
+                    - script.execute: library_index_sync_letter
+
+                on_error:
+                  then:
+                    - lambda: |-
+                        // On error, estimate total = offset + 50
+                        int cat = id(index_sync_category);
+                        int offset = id(sync_count_offset);
+                        int total = offset + 50;
+                        if (cat == 5) {
+                          id(artist_index_total) = total;
+                        } else {
+                          id(album_index_total) = total;
+                        }
+                        ESP_LOGW("index_sync", "Count request failed, estimating total = %d", total);
+                        id(index_sync_current_letter) = 26;
+                    - delay: 25ms
+                    - script.execute: library_index_sync_letter
+          else:
+            - lambda: 'id(index_sync_current_letter) = 26;'
+            - script.execute: library_index_sync_letter
+
+  # ---------------------------------------------------------------------------
+  # Letter Index: Update Alpha Picker Colors
+  # ---------------------------------------------------------------------------
+  # Updates letter colors based on index state
+  - id: letter_index_update_colors
+    mode: single
+    parameters:
+      category: int
+    then:
+      - lambda: |-
+          int* offsets = category == 5 ? id(artist_offsets_array) : id(album_offsets_array);
+          int* confidence = category == 5 ? id(artist_confidence_array) : id(album_confidence_array);
+
+          // Color definitions
+          lv_color_t unknown = lv_color_hex(0xAAAAAA);    // Unknown - still clickable
+          lv_color_t checkpoint = lv_color_hex(0xCCCCCC); // Approximate offset known
+          lv_color_t exact = lv_color_hex(0xFFFFFF);      // Exact offset cached
+          lv_color_t empty_col = lv_color_hex(0x444444);  // No items for this letter
+          lv_color_t selected = lv_color_hex(0x00D1FF);   // Currently selected
+
+          // Get current filter letter
+          std::string filter = id(browse_alpha_filter);
+          int selected_letter = -1;
+          if (!filter.empty() && filter[0] >= 'A' && filter[0] <= 'Z') {
+            selected_letter = filter[0] - 'A';
+          }
+
+          // Array of letter label IDs (A-Z)
+          lv_obj_t* labels[] = {
+            id(lbl_alpha_a), id(lbl_alpha_b), id(lbl_alpha_c), id(lbl_alpha_d),
+            id(lbl_alpha_e), id(lbl_alpha_f), id(lbl_alpha_g), id(lbl_alpha_h),
+            id(lbl_alpha_i), id(lbl_alpha_j), id(lbl_alpha_k), id(lbl_alpha_l),
+            id(lbl_alpha_m), id(lbl_alpha_n), id(lbl_alpha_o), id(lbl_alpha_p),
+            id(lbl_alpha_q), id(lbl_alpha_r), id(lbl_alpha_s), id(lbl_alpha_t),
+            id(lbl_alpha_u), id(lbl_alpha_v), id(lbl_alpha_w), id(lbl_alpha_x),
+            id(lbl_alpha_y), id(lbl_alpha_z)
+          };
+
+          for (int i = 0; i < 26; i++) {
+            lv_color_t color;
+            if (i == selected_letter) {
+              color = selected;
+            } else if (offsets[i] == -1) {
+              color = empty_col;  // No items for this letter
+            } else if (confidence[i] == 2) {
+              color = exact;
+            } else if (confidence[i] == 1) {
+              color = checkpoint;
+            } else {
+              color = unknown;  // Unknown but clickable
+            }
+            lv_obj_set_style_text_color(labels[i], color, 0);
+          }
+
+# =============================================================================
+# Implementation Notes
+# =============================================================================
+#
+# Music Assistant API Integration via Home Assistant:
+#
+# Since ESPHome doesn't have direct access to Music Assistant's internal API,
+# we use Home Assistant's REST API template endpoint to query MA data.
+#
+# 1. Play Media (T082) - IMPLEMENTED:
+#    - Service: music_assistant.play_media
+#    - Parameters: entity_id (player), media_id (MA URI)
+#    - Method: homeassistant.service call from ESPHome
+#    - Returns: Starts playback on specified player
+#
+# 2. Browse Content (T079) - IMPLEMENTED:
+#    - Method: HTTP POST to /api/template with Jinja2 templates
+#    - Data Source: Query MA player state attributes and library sensors
+#    - Categories implemented:
+#      * Recent (1): Queries current track info from all MA players
+#      * Favorites (2): Queries sensor.mass_library_tracks favorites attribute
+#      * Playlists (3): Queries sensor.mass_library_playlists items
+#      * Albums (4): Queries sensor.mass_library_albums items
+#      * Artists (5): Queries sensor.mass_library_artists items
+#    - Returns: JSON array of items with id, title, artist fields
+#    - Limitation: Requires MA library sensors to be exposed in HA
+#      (if sensors not available, returns placeholder browse links)
+#
+# 3. Upfront Library Index Sync - IMPLEMENTED:
+#    - Problem: Need accurate letter offsets and totals for pagination in
+#      large music libraries (2700+ albums, 500+ artists) on ESP32
+#    - Solution: Run full binary search sync when HA connects, cache in NVS
+#
+#    - Architecture:
+#      * Trigger: HA API connection established (connectivity.yaml)
+#      * Process:
+#        1. Check if sync needed (NVS timestamp > 24h or empty)
+#        2. Get total count for albums and artists
+#        3. For each letter A-Z: binary search to find first item
+#        4. Save all offsets + totals to NVS with confidence=2 (exact)
+#      * Optimization: Use previous letter's offset as lower bound
+#
+#    - Sync Time: ~45-60 seconds for full library (runs in background)
+#      ~12-15 HTTP requests per letter x 26 letters = ~300-400 requests
+#      At ~150ms per request = ~45-60 seconds total
+#
+#    - NVS Storage (~300 bytes total for both Artist and Album indices):
+#      * artist_letter_offsets: Comma-separated offsets for A-Z
+#      * artist_letter_confidence: Comma-separated confidence levels (0-2)
+#      * artist_index_total: Total library count
+#      * artist_index_timestamp: Last sync timestamp
+#      * (Same structure for album_*)
+#
+#    - Alpha Picker Visual States:
+#      * Unknown (#AAAAAA): Index not yet synced - still clickable
+#      * Exact (#FFFFFF): Exact offset cached
+#      * Empty (#444444): No items for this letter
+#      * Selected (#00D1FF): Currently filtering
+#
+#    - User Experience:
+#      * FIRST BOOT: Device boots, connects to HA, background sync runs
+#        User can browse (limited pagination until sync completes)
+#        Sync completes, all letters and totals available
+#      * RETURNING USER: Index loads from NVS instantly
+#        All letters work immediately, no sync needed
+#      * INDEX > 24h OLD: Use cached values immediately (still work)
+#        Background sync refreshes values
+#
+#    - Benefits:
+#      * All letter offsets ready when user browses
+#      * Accurate totals for proper pagination
+#      * No waiting when tapping letters in alphabet picker
+#      * Simpler code - no on-demand refinement complexity
+#      * Predictable - sync runs once on connect, not triggered by user actions
+#
+# 4. Data Format:
+#    - Request: POST to ${ha_api_url}/api/template
+#    - Headers: Authorization: Bearer ${ha_api_token}
+#    - Body: {"template": "{% jinja2 template %}"}
+#    - Response: Rendered template (JSON array of items)
+#    - Parsing: Manual JSON string parsing in C++ lambda
+#
+# Memory Management Strategy:
+#
+# - Limit to 5 items initially (expandable to 20 items per browse_page_size)
+# - Each item ~100 bytes (media_id, title, subtitle strings)
+# - Total memory footprint: ~500 bytes for 5 items, ~2KB for 20 items
+# - Clear previous page data before loading next page
+# - HTTP response buffer: max 4KB to prevent heap fragmentation
+#
+# Music Assistant Library Sensors (Required Setup):
+#
+# To enable full browse functionality, configure these sensors in HA:
+#
+# sensor:
+#   - platform: template
+#     sensors:
+#       mass_library_tracks:
+#         friendly_name: "MA Library Tracks"
+#         value_template: "{{ states.media_player | selectattr('attributes.mass_player_id', 'defined') | list | length }}"
+#         attribute_templates:
+#           favorites: "{{ ... }}"  # Query MA favorites
+#
+#       mass_library_playlists:
+#         friendly_name: "MA Library Playlists"
+#         value_template: "{{ ... }}"
+#         attribute_templates:
+#           items: "{{ ... }}"  # Query MA playlists
+#
+#       mass_library_albums:
+#         friendly_name: "MA Library Albums"
+#         value_template: "{{ ... }}"
+#         attribute_templates:
+#           items: "{{ ... }}"  # Query MA albums
+#
+#       mass_library_artists:
+#         friendly_name: "MA Library Artists"
+#         value_template: "{{ ... }}"
+#         attribute_templates:
+#           items: "{{ ... }}"  # Query MA artists
+#
+# Alternative: If sensors not available, browse returns top-level links
+# that can be played to open the respective library sections in MA.
+#
+# Pagination Implementation (Future Enhancement):
+#
+# - Current: Fixed 5 items per category
+# - Future: Page size 20 items (adjustable based on available heap)
+# - Offset tracking: browse_page_offset global variable
+# - Total items: browse_total_items from API response
+# - UI indicators: "1-20 of 150" or "Page 1 of 8"
+# - Navigation: "Load More" button or auto-load on scroll
+#
+# Error Handling:
+#
+# - Network timeout: Logs error, clears loading flag
+# - Empty response: Returns empty array, UI shows empty state
+# - Parse error: Logs error, returns what was parsed successfully
+# - HA API not connected: Early return, logs error
+# - Invalid category: Logs error, returns early
+#
+# Performance Optimization:
+#
+# - Response size limit: 4KB max to prevent heap issues
+# - Parse on demand: Only parse items up to configured limit (5)
+# - Lazy load: Only fetch on navigation to browse screen
+# - Loading flag: Prevents concurrent requests to same category
+# - Memory efficient: Manual JSON parsing without libraries
+#
+# Testing Checklist:
+#
+# 1. Verify HA API connection before browse
+# 2. Test each browse category (1-5)
+# 3. Verify JSON parsing handles malformed responses
+# 4. Monitor heap during browse operations
+# 5. Test playback of browsed items via tap-to-play
+# 6. Verify loading indicator shows/hides correctly
+# 7. Test with empty library (no items)
+# 8. Test with large library (>100 items per category)
+#
+# =============================================================================

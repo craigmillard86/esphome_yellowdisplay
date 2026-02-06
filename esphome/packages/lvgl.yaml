@@ -54,6 +54,11 @@ font:
       - "\U000F012C"  # mdi:check-circle (selected player)
       - "\U000F0765"  # mdi:circle-outline (unselected player)
       - "\U000F0425"  # mdi:power (power toggle)
+      # Browse and search icons (T070-T090)
+      - "\U000F0486"  # mdi:playlist-music (playlists)
+      - "\U000F0025"  # mdi:album (albums)
+      - "\U000F0006"  # mdi:account-music (artists)
+      - "\U000F0349"  # mdi:magnify (search)
 
 # =============================================================================
 # LVGL Configuration
@@ -313,10 +318,10 @@ lvgl:
                   tag: "ui"
                   level: INFO
                   format: "Library tile pressed"
-              # Navigate to Library screen (T054) - placeholder until screen exists
-              # - script.execute:
-              #     id: navigate_to
-              #     target_screen: 3  # LIBRARY
+              # Navigate to Library screen (T089)
+              - script.execute:
+                  id: navigate_to
+                  target_screen: 3  # LIBRARY
             widgets:
               # Library icon centered at top
               - label:
@@ -404,10 +409,10 @@ lvgl:
                   tag: "ui"
                   level: INFO
                   format: "Favorites tile pressed"
-              # Navigate to Favorites screen (T054) - placeholder until screen exists
-              # - script.execute:
-              #     id: navigate_to
-              #     target_screen: 4  # FAVORITES
+              # Navigate to Favorites screen (T090)
+              - script.execute:
+                  id: navigate_to
+                  target_screen: 4  # FAVORITES
             widgets:
               # Heart icon centered at top
               - label:

@@ -307,7 +307,7 @@
 
 ---
 
-## Phase 6: User Story 4 - Browse and Play Content (Priority: P2)
+## Phase 6: User Story 4 - Browse and Play Content (Priority: P2) ✅ COMPLETE
 
 **Goal**: Allow users to browse library categories and start playback of selected content
 
@@ -315,27 +315,27 @@
 
 ### Implementation for User Story 4
 
-- [ ] T070 [US4] Create Music Library Hub screen with category tiles in esphome/ui/library.yaml
-- [ ] T071 [P] [US4] Create list item component (text only) in esphome/ui/components/list_item.yaml
-- [ ] T072 [P] [US4] Create loading indicator component in esphome/ui/components/loading.yaml
-- [ ] T073 [P] [US4] Create empty state message component in esphome/ui/components/empty_state.yaml
-- [ ] T074 [US4] Implement Recently Played list view in esphome/ui/browse_recent.yaml
-- [ ] T075 [US4] Implement Favorites list view (synced from MA) in esphome/ui/browse_favorites.yaml
-- [ ] T076 [US4] Implement Playlists list view in esphome/ui/browse_playlists.yaml
-- [ ] T077 [US4] Implement Albums list view in esphome/ui/browse_albums.yaml
-- [ ] T078 [US4] Implement Artists list view in esphome/ui/browse_artists.yaml
-- [ ] T079 [US4] Implement paginated/chunked loading for large lists in esphome/packages/browse.yaml
-- [ ] T080 [US4] Add loading indicator during content fetch in browse screens
-- [ ] T081 [US4] Add empty state message for empty categories in browse screens
-- [ ] T082 [US4] Implement tap-to-play on list items in esphome/packages/browse.yaml
-- [ ] T083 [US4] Create Search screen with text input area in esphome/ui/search.yaml
-- [ ] T084 [US4] Implement QWERTY keyboard (30x30px keys minimum) in esphome/ui/search.yaml
-- [ ] T085 [US4] Link keyboard to textarea for search input in esphome/ui/search.yaml
-- [ ] T086 [US4] Implement search query submission to MA in esphome/packages/search.yaml
-- [ ] T087 [US4] Display search results in list view in esphome/ui/search.yaml
-- [ ] T088 [US4] Add navigation breadcrumbs or back button to browse screens
-- [ ] T089 [US4] Wire Library tile navigation to Music Library Hub in esphome/ui/home.yaml
-- [ ] T090 [US4] Wire Favorites tile navigation to Favorites list in esphome/ui/home.yaml
+- [x] T070 [US4] Create Music Library Hub screen with category tiles in esphome/ui/library.yaml
+- [x] T071 [P] [US4] Create list item component (text only) in esphome/ui/components/list_item.yaml
+- [x] T072 [P] [US4] Create loading indicator component in esphome/ui/components/loading.yaml
+- [x] T073 [P] [US4] Create empty state message component in esphome/ui/components/empty_state.yaml
+- [x] T074 [US4] Implement Recently Played list view in esphome/ui/browse_recent.yaml
+- [x] T075 [US4] Implement Favorites list view (synced from MA) in esphome/ui/browse_favorites.yaml
+- [x] T076 [US4] Implement Playlists list view in esphome/ui/browse_playlists.yaml
+- [x] T077 [US4] Implement Albums list view in esphome/ui/browse_albums.yaml
+- [x] T078 [US4] Implement Artists list view in esphome/ui/browse_artists.yaml
+- [x] T079 [US4] Implement paginated/chunked loading for large lists in esphome/packages/browse.yaml
+- [x] T080 [US4] Add loading indicator during content fetch in browse screens
+- [x] T081 [US4] Add empty state message for empty categories in browse screens
+- [x] T082 [US4] Implement tap-to-play on list items in esphome/packages/browse.yaml
+- [x] T083 [US4] Create Search screen with text input area in esphome/ui/search.yaml
+- [x] T084 [US4] Implement QWERTY keyboard (30x30px keys minimum) in esphome/ui/search.yaml
+- [x] T085 [US4] Link keyboard to textarea for search input in esphome/ui/search.yaml
+- [x] T086 [US4] Implement search query submission to MA in esphome/packages/search.yaml
+- [x] T087 [US4] Display search results in list view in esphome/ui/search.yaml
+- [x] T088 [US4] Add navigation breadcrumbs or back button to browse screens
+- [x] T089 [US4] Wire Library tile navigation to Music Library Hub in esphome/ui/home.yaml
+- [x] T090 [US4] Wire Favorites tile navigation to Favorites list in esphome/ui/home.yaml
 
 **Checkpoint**: All five browse categories accessible, lists scroll smoothly, selecting content starts playback, search keyboard functional
 

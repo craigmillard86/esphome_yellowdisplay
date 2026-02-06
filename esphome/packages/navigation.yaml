@@ -32,9 +32,13 @@ globals:
   # 1 = NOW_PLAYING (page_main)
   # 2 = PLAYERS
   # 3 = LIBRARY
-  # 4 = FAVORITES
-  # 5 = SETTINGS
+  # 4 = FAVORITES (browse_favorites)
+  # 5 = SEARCH
   # 6 = BOOT (initial screen)
+  # 7 = BROWSE_RECENT
+  # 8 = BROWSE_PLAYLISTS
+  # 9 = BROWSE_ALBUMS
+  # 10 = BROWSE_ARTISTS
   - id: current_screen
     type: int
     restore_value: no
@@ -107,17 +111,13 @@ script:
           int current = id(current_screen);
 
           // Validate target screen
-          if (target < 0 || target > 6) {
+          if (target < 0 || target > 10) {
             ESP_LOGE("navigation", "Invalid target screen: %d", target);
             return;
           }
 
-          // Check if screen is implemented (H2 fix: prevent navigation to unimplemented screens)
-          // Screen 2 (PLAYERS) is now implemented - T055
-          if (target == 3 || target == 4 || target == 5) {
-            ESP_LOGW("navigation", "Screen %d not yet implemented, ignoring navigation", target);
-            return;
-          }
+          // All screens now implemented (Phase 6 complete)
+          // Validate screen range only
 
           // Skip if already on target screen
           if (target == current) {
@@ -189,12 +189,108 @@ script:
             - script.execute: update_player_rows
       - if:
           condition:
+            lambda: 'return target_screen == 3;'
+          then:
+            - lvgl.page.show:
+                id: page_library
+                animation: OUT_LEFT
+                time: 250ms
+      - if:
+          condition:
+            lambda: 'return target_screen == 4;'
+          then:
+            - script.execute:
+                id: browse_configure_page
+                category: 2
+            - lvgl.page.show:
+                id: page_browse
+                animation: OUT_LEFT
+                time: 250ms
+            - script.execute:
+                id: browse_category
+                category: 2
+      - if:
+          condition:
+            lambda: 'return target_screen == 5;'
+          then:
+            - lvgl.page.show:
+                id: page_search
+                animation: OUT_LEFT
+                time: 250ms
+      - if:
+          condition:
             lambda: 'return target_screen == 6;'
           then:
             - lvgl.page.show:
                 id: page_boot
                 animation: OUT_LEFT
                 time: 250ms
+      - if:
+          condition:
+            lambda: 'return target_screen == 7;'
+          then:
+            - script.execute:
+                id: browse_configure_page
+                category: 1
+            - lvgl.page.show:
+                id: page_browse
+                animation: OUT_LEFT
+                time: 250ms
+            - script.execute:
+                id: browse_category
+                category: 1
+      - if:
+          condition:
+            lambda: 'return target_screen == 8;'
+          then:
+            - script.execute:
+                id: browse_configure_page
+                category: 3
+            - lvgl.page.show:
+                id: page_browse
+                animation: OUT_LEFT
+                time: 250ms
+            - script.execute:
+                id: browse_category
+                category: 3
+      - if:
+          condition:
+            lambda: 'return target_screen == 9;'
+          then:
+            - script.execute:
+                id: browse_configure_page
+                category: 4
+            - lvgl.page.show:
+                id: page_browse
+                animation: OUT_LEFT
+                time: 250ms
+            # Index is built by upfront sync on HA connect, no on-demand building needed
+            - script.execute:
+                id: browse_category
+                category: 4
+            # Update alpha picker colors based on index state
+            - script.execute:
+                id: letter_index_update_colors
+                category: 4
+      - if:
+          condition:
+            lambda: 'return target_screen == 10;'
+          then:
+            - script.execute:
+                id: browse_configure_page
+                category: 5
+            - lvgl.page.show:
+                id: page_browse
+                animation: OUT_LEFT
+                time: 250ms
+            # Index is built by upfront sync on HA connect, no on-demand building needed
+            - script.execute:
+                id: browse_category
+                category: 5
+            # Update alpha picker colors based on index state
+            - script.execute:
+                id: letter_index_update_colors
+                category: 5
 
       # Wait for animation and unlock
       - delay: 300ms
@@ -281,12 +377,91 @@ script:
             - script.execute: update_player_rows
       - if:
           condition:
+            lambda: 'return id(current_screen) == 3;'
+          then:
+            - lvgl.page.show:
+                id: page_library
+                animation: OUT_RIGHT
+                time: 250ms
+      - if:
+          condition:
+            lambda: 'return id(current_screen) == 4;'
+          then:
+            - script.execute:
+                id: browse_configure_page
+                category: 2
+            - lvgl.page.show:
+                id: page_browse
+                animation: OUT_RIGHT
+                time: 250ms
+      - if:
+          condition:
+            lambda: 'return id(current_screen) == 5;'
+          then:
+            - lvgl.page.show:
+                id: page_search
+                animation: OUT_RIGHT
+                time: 250ms
+      - if:
+          condition:
             lambda: 'return id(current_screen) == 6;'
           then:
             - lvgl.page.show:
                 id: page_boot
                 animation: OUT_RIGHT
                 time: 250ms
+      - if:
+          condition:
+            lambda: 'return id(current_screen) == 7;'
+          then:
+            - script.execute:
+                id: browse_configure_page
+                category: 1
+            - lvgl.page.show:
+                id: page_browse
+                animation: OUT_RIGHT
+                time: 250ms
+      - if:
+          condition:
+            lambda: 'return id(current_screen) == 8;'
+          then:
+            - script.execute:
+                id: browse_configure_page
+                category: 3
+            - lvgl.page.show:
+                id: page_browse
+                animation: OUT_RIGHT
+                time: 250ms
+      - if:
+          condition:
+            lambda: 'return id(current_screen) == 9;'
+          then:
+            - script.execute:
+                id: browse_configure_page
+                category: 4
+            - lvgl.page.show:
+                id: page_browse
+                animation: OUT_RIGHT
+                time: 250ms
+            # Update alpha picker colors for albums
+            - script.execute:
+                id: letter_index_update_colors
+                category: 4
+      - if:
+          condition:
+            lambda: 'return id(current_screen) == 10;'
+          then:
+            - script.execute:
+                id: browse_configure_page
+                category: 5
+            - lvgl.page.show:
+                id: page_browse
+                animation: OUT_RIGHT
+                time: 250ms
+            # Update alpha picker colors for artists
+            - script.execute:
+                id: letter_index_update_colors
+                category: 5
 
       # Wait for animation and unlock
       - delay: 300ms
@@ -423,13 +598,17 @@ script:
 # =============================================================================
 # Screen ID Reference
 # =============================================================================
-# 0 = HOME         (page_home)
-# 1 = NOW_PLAYING  (page_main)
-# 2 = PLAYERS      (page_players - defined in ui/players.yaml - T055)
-# 3 = LIBRARY      (page_library - TODO: define in lvgl.yaml)
-# 4 = FAVORITES    (page_favorites - TODO: define in lvgl.yaml)
-# 5 = SETTINGS     (page_settings - TODO: define in lvgl.yaml)
-# 6 = BOOT         (page_boot)
+# 0 = HOME              (page_home)
+# 1 = NOW_PLAYING       (page_main)
+# 2 = PLAYERS           (page_players - ui/players.yaml)
+# 3 = LIBRARY           (page_library - ui/library.yaml - T070)
+# 4 = FAVORITES         (page_browse_favorites - ui/browse_favorites.yaml - T075, T090)
+# 5 = SEARCH            (page_search - ui/search.yaml - T083-T087)
+# 6 = BOOT              (page_boot)
+# 7 = BROWSE_RECENT     (page_browse_recent - ui/browse_recent.yaml - T074)
+# 8 = BROWSE_PLAYLISTS  (page_browse_playlists - ui/browse_playlists.yaml - T076)
+# 9 = BROWSE_ALBUMS     (page_browse_albums - ui/browse_albums.yaml - T077)
+# 10 = BROWSE_ARTISTS   (page_browse_artists - ui/browse_artists.yaml - T078)
 #
 # =============================================================================
 # Animation Notes
