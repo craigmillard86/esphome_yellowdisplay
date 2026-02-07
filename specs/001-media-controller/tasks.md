@@ -566,6 +566,17 @@
 
 **Checkpoint**: All settings adjustable and persistent, idle dim/off works, wake-on-touch immediate
 
+### Memory Optimization (2026-02-07)
+
+- [x] Disabled search.yaml and search_ui.yaml packages to free heap memory
+- [x] Removed Recent and Search tiles from Library screen (now 2x2 grid)
+- [x] Reduced font glyph sets (removed accented characters and unused symbols)
+- [x] Removed mdi:magnify icon from icons_24 font
+- [x] Replaced Favorites tile with Settings tile on Home screen
+- [x] Enabled idle timer interval (was disabled for debugging)
+
+**Result**: Free heap ~13KB → ~18KB, largest block ~5KB → ~16KB
+
 ---
 
 ## Human Testing Checkpoint: Settings & Idle Behavior

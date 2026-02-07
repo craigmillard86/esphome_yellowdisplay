@@ -12,23 +12,25 @@
 
 font:
   # Primary text font - 24pt for titles
-  # Extended glyphs include: curly quotes, accented chars, symbols
+  # Reduced glyphs for memory optimization - basic ASCII + curly quotes + ellipsis + degree
   - file: "gfonts://Roboto@500"
     id: roboto_24
     size: 24
-    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~–—…×÷±°©®™€£¥áàâäãåæçéèêëíìîïñóòôöõøúùûüýÿÁÀÂÄÃÅÆÇÉÈÊËÍÌÎÏÑÓÒÔÖÕØÚÙÛÜÝ¿¡\u2018\u2019\u201C\u201D"
+    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~°…\u2018\u2019\u201C\u201D"
 
   # Body text font - 16pt for buttons, labels
+  # Reduced glyphs for memory optimization - basic ASCII + curly quotes + ellipsis + degree
   - file: "gfonts://Roboto"
     id: roboto_16
     size: 16
-    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~–—…×÷±°©®™€£¥áàâäãåæçéèêëíìîïñóòôöõøúùûüýÿÁÀÂÄÃÅÆÇÉÈÊËÍÌÎÏÑÓÒÔÖÕØÚÙÛÜÝ¿¡\u2018\u2019\u201C\u201D"
+    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~°…\u2018\u2019\u201C\u201D"
 
   # Small text font - 12pt for metadata, time
+  # Reduced glyphs for memory optimization - basic ASCII + curly quotes + ellipsis + degree
   - file: "gfonts://Roboto"
     id: roboto_12
     size: 12
-    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~–—…×÷±°©®™€£¥áàâäãåæçéèêëíìîïñóòôöõøúùûüýÿÁÀÂÄÃÅÆÇÉÈÊËÍÌÎÏÑÓÒÔÖÕØÚÙÛÜÝ¿¡\u2018\u2019\u201C\u201D"
+    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~°…\u2018\u2019\u201C\u201D"
 
   # Material Design Icons for UI controls
   - file: "https://github.com/Templarian/MaterialDesign-Webfont/raw/master/fonts/materialdesignicons-webfont.ttf"
@@ -55,11 +57,10 @@ font:
       - "\U000F012C"  # mdi:check-circle (selected player)
       - "\U000F0765"  # mdi:circle-outline (unselected player)
       - "\U000F0425"  # mdi:power (power toggle)
-      # Browse and search icons (T070-T090)
+      # Browse icons (T070-T090) - magnify removed for memory optimization
       - "\U000F0486"  # mdi:playlist-music (playlists)
       - "\U000F0025"  # mdi:album (albums)
       - "\U000F0006"  # mdi:account-music (artists)
-      - "\U000F0349"  # mdi:magnify (search)
       # Grouping icons (T091-T103)
       - "\U000F0131"  # mdi:checkbox-blank-outline (unchecked)
       - "\U000F0132"  # mdi:checkbox-marked (checked)
@@ -269,35 +270,6 @@ lvgl:
 
       widgets:
         # =====================================================================
-        # SETTINGS BUTTON - Top Right Corner (T128)
-        # =====================================================================
-        # Small gear icon button for accessing device settings
-        - button:
-            id: btn_home_settings
-            x: 276
-            y: 0
-            width: 44
-            height: 44
-            bg_opa: TRANSP
-            border_width: 0
-            shadow_width: 0
-            pad_all: 0
-            on_click:
-              - logger.log:
-                  tag: "ui"
-                  level: INFO
-                  format: "Settings button pressed"
-              - script.execute:
-                  id: navigate_to
-                  target_screen: 12  # SETTINGS
-            widgets:
-              - label:
-                  text: "\U000F0493"  # mdi:cog
-                  text_font: icons_24
-                  text_color: 0xB3B3B3
-                  align: CENTER
-
-        # =====================================================================
         # TOP LEFT TILE - NOW PLAYING (T048)
         # =====================================================================
         # Shows current track title with music icon
@@ -437,12 +409,12 @@ lvgl:
                   y: -12
 
         # =====================================================================
-        # BOTTOM RIGHT TILE - FAVORITES (T051)
+        # BOTTOM RIGHT TILE - SETTINGS
         # =====================================================================
-        # Favorites/playlists tile
-        # Shows heart icon and "Favorites" text
+        # Device settings tile
+        # Shows gear icon and "Settings" text
         - button:
-            id: tile_favorites
+            id: tile_settings
             x: 164
             y: 124
             width: 148
@@ -456,24 +428,24 @@ lvgl:
               - logger.log:
                   tag: "ui"
                   level: INFO
-                  format: "Favorites tile pressed"
-              # Navigate to Favorites screen (T090)
+                  format: "Settings tile pressed"
+              # Navigate to Settings screen
               - script.execute:
                   id: navigate_to
-                  target_screen: 4  # FAVORITES
+                  target_screen: 12  # SETTINGS
             widgets:
-              # Heart icon centered at top
+              # Gear icon centered at top
               - label:
-                  text: "\U000F02D1"
+                  text: "\U000F0493"
                   text_font: icons_24
-                  text_color: 0xFF6B35
+                  text_color: 0xB3B3B3
                   align: TOP_MID
                   x: 0
                   y: 16
 
-              # "Favorites" label
+              # "Settings" label
               - label:
-                  text: "Favorites"
+                  text: "Settings"
                   text_font: roboto_12
                   text_color: 0xFFFFFF
                   text_align: CENTER

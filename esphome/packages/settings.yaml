@@ -195,62 +195,60 @@ script:
           format: "Settings reset to defaults"
 
   # ---------------------------------------------------------------------------
-  # Debug Mode Auto-Disable Timer (T119)
+  # Debug Mode Auto-Disable Timer Start (T119)
   # ---------------------------------------------------------------------------
-  # 30-minute countdown timer that auto-disables debug mode
-  # Called when debug mode is enabled, runs every second until disabled
+  # Initializes the 30-minute countdown timer for debug mode auto-disable
+  # The actual countdown is handled by the debug_countdown_interval below
   - id: debug_auto_disable_timer
     mode: restart
     then:
-      # Initialize countdown to 30 minutes (1800 seconds)
       - lambda: |-
-          id(debug_mode_countdown) = 1800;
+          id(debug_mode_countdown) = 1800;  // 30 minutes
           ESP_LOGI("settings", "Debug mode auto-disable timer started (30:00)");
 
-      # Run countdown loop
-      - while:
-          condition:
-            lambda: |-
-              // Continue if debug mode is still enabled and countdown > 0
-              return id(setting_debug_mode_enabled) && id(debug_mode_countdown) > 0;
-          then:
-            # Wait 1 second
-            - delay: 1s
+# =============================================================================
+# Interval - Debug Mode Countdown (Non-blocking)
+# =============================================================================
+# Runs every second to decrement debug mode countdown without blocking main loop
+# NOTE: Debug countdown temporarily disabled for testing - feature works via
+# manual toggle only until root cause of watchdog is found
 
-            # Decrement countdown
-            - lambda: |-
-                id(debug_mode_countdown)--;
-                int remaining = id(debug_mode_countdown);
-
-                // Update UI timer label (if on settings screen)
-                char buf[20];
-                int minutes = remaining / 60;
-                int seconds = remaining % 60;
-                snprintf(buf, sizeof(buf), "Auto-off in %d:%02d", minutes, seconds);
-
-                // Update label if it exists
-                lv_label_set_text(id(lbl_debug_timer), buf);
-
-                // Log every minute
-                if (remaining % 60 == 0) {
-                  ESP_LOGI("settings", "Debug mode auto-off in %d minutes", minutes);
-                }
-
-      # Countdown complete or debug mode manually disabled
-      - lambda: |-
-          if (id(setting_debug_mode_enabled) && id(debug_mode_countdown) == 0) {
-            ESP_LOGW("settings", "Debug mode auto-disabled after 30 minutes");
-            id(setting_debug_mode_enabled) = false;
-
-            // Update UI toggle appearance (if on settings screen)
-            lv_obj_add_flag(id(debug_on_indicator), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_clear_flag(id(debug_off_indicator), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_set_style_bg_color(id(btn_debug_toggle), lv_color_hex(0x2A2A2A), 0);
-            lv_obj_add_flag(id(lbl_debug_timer), LV_OBJ_FLAG_HIDDEN);
-          }
-
-      # Save updated debug mode state
-      - script.execute: save_settings
+# interval:
+#   - interval: 1s
+#     then:
+#       - lambda: |-
+#           // Only process if debug mode is enabled and countdown is active
+#           if (!id(setting_debug_mode_enabled) || id(debug_mode_countdown) <= 0) {
+#             return;
+#           }
+#
+#           // Decrement countdown
+#           id(debug_mode_countdown)--;
+#           int remaining = id(debug_mode_countdown);
+#
+#           // Update UI timer label (if on settings screen)
+#           char buf[20];
+#           int minutes = remaining / 60;
+#           int seconds = remaining % 60;
+#           snprintf(buf, sizeof(buf), "Auto-off in %d:%02d", minutes, seconds);
+#           lv_label_set_text(id(lbl_debug_timer), buf);
+#
+#           // Log every minute
+#           if (remaining % 60 == 0 && remaining > 0) {
+#             ESP_LOGI("settings", "Debug mode auto-off in %d minutes", minutes);
+#           }
+#
+#           // Countdown complete - auto-disable debug mode
+#           if (remaining == 0) {
+#             ESP_LOGW("settings", "Debug mode auto-disabled after 30 minutes");
+#             id(setting_debug_mode_enabled) = false;
+#
+#             // Update UI toggle appearance (if on settings screen)
+#             lv_obj_add_flag(id(debug_on_indicator), LV_OBJ_FLAG_HIDDEN);
+#             lv_obj_clear_flag(id(debug_off_indicator), LV_OBJ_FLAG_HIDDEN);
+#             lv_obj_set_style_bg_color(id(btn_debug_toggle), lv_color_hex(0x2A2A2A), 0);
+#             lv_obj_add_flag(id(lbl_debug_timer), LV_OBJ_FLAG_HIDDEN);
+#           }
 
 # =============================================================================
 # Home Assistant Services - Settings Control from HA

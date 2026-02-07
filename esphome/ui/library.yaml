@@ -11,25 +11,23 @@
 # This file implements:
 # - T070: Create Music Library Hub screen with category tiles
 #
-# Screen Layout (Screen F per ui-technical-spec.md):
+# Screen Layout (Memory Optimized - 2x2 Grid):
 # +--------------------------------------------------+
 # | [<] Music Library                                |  <- Header (44px)
 # +--------------------------------------------------+
-# | +----------+  +----------+  +----------+         |
-# | | Recent   |  | Favs     |  | Search   |         |  <- 2x3 Grid
-# | +----------+  +----------+  +----------+         |  <- Each 100x80px
-# | +----------+  +----------+  +----------+         |
-# | | Playlists|  | Albums   |  | Artists  |         |
-# | +----------+  +----------+  +----------+         |
+# | +-------------+            +-------------+       |
+# | | Favorites   |            | Playlists   |       |  <- Row 1
+# | +-------------+            +-------------+       |
+# | +-------------+            +-------------+       |
+# | | Albums      |            | Artists     |       |  <- Row 2
+# | +-------------+            +-------------+       |
 # +--------------------------------------------------+
 #
-# Navigation:
-# - Recently Played → page_browse_recent (screen 7)
+# Navigation (Recent and Search removed for memory optimization):
 # - Favorites → page_browse_favorites (screen 4)
 # - Playlists → page_browse_playlists (screen 8)
 # - Albums → page_browse_albums (screen 9)
 # - Artists → page_browse_artists (screen 10)
-# - Search → page_search (screen 5)
 
 lvgl:
   pages:
@@ -91,70 +89,24 @@ lvgl:
             border_width: 0
 
         # =====================================================================
-        # CATEGORY TILES - 2x3 Grid Layout
+        # CATEGORY TILES - 2x2 Grid Layout (Memory Optimized)
         # =====================================================================
-        # Grid: 2 rows, 3 columns
-        # Tile size: 100x80px each
-        # Gaps: 4px horizontal, 4px vertical
-        # Margins: 10px outer
-        # Total width: (100*3) + (4*2) + (10*2) = 328px (needs adjustment)
-        # Adjusted: 98x76px tiles with 4px gaps = (98*3) + (4*2) + (10*2) = 322px ✓
+        # Grid: 2 rows, 2 columns
+        # Tile size: 140x80px each
+        # Positions: x=20/170, y=52/140
+        # Recent and Search tiles removed for memory optimization
 
         # =====================================================================
-        # ROW 1 - TOP THREE TILES
+        # ROW 1 - TOP TWO TILES
         # =====================================================================
 
-        # TOP LEFT TILE - Recently Played
-        - button:
-            id: tile_recent
-            x: 10
-            y: 52
-            width: 98
-            height: 76
-            bg_color: 0x1E1E1E
-            bg_opa: COVER
-            radius: 10
-            border_width: 1
-            border_color: 0x2A2A2A
-            shadow_width: 0
-            checkable: false
-            pressed:
-              border_color: 0x00D1FF
-              border_width: 2
-            on_click:
-              - logger.log:
-                  tag: "ui"
-                  level: INFO
-                  format: "Recently Played tile pressed"
-              - script.execute:
-                  id: navigate_to
-                  target_screen: 7  # BROWSE_RECENT
-            widgets:
-              # Icon
-              - label:
-                  text: "\U000F075A"  # mdi:music
-                  text_font: icons_24
-                  text_color: 0x00D1FF
-                  align: TOP_MID
-                  x: 0
-                  y: 12
-              # Label
-              - label:
-                  text: "Recent"
-                  text_font: roboto_12
-                  text_color: 0xFFFFFF
-                  text_align: CENTER
-                  align: BOTTOM_MID
-                  x: 0
-                  y: -8
-
-        # TOP CENTER TILE - Favorites
+        # TOP LEFT TILE - Favorites
         - button:
             id: tile_library_favorites
-            x: 112
+            x: 20
             y: 52
-            width: 98
-            height: 76
+            width: 140
+            height: 80
             bg_color: 0x1E1E1E
             bg_opa: COVER
             radius: 10
@@ -192,61 +144,13 @@ lvgl:
                   x: 0
                   y: -8
 
-        # TOP RIGHT TILE - Search
-        - button:
-            id: tile_library_search
-            x: 214
-            y: 52
-            width: 98
-            height: 76
-            bg_color: 0x1E1E1E
-            bg_opa: COVER
-            radius: 10
-            border_width: 1
-            border_color: 0x2A2A2A
-            shadow_width: 0
-            checkable: false
-            pressed:
-              border_color: 0x00D1FF
-              border_width: 2
-            on_click:
-              - logger.log:
-                  tag: "ui"
-                  level: INFO
-                  format: "Search tile pressed"
-              - script.execute:
-                  id: navigate_to
-                  target_screen: 5  # SEARCH
-            widgets:
-              # Icon
-              - label:
-                  text: "\U000F0349"  # mdi:magnify
-                  text_font: icons_24
-                  text_color: 0x00D1FF
-                  align: TOP_MID
-                  x: 0
-                  y: 12
-              # Label
-              - label:
-                  text: "Search"
-                  text_font: roboto_12
-                  text_color: 0xFFFFFF
-                  text_align: CENTER
-                  align: BOTTOM_MID
-                  x: 0
-                  y: -8
-
-        # =====================================================================
-        # ROW 2 - BOTTOM THREE TILES
-        # =====================================================================
-
-        # BOTTOM LEFT TILE - Playlists
+        # TOP RIGHT TILE - Playlists
         - button:
             id: tile_playlists
-            x: 10
-            y: 136
-            width: 98
-            height: 76
+            x: 170
+            y: 52
+            width: 140
+            height: 80
             bg_color: 0x1E1E1E
             bg_opa: COVER
             radius: 10
@@ -284,13 +188,17 @@ lvgl:
                   x: 0
                   y: -8
 
-        # BOTTOM CENTER TILE - Albums
+        # =====================================================================
+        # ROW 2 - BOTTOM TWO TILES
+        # =====================================================================
+
+        # BOTTOM LEFT TILE - Albums
         - button:
             id: tile_albums
-            x: 112
-            y: 136
-            width: 98
-            height: 76
+            x: 20
+            y: 140
+            width: 140
+            height: 80
             bg_color: 0x1E1E1E
             bg_opa: COVER
             radius: 10
@@ -331,10 +239,10 @@ lvgl:
         # BOTTOM RIGHT TILE - Artists
         - button:
             id: tile_artists
-            x: 214
-            y: 136
-            width: 98
-            height: 76
+            x: 170
+            y: 140
+            width: 140
+            height: 80
             bg_color: 0x1E1E1E
             bg_opa: COVER
             radius: 10
@@ -375,26 +283,29 @@ lvgl:
 # =============================================================================
 # Icon Reference (Material Design Icons)
 # =============================================================================
-# These icons must be added to the icons_24 font in lvgl.yaml if not present:
+# Icons used in this screen (defined in icons_24 font in lvgl.yaml):
 #
-# - "\U000F075A"  # mdi:music (Recently Played)
 # - "\U000F02D1"  # mdi:heart (Favorites)
-# - "\U000F0349"  # mdi:magnify (Search)
 # - "\U000F0486"  # mdi:playlist-music (Playlists)
 # - "\U000F0025"  # mdi:album (Albums)
 # - "\U000F0006"  # mdi:account-music (Artists)
 #
+# Removed for memory optimization:
+# - mdi:music (Recently Played) - screen 7 removed
+# - mdi:magnify (Search) - screen 5 removed
+#
 # =============================================================================
 # Navigation Screen IDs
 # =============================================================================
-# These screens must be defined in navigation.yaml and lvgl.yaml:
-#
+# Active screens:
 # - 3 = LIBRARY (this screen - page_library)
 # - 4 = FAVORITES (page_browse_favorites)
-# - 5 = SEARCH (page_search)
-# - 7 = BROWSE_RECENT (page_browse_recent)
 # - 8 = BROWSE_PLAYLISTS (page_browse_playlists)
 # - 9 = BROWSE_ALBUMS (page_browse_albums)
 # - 10 = BROWSE_ARTISTS (page_browse_artists)
+#
+# Removed for memory optimization:
+# - 5 = SEARCH (page_search)
+# - 7 = BROWSE_RECENT (page_browse_recent)
 #
 # =============================================================================

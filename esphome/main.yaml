@@ -96,8 +96,9 @@ packages:
   navigation: !include packages/navigation.yaml  # Screen navigation with animations (T042-T044)
   player_manager: !include packages/player_manager.yaml  # Multi-player management (T060-T068)
   browse: !include packages/browse.yaml  # Browse system with pagination (T079, T082)
-  search: !include packages/search.yaml  # Search system (T086)
+  # search: !include packages/search.yaml  # Search system (T086) - DISABLED for memory optimization
   grouping: !include packages/grouping.yaml  # Speaker grouping (T091-T103)
+  # Testing Phase 9 isolation - re-enabling idle + settings (no UI)
   idle: !include packages/idle.yaml  # Idle timer and screen dimming (T123-T127)
   settings: !include packages/settings.yaml  # Settings persistence to NVS (T120-T122)
   # UI Screens
@@ -105,7 +106,7 @@ packages:
   grouping_ui: !include ui/grouping.yaml  # Multi-room grouping screen (T091)
   library_ui: !include ui/library.yaml  # Music Library Hub (T070)
   browse_ui: !include ui/browse_unified.yaml  # Unified browse page (memory optimized)
-  search_ui: !include ui/search.yaml  # Search with QWERTY keyboard (T083-T087)
+  # search_ui: !include ui/search.yaml  # Search with QWERTY keyboard (T083-T087) - DISABLED for memory optimization
   settings_ui: !include ui/settings.yaml  # Device Settings screen (T112-T119)
   # UI Components
   header: !include ui/components/header.yaml  # Header with player name (T065)
