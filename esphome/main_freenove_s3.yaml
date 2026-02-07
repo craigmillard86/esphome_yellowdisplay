@@ -1,17 +1,17 @@
 # =============================================================================
-# Music Assistant Media Controller - ESP32-2432S028R (Original CYD)
+# Music Assistant Media Controller - Freenove ESP32-S3 CYD
 # =============================================================================
-# Board: ESP32-2432S028R (Cheap Yellow Display)
-# Display: 2.8" ILI9341 TFT 320x240 with XPT2046 resistive touch
-# MCU: ESP32 @ 240MHz
+# Board: Freenove ESP32-S3 with 2.8" Display
+# Display: 2.8" ILI9341 TFT 320x240 with FT6336 capacitive touch
+# MCU: ESP32-S3 @ 240MHz with 8MB PSRAM
 #
-# For Freenove ESP32-S3 CYD, use main_freenove_s3.yaml instead
+# For original ESP32-2432S028R, use main.yaml instead
 # =============================================================================
 
 substitutions:
   # Device identification
-  device_name: "cyd_music_remote"
-  friendly_name: "Music Remote"
+  device_name: "cyd_music_remote_s3"
+  friendly_name: "Music Remote S3"
 
   # Display configuration
   screen_rotation: "90"  # 90 = landscape, 0 = portrait
@@ -23,16 +23,16 @@ substitutions:
 
 packages:
   # Device-specific substitutions (pins, platform settings)
-  device: !include devices/cyd_original.yaml
+  device: !include devices/freenove_s3.yaml
 
   # Base configuration (shared across all devices)
   base: !include packages/base.yaml
 
   # Hardware packages (device-specific)
-  spi: !include packages/hardware/spi_cyd_original.yaml
-  display: !include packages/hardware/display_cyd_original.yaml
+  spi: !include packages/hardware/spi_freenove_s3.yaml
+  display: !include packages/hardware/display_freenove_s3.yaml
   backlight: !include packages/hardware/backlight.yaml
-  touch: !include packages/hardware/touch_xpt2046.yaml
+  touch: !include packages/hardware/touch_ft63x6.yaml
 
   # Feature packages
   wifi: !include packages/wifi.yaml
@@ -49,11 +49,11 @@ packages:
   idle: !include packages/idle.yaml
   settings: !include packages/settings.yaml
 
-  # Disabled for memory optimization on original CYD:
-  # diagnostics: !include packages/diagnostics.yaml
-  # search: !include packages/search.yaml
-  # error_handler: !include packages/error_handler.yaml
-  # burn_in: !include packages/burn_in_mitigation.yaml
+  # With PSRAM, we can enable memory-intensive features:
+  diagnostics: !include packages/diagnostics.yaml
+  search: !include packages/search.yaml
+  error_handler: !include packages/error_handler.yaml
+  burn_in: !include packages/burn_in_mitigation.yaml
 
   # UI Screens
   players_ui: !include ui/players.yaml
@@ -61,29 +61,23 @@ packages:
   library_ui: !include ui/library.yaml
   browse_ui: !include ui/browse_unified.yaml
   settings_ui: !include ui/settings.yaml
-  # search_ui: !include ui/search.yaml  # Disabled - memory optimization
+  search_ui: !include ui/search.yaml  # Enabled with PSRAM
 
   # UI Components
   header: !include ui/components/header.yaml
-  # error_toast: !include ui/components/error_toast.yaml  # Disabled - heap optimization
+  error_toast: !include ui/components/error_toast.yaml  # Enabled with PSRAM
 
 # =============================================================================
-# ESP32 Platform Configuration (Original CYD)
+# ESP32-S3 Platform Configuration
 # =============================================================================
 
 esp32:
-  board: esp32dev
+  board: esp32-s3-devkitc-1
+  flash_size: 16MB
   framework:
     type: arduino
     version: recommended
     sdkconfig_options:
-      # Disable Bluetooth at compile time
-      CONFIG_BT_ENABLED: "n"
-      CONFIG_BLUEDROID_ENABLED: "n"
-      CONFIG_BTDM_CTRL_MODE_BLE_ONLY: "n"
-      CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY: "n"
-      CONFIG_BTDM_CTRL_MODE_BTDM: "n"
-
       # Reduce logging overhead
       CONFIG_LOG_DEFAULT_LEVEL_INFO: "y"
       CONFIG_LOG_MAXIMUM_LEVEL_INFO: "y"
@@ -94,8 +88,16 @@ esp32:
       # Disable features we don't use
       CONFIG_ESP32_ENABLE_COREDUMP: "n"
 
-      # LWIP (network stack) heap optimizations
-      CONFIG_LWIP_MAX_SOCKETS: "8"
+      # LWIP (network stack) optimizations
+      CONFIG_LWIP_MAX_SOCKETS: "10"
       CONFIG_LWIP_TCP_MSS: "1440"
-      CONFIG_LWIP_TCP_SND_BUF_DEFAULT: "5744"
-      CONFIG_LWIP_TCP_WND_DEFAULT: "5744"
+      CONFIG_LWIP_TCP_SND_BUF_DEFAULT: "11488"
+      CONFIG_LWIP_TCP_WND_DEFAULT: "11488"
+
+# =============================================================================
+# PSRAM Configuration
+# =============================================================================
+
+psram:
+  mode: octal
+  speed: 80MHz

@@ -1,0 +1,14 @@
+# =============================================================================
+# Package: SPI Bus Configuration (Freenove ESP32-S3)
+# Purpose: Single SPI bus for display (touch uses I2C)
+# Dependencies: Device file (devices/freenove_s3.yaml)
+# Exposes: spi component 'tft'
+# Note: ESP32-S3 uses I2C for touch, only one SPI bus needed
+# =============================================================================
+
+spi:
+  # SPI bus for ILI9341 TFT display
+  - id: tft
+    clk_pin: ${spi_tft_clk}
+    mosi_pin: ${spi_tft_mosi}
+    miso_pin: ${spi_tft_miso}

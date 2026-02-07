@@ -1,17 +1,15 @@
 # =============================================================================
-# Package: Backlight Control
-# Purpose: PWM-based backlight brightness control
-# Dependencies: None (hardware-level package)
+# Package: Backlight Control (Hardware Abstraction)
+# Purpose: PWM-based backlight brightness control using device substitutions
+# Dependencies: Device file with backlight_pin substitution
 # Exposes: light component 'backlight'
-# Hardware: TFT backlight on GPIO21, active HIGH
 # =============================================================================
 
 # PWM output for backlight control
 # Frequency: 1000Hz provides flicker-free operation
-# GPIO21 drives backlight transistor/MOSFET (active HIGH)
 output:
   - platform: ledc
-    pin: GPIO21
+    pin: GPIO${backlight_pin}
     id: backlight_pwm
     frequency: 1000Hz
 
