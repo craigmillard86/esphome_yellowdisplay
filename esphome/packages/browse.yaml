@@ -59,7 +59,7 @@ http_request:
 
 globals:
   # Current browse category
-  # 0 = None, 1 = Recent, 2 = Favorites, 3 = Playlists, 4 = Albums, 5 = Artists
+  # 0 = None, 1 = Recent, 2 = Favorites, 3 = Playlists, 4 = Albums, 5 = Artists, 6 = ArtistAlbums
   - id: current_browse_category
     type: int
     restore_value: no
@@ -268,6 +268,23 @@ globals:
     restore_value: no
     initial_value: '0'
 
+  # ========== Artist Album Context (for drill-down from Artists → Albums) ==========
+  # Artist album context (for drill-down from Artists → Albums)
+  - id: browse_context_artist_id
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+  - id: browse_context_artist_name
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+  - id: browse_saved_offset
+    type: int
+    restore_value: no
+    initial_value: '0'
+
 # =============================================================================
 # Scripts - Browse Operations
 # =============================================================================
@@ -278,7 +295,7 @@ script:
   # ---------------------------------------------------------------------------
   # Configures the unified browse page for a specific category
   # Parameters:
-  #   category: int (1=Recent, 2=Favorites, 3=Playlists, 4=Albums, 5=Artists)
+  #   category: int (1=Recent, 2=Favorites, 3=Playlists, 4=Albums, 5=Artists, 6=ArtistAlbums)
   - id: browse_configure_page
     mode: restart
     parameters:
@@ -295,6 +312,11 @@ script:
             case 3: title = "Playlists"; break;
             case 4: title = "Albums"; show_alpha = true; break;
             case 5: title = "Artists"; show_alpha = true; break;
+            case 6:
+              // For artist albums, use the stored artist name
+              title = id(browse_context_artist_name).c_str();
+              show_alpha = false;  // No alpha picker for filtered view
+              break;
           }
 
           // Update title label
@@ -351,6 +373,13 @@ script:
             lv_obj_set_width(id(lbl_browse_item_3_subtitle), 262);
             // Move Next button for wider footer (286 - 80 = 206)
             lv_obj_set_x(id(btn_browse_next), 206);
+          }
+
+          // Show/hide Play All button (T014-T016) - visible only for Artist Albums (category 6)
+          if (category == 6) {
+            lv_obj_clear_flag(id(btn_browse_play_all), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(btn_browse_play_all), LV_OBJ_FLAG_HIDDEN);
           }
 
           // Show loading, hide items and empty state
@@ -485,6 +514,15 @@ script:
 
               case 5: // Artists - Query artists from MA (no filter on initial load)
                 root["media_type"] = "artist";
+                root["limit"] = 4;
+                root["offset"] = offset;
+                root["order_by"] = "name";
+                root["config_entry_id"] = "${ma_config_entry_id}";
+                break;
+
+              case 6: // Artist Albums - Query albums filtered by selected artist
+                root["media_type"] = "album";
+                root["artist"] = id(browse_context_artist_id).c_str();
                 root["limit"] = 4;
                 root["offset"] = offset;
                 root["order_by"] = "name";
@@ -752,6 +790,32 @@ script:
           format: "Media playback initiated"
 
   # ---------------------------------------------------------------------------
+  # Play All Artist (T013)
+  # ---------------------------------------------------------------------------
+  # Plays all music by the currently selected artist
+  - id: play_artist_all
+    mode: single
+    then:
+      - lambda: |-
+          if (id(browse_context_artist_id).empty()) {
+            ESP_LOGW("browse", "No artist selected for Play All");
+            return;
+          }
+          if (id(selected_player_id).empty()) {
+            ESP_LOGW("browse", "No player selected for Play All");
+            return;
+          }
+          ESP_LOGI("browse", "Playing all by artist: %s", id(browse_context_artist_name).c_str());
+      - homeassistant.service:
+          service: music_assistant.play_media
+          data:
+            entity_id: !lambda 'return id(selected_player_id).c_str();'
+            media_id: !lambda 'return id(browse_context_artist_id).c_str();'
+      - script.execute:
+          id: navigate_to
+          target_screen: 1  # Now Playing
+
+  # ---------------------------------------------------------------------------
   # Refresh Browse List
   # ---------------------------------------------------------------------------
   # Reloads current category (useful after playback or favorites change)
@@ -771,6 +835,42 @@ script:
       - script.execute:
           id: browse_category
           category: !lambda 'return id(current_browse_category);'
+
+  # ---------------------------------------------------------------------------
+  # Browse Artist Albums (Drill-down)
+  # ---------------------------------------------------------------------------
+  # Filters albums by selected artist (category 6)
+  # Saves current position for back navigation
+  - id: browse_artist_albums
+    mode: single
+    parameters:
+      artist_id: string
+      artist_name: string
+    then:
+      - lambda: |-
+          // Save current position for back navigation
+          id(browse_saved_offset) = id(browse_page_offset);
+
+          // Set artist context
+          id(browse_context_artist_id) = artist_id;
+          id(browse_context_artist_name) = artist_name;
+
+          // Switch to artist albums mode
+          id(current_browse_category) = 6;
+          id(browse_page_offset) = 0;
+          id(browse_loaded_items) = 0;
+          id(browse_total_items) = 0;  // Will be populated from response
+          id(browse_alpha_filter) = "";  // Reset filter
+
+          ESP_LOGI("browse", "Browsing albums for artist: %s (ID: %s)", artist_name.c_str(), artist_id.c_str());
+
+      # Configure UI for artist albums view (shows Play All, hides alpha picker, sets title)
+      - script.execute:
+          id: browse_configure_page
+          category: 6
+
+      # Load first page of artist's albums
+      - script.execute: browse_load_page
 
   # ---------------------------------------------------------------------------
   # Clear Browse Data
@@ -1022,6 +1122,10 @@ script:
             if (category == 1) {
               return std::string("${ha_api_url}/api/template");
             }
+            // Category 6 (Artist Albums): uses search service
+            if (category == 6) {
+              return std::string("${ha_api_url}/api/services/music_assistant/search?return_response");
+            }
             // All other categories use HA get_library service
             return std::string("${ha_api_url}/api/services/music_assistant/get_library?return_response");
           request_headers:
@@ -1072,6 +1176,15 @@ script:
                 root["order_by"] = "name";  // Sorted alphabetically
                 root["config_entry_id"] = "${ma_config_entry_id}";
                 ESP_LOGI("browse", "Artists: offset=%d, filter='%s'", offset, alpha_filter.c_str());
+                break;
+              case 6: // Artist Albums - uses search to find albums by artist name
+                root["name"] = id(browse_context_artist_name).c_str();
+                root["media_type"] = JsonArray();
+                root["media_type"].add("album");
+                root["limit"] = 25;
+                root["config_entry_id"] = "${ma_config_entry_id}";
+                ESP_LOGI("browse", "Artist Albums (search): artist='%s'",
+                         id(browse_context_artist_name).c_str());
                 break;
               default:
                 root["template"] = "{\"items\":[]}";
@@ -1216,20 +1329,35 @@ script:
                   }
 
                   // HA format: {"service_response":{"items":[{...}]}} or {"items":[{...}]}
+                  // For search (category 6): {"service_response":{"albums":[{...}]}}
                   size_t items_start = body.find("\"items\"");
                   if (items_start != std::string::npos) {
                     pos = items_start;
                   }
+                  // For category 6 (Artist Albums via search), look for "albums" array
+                  if (id(current_browse_category) == 6) {
+                    size_t albums_start = body.find("\"albums\"");
+                    if (albums_start != std::string::npos) {
+                      pos = albums_start;
+                      ESP_LOGI("browse", "Found albums array for search results at pos %d", albums_start);
+                    }
+                  }
 
                   // Category for logging
                   int category = id(current_browse_category);
+
+                  // For category 6, we need client-side pagination (skip offset items)
+                  int skip_count = (category == 6) ? id(browse_page_offset) : 0;
+                  int skipped = 0;
+                  int total_found = 0;  // Track total items for category 6
 
                   while (item_count < 4 && pos < body.length()) {
                     size_t obj_start = body.find("{", pos);
                     if (obj_start == std::string::npos) break;
                     // Skip wrapper objects
                     if (body.find("\"service_response\"", obj_start) == obj_start + 1 ||
-                        body.find("\"items\"", obj_start) < obj_start + 20) {
+                        body.find("\"items\"", obj_start) < obj_start + 20 ||
+                        body.find("\"albums\"", obj_start) < obj_start + 20) {
                       pos = obj_start + 1;
                       continue;
                     }
@@ -1265,8 +1393,17 @@ script:
                       continue;
                     }
 
-                    // No client-side filtering needed - letter index provides correct offset
-                    // Just log the first character for debugging
+                    // Count total items for category 6 pagination
+                    if (category == 6) total_found++;
+
+                    // For category 6, skip items until we reach offset
+                    if (skipped < skip_count) {
+                      skipped++;
+                      pos = obj_end + 1;
+                      continue;
+                    }
+
+                    // Log first character for debugging
                     char first_char = title[0];
                     if (first_char >= 'a' && first_char <= 'z') {
                       first_char = first_char - 'a' + 'A';
@@ -1280,6 +1417,25 @@ script:
                     }
                     item_count++;
                     pos = obj_end + 1;
+                  }
+
+                  // For category 6, count remaining items for total
+                  if (category == 6) {
+                    while (pos < body.length()) {
+                      size_t obj_start = body.find("{", pos);
+                      if (obj_start == std::string::npos) break;
+                      size_t obj_end = body.find("}", obj_start);
+                      if (obj_end == std::string::npos) break;
+                      // Check if it has a uri (valid album object)
+                      if (body.find("\"uri\"", obj_start) < obj_end) {
+                        total_found++;
+                      }
+                      pos = obj_end + 1;
+                    }
+                    if (total_found > 0) {
+                      id(browse_total_items) = total_found;
+                      ESP_LOGI("browse", "Category 6: found %d total albums", total_found);
+                    }
                   }
 
                   id(browse_loaded_items) = item_count;

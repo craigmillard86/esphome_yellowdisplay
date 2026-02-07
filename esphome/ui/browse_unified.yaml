@@ -53,6 +53,33 @@ lvgl:
             x: -8
             y: 14
 
+        # Play All Button - visible only in Artist Albums view (category 6) (T014-T016)
+        - button:
+            id: btn_browse_play_all
+            x: 244
+            y: 6
+            width: 68
+            height: 32
+            hidden: true
+            bg_color: 0x00D1FF
+            radius: 4
+            border_width: 0
+            shadow_width: 0
+            pressed:
+              bg_color: 0x00A8CC  # Darker cyan for touch feedback
+            on_click:
+              - logger.log:
+                  tag: "browse"
+                  level: INFO
+                  format: "Play All button pressed"
+              - script.execute: play_artist_all
+            widgets:
+              - label:
+                  text: "Play All"
+                  text_font: roboto_12
+                  text_color: 0x000000
+                  align: CENTER
+
         # Header divider
         - obj:
             x: 0
@@ -144,10 +171,19 @@ lvgl:
                     border_color: 0x00D1FF
                     border_width: 2
                   on_click:
-                    - script.execute:
-                        id: play_media_item
-                        media_id: !lambda 'return id(browse_item_0_media_id);'
-                        item_title: !lambda 'return id(browse_item_0_title);'
+                    - if:
+                        condition:
+                          lambda: 'return id(current_browse_category) == 5;'
+                        then:
+                          - script.execute:
+                              id: browse_artist_albums
+                              artist_id: !lambda 'return id(browse_item_0_media_id);'
+                              artist_name: !lambda 'return id(browse_item_0_title);'
+                        else:
+                          - script.execute:
+                              id: play_media_item
+                              media_id: !lambda 'return id(browse_item_0_media_id);'
+                              item_title: !lambda 'return id(browse_item_0_title);'
                   widgets:
                     - label:
                         id: lbl_browse_item_0_title
@@ -190,10 +226,19 @@ lvgl:
                     border_color: 0x00D1FF
                     border_width: 2
                   on_click:
-                    - script.execute:
-                        id: play_media_item
-                        media_id: !lambda 'return id(browse_item_1_media_id);'
-                        item_title: !lambda 'return id(browse_item_1_title);'
+                    - if:
+                        condition:
+                          lambda: 'return id(current_browse_category) == 5;'
+                        then:
+                          - script.execute:
+                              id: browse_artist_albums
+                              artist_id: !lambda 'return id(browse_item_1_media_id);'
+                              artist_name: !lambda 'return id(browse_item_1_title);'
+                        else:
+                          - script.execute:
+                              id: play_media_item
+                              media_id: !lambda 'return id(browse_item_1_media_id);'
+                              item_title: !lambda 'return id(browse_item_1_title);'
                   widgets:
                     - label:
                         id: lbl_browse_item_1_title
@@ -236,10 +281,19 @@ lvgl:
                     border_color: 0x00D1FF
                     border_width: 2
                   on_click:
-                    - script.execute:
-                        id: play_media_item
-                        media_id: !lambda 'return id(browse_item_2_media_id);'
-                        item_title: !lambda 'return id(browse_item_2_title);'
+                    - if:
+                        condition:
+                          lambda: 'return id(current_browse_category) == 5;'
+                        then:
+                          - script.execute:
+                              id: browse_artist_albums
+                              artist_id: !lambda 'return id(browse_item_2_media_id);'
+                              artist_name: !lambda 'return id(browse_item_2_title);'
+                        else:
+                          - script.execute:
+                              id: play_media_item
+                              media_id: !lambda 'return id(browse_item_2_media_id);'
+                              item_title: !lambda 'return id(browse_item_2_title);'
                   widgets:
                     - label:
                         id: lbl_browse_item_2_title
@@ -282,10 +336,19 @@ lvgl:
                     border_color: 0x00D1FF
                     border_width: 2
                   on_click:
-                    - script.execute:
-                        id: play_media_item
-                        media_id: !lambda 'return id(browse_item_3_media_id);'
-                        item_title: !lambda 'return id(browse_item_3_title);'
+                    - if:
+                        condition:
+                          lambda: 'return id(current_browse_category) == 5;'
+                        then:
+                          - script.execute:
+                              id: browse_artist_albums
+                              artist_id: !lambda 'return id(browse_item_3_media_id);'
+                              artist_name: !lambda 'return id(browse_item_3_title);'
+                        else:
+                          - script.execute:
+                              id: play_media_item
+                              media_id: !lambda 'return id(browse_item_3_media_id);'
+                              item_title: !lambda 'return id(browse_item_3_title);'
                   widgets:
                     - label:
                         id: lbl_browse_item_3_title

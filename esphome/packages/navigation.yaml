@@ -311,6 +311,7 @@ script:
   # ---------------------------------------------------------------------------
   # Returns to previous screen using navigation stack
   # If stack is empty, returns to HOME screen (screen 0)
+  # Special handling: Category 6 (Artist Albums) returns to Category 5 (Artists) at saved offset
   - id: navigate_back
     mode: restart
     then:
@@ -323,8 +324,19 @@ script:
 
           int current = id(current_screen);
           int depth = id(nav_stack_depth);
+          bool returning_from_artist_albums = false;
 
-          if (depth > 0) {
+          // Special case: If currently in Artist Albums (category 6), return to Artists (category 5)
+          if (id(current_browse_category) == 6) {
+            ESP_LOGI("navigation", "Navigating back from Artist Albums to Artists");
+            // Restore saved position and switch back to Artists category
+            id(browse_page_offset) = id(browse_saved_offset);
+            id(current_browse_category) = 5;
+            // Stay on browse page (screen 10), just reconfigure and reload
+            id(nav_lock) = true;
+            returning_from_artist_albums = true;
+            // Don't modify navigation stack - we're staying on the same screen
+          } else if (depth > 0) {
             // Pop from stack
             int target = id(nav_stack_0);
 
@@ -350,6 +362,34 @@ script:
           id(nav_lock) = true;
 
       # Show the target page with right animation (going back)
+      # Special case: Returning from Artist Albums (category 6) to Artists (category 5)
+      - if:
+          condition:
+            lambda: |-
+              // Check if we just transitioned from category 6 by looking at browse_context
+              return id(current_screen) == 10 && id(current_browse_category) == 5 &&
+                     !id(browse_context_artist_id).empty();
+          then:
+            # Clear artist context to indicate we're no longer in drill-down
+            - lambda: |-
+                id(browse_context_artist_id) = "";
+                id(browse_context_artist_name) = "";
+            # Reconfigure page for Artists category
+            - script.execute:
+                id: browse_configure_page
+                category: 5
+            # No page transition needed - already on page_browse
+            # Update alpha picker colors for artists
+            - script.execute:
+                id: letter_index_update_colors
+                category: 5
+            # Reload at saved position
+            - script.execute: browse_load_page
+            # Unlock after operations complete
+            - delay: 300ms
+            - lambda: |-
+                id(nav_lock) = false;
+                ESP_LOGI("navigation", "Returned to Artists from Artist Albums");
       - if:
           condition:
             lambda: 'return id(current_screen) == 0;'
