@@ -85,6 +85,13 @@ globals:
     restore_value: no
     initial_value: 'false'
 
+  # Flag to track when returning from drill-down (Artist Albums -> Artists)
+  # Prevents duplicate page operations in navigate_back
+  - id: nav_returning_from_drill
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
 # =============================================================================
 # Scripts - Navigation Control
 # =============================================================================
@@ -334,6 +341,7 @@ script:
             id(current_browse_category) = 5;
             // Stay on browse page (screen 10), just reconfigure and reload
             id(nav_lock) = true;
+            id(nav_returning_from_drill) = true;  // Flag to prevent duplicate page ops
             returning_from_artist_albums = true;
             // Don't modify navigation stack - we're staying on the same screen
           } else if (depth > 0) {
@@ -481,7 +489,8 @@ script:
                 category: 4
       - if:
           condition:
-            lambda: 'return id(current_screen) == 10;'
+            # Skip if returning from drill-down (handled by special case above)
+            lambda: 'return id(current_screen) == 10 && !id(nav_returning_from_drill);'
           then:
             - script.execute:
                 id: browse_configure_page
@@ -517,6 +526,7 @@ script:
       - delay: 300ms
       - lambda: |-
           id(nav_lock) = false;
+          id(nav_returning_from_drill) = false;  // Clear drill-down flag
           ESP_LOGI("navigation", "Navigate back complete, now on screen %d", id(current_screen));
 
   # ---------------------------------------------------------------------------
