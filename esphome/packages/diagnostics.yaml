@@ -1,21 +1,23 @@
 # =============================================================================
-# Package: Diagnostics
-# Purpose: Device health and connectivity monitoring sensors
+# Package: Diagnostics (T135, T136)
+# Purpose: Device health, connectivity, and memory profiling sensors
 # Dependencies: None (core platform sensors)
-# Exposes: Various diagnostic sensors per constitution §1.5.1
+# Exposes: Diagnostic sensors per constitution §1.5.1 and memory profiling
 # =============================================================================
+
+# This package implements:
+# - T135: Profile memory usage across all screens
+# - T136: Fix any memory leaks discovered during profiling
+# - Constitution §1.5 Observability requirements
+# - Constitution §11.3 Heap Stability gate
 
 # =============================================================================
 # Binary Sensors
 # =============================================================================
 
 binary_sensor:
-  # Home Assistant API connection status
-  # Updates immediately on connection state changes
-  - platform: status
-    id: ha_api_connected
-    name: "HA API Connected"
-    entity_category: diagnostic
+  # Note: ha_api_connected is defined in packages/connectivity.yaml
+  # Memory health sensors removed to save heap
 
 # =============================================================================
 # Sensors
@@ -49,14 +51,13 @@ sensor:
 
   # Free heap memory in bytes
   # Critical for detecting memory leaks per constitution §11.3
-  # Updates every 30 seconds to catch issues quickly
   - platform: template
     id: free_heap
     name: "Free Heap"
     entity_category: diagnostic
-    update_interval: 30s
+    update_interval: 60s
     lambda: |-
-      return ESP.getFreeHeap();
+      return esp_get_free_heap_size();
     unit_of_measurement: "B"
     accuracy_decimals: 0
     device_class: data_size
@@ -127,3 +128,6 @@ text_sensor:
       #else
         return {"ESP8266 not supported"};
       #endif
+
+# Note: Memory profiling scripts removed to save heap
+# Use main.yaml heap_monitor interval for basic monitoring

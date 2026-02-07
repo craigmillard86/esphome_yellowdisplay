@@ -1,0 +1,252 @@
+# =============================================================================
+# Package: Error Handler (T130, T131, T132, T133)
+# Purpose: Human-readable error display with auto-dismiss and touch-dismiss
+# Dependencies: ui/components/error_toast.yaml (toast UI component)
+# Exposes: error_show, error_dismiss scripts; error state tracking
+# =============================================================================
+
+# This package implements:
+# - T130: Display human-readable error messages (FR-080)
+# - T131: Auto-dismiss errors after 5 seconds (FR-083)
+# - T132: Allow touch to dismiss errors
+# - T133: Ensure errors do not block other UI functionality (FR-081)
+
+# =============================================================================
+# Global Variables - Error State
+# =============================================================================
+
+globals:
+  # Flag indicating if an error is currently displayed
+  - id: error_is_visible
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # Current error message (for debugging/logging)
+  - id: error_current_message
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+  # Timestamp when error was shown (for auto-dismiss timing)
+  - id: error_show_timestamp_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+  # Auto-dismiss timeout in milliseconds (5000ms = 5 seconds per FR-083)
+  - id: error_auto_dismiss_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '5000'
+
+# =============================================================================
+# Scripts - Error Display Control
+# =============================================================================
+
+script:
+  # ---------------------------------------------------------------------------
+  # Show Error Toast (T130)
+  # ---------------------------------------------------------------------------
+  # Displays an error message in the toast overlay
+  # Parameters:
+  #   message: Human-readable error message to display
+  - id: error_show
+    mode: restart  # Restart if called while already showing an error
+    parameters:
+      message: string
+    then:
+      - lambda: |-
+          // Store error state
+          id(error_is_visible) = true;
+          id(error_current_message) = message;
+          id(error_show_timestamp_ms) = millis();
+
+          // Update toast message text
+          lv_label_set_text(id(error_toast_message), message.c_str());
+
+          // Show the toast container
+          lv_obj_clear_flag(id(error_toast_container), LV_OBJ_FLAG_HIDDEN);
+
+          ESP_LOGW("error_handler", "Error shown: %s", message.c_str());
+
+      # Start auto-dismiss timer (T131)
+      - delay: 5s
+      - script.execute: error_auto_dismiss_check
+
+  # ---------------------------------------------------------------------------
+  # Dismiss Error Toast (T132)
+  # ---------------------------------------------------------------------------
+  # Hides the error toast immediately
+  # Called by touch handler or auto-dismiss timer
+  - id: error_dismiss
+    mode: single
+    then:
+      - lambda: |-
+          if (id(error_is_visible)) {
+            // Hide the toast container
+            lv_obj_add_flag(id(error_toast_container), LV_OBJ_FLAG_HIDDEN);
+
+            // Clear error state
+            id(error_is_visible) = false;
+
+            ESP_LOGI("error_handler", "Error dismissed: %s", id(error_current_message).c_str());
+            id(error_current_message) = "";
+          }
+
+  # ---------------------------------------------------------------------------
+  # Auto-Dismiss Check (T131)
+  # ---------------------------------------------------------------------------
+  # Checks if error should be auto-dismissed (called after delay)
+  # Only dismisses if the error hasn't been updated since timer started
+  - id: error_auto_dismiss_check
+    mode: single
+    then:
+      - lambda: |-
+          if (!id(error_is_visible)) {
+            return;  // Already dismissed
+          }
+
+          uint32_t now = millis();
+          uint32_t elapsed = now - id(error_show_timestamp_ms);
+
+          // Only auto-dismiss if enough time has passed (handles rapid error updates)
+          if (elapsed >= id(error_auto_dismiss_ms)) {
+            ESP_LOGD("error_handler", "Auto-dismissing error after %d ms", elapsed);
+            // Dismiss by hiding the toast
+            lv_obj_add_flag(id(error_toast_container), LV_OBJ_FLAG_HIDDEN);
+            id(error_is_visible) = false;
+            id(error_current_message) = "";
+          }
+
+  # ---------------------------------------------------------------------------
+  # Show Connection Error
+  # ---------------------------------------------------------------------------
+  # Convenience script for common connection error
+  - id: error_show_connection
+    mode: restart
+    then:
+      - script.execute:
+          id: error_show
+          message: "Connection lost"
+
+  # ---------------------------------------------------------------------------
+  # Show Player Error
+  # ---------------------------------------------------------------------------
+  # Convenience script for player-related errors
+  - id: error_show_player
+    mode: restart
+    then:
+      - script.execute:
+          id: error_show
+          message: "Player unavailable"
+
+  # ---------------------------------------------------------------------------
+  # Show Media Error
+  # ---------------------------------------------------------------------------
+  # Convenience script for media playback errors
+  - id: error_show_media
+    mode: restart
+    then:
+      - script.execute:
+          id: error_show
+          message: "Media playback error"
+
+  # ---------------------------------------------------------------------------
+  # Show Browse Error
+  # ---------------------------------------------------------------------------
+  # Convenience script for browsing/library errors
+  - id: error_show_browse
+    mode: restart
+    then:
+      - script.execute:
+          id: error_show
+          message: "Failed to load library"
+
+  # ---------------------------------------------------------------------------
+  # Show Grouping Error
+  # ---------------------------------------------------------------------------
+  # Convenience script for speaker grouping errors
+  - id: error_show_grouping
+    mode: restart
+    then:
+      - script.execute:
+          id: error_show
+          message: "Failed to update group"
+
+# =============================================================================
+# Interval - Error State Monitor (Optional)
+# =============================================================================
+
+# Note: Auto-dismiss is handled by the delay in error_show script.
+# This interval is optional backup for edge cases.
+
+interval:
+  # Backup auto-dismiss check every 1 second
+  - interval: 1s
+    then:
+      - lambda: |-
+          // Only check if error is visible
+          if (!id(error_is_visible)) {
+            return;
+          }
+
+          uint32_t now = millis();
+          uint32_t elapsed = now - id(error_show_timestamp_ms);
+
+          // Backup dismiss if timer somehow failed (should not happen)
+          if (elapsed >= (id(error_auto_dismiss_ms) + 1000)) {
+            ESP_LOGW("error_handler", "Backup auto-dismiss triggered after %d ms", elapsed);
+            lv_obj_add_flag(id(error_toast_container), LV_OBJ_FLAG_HIDDEN);
+            id(error_is_visible) = false;
+            id(error_current_message) = "";
+          }
+
+# =============================================================================
+# Usage Examples
+# =============================================================================
+#
+# Show a custom error message:
+#   - script.execute:
+#       id: error_show
+#       message: "Failed to connect to Music Assistant"
+#
+# Show a connection error:
+#   - script.execute: error_show_connection
+#
+# Show a player error with details:
+#   - script.execute:
+#       id: error_show_player
+#       details: "Speaker offline"
+#
+# Manually dismiss current error:
+#   - script.execute: error_dismiss
+#
+# =============================================================================
+# Integration Points
+# =============================================================================
+#
+# Add error handling to existing code by calling error_show in on_error handlers
+# or catch blocks. Example integration points:
+#
+# 1. HTTP Request failures:
+#    on_error:
+#      - script.execute:
+#          id: error_show
+#          message: "Network request failed"
+#
+# 2. Home Assistant API disconnection:
+#    on_disconnect:
+#      - script.execute: error_show_connection
+#
+# 3. Media player errors:
+#    on_state:
+#      - if:
+#          condition:
+#            lambda: 'return x == "unavailable";'
+#          then:
+#            - script.execute:
+#                id: error_show_player
+#                details: "Player unavailable"
+#
+# =============================================================================

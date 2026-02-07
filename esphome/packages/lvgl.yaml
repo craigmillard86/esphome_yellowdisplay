@@ -235,6 +235,23 @@ lvgl:
       text_color: 0x666666
       border_color: 0x3A3A3A
 
+    # Primary button pressed state (T139 - touch feedback within 100ms)
+    - id: style_btn_primary_pressed
+      bg_color: 0x00A6CC  # Slightly darker cyan
+      bg_opa: COVER
+
+    # Secondary button pressed state (T139 - touch feedback within 100ms)
+    - id: style_btn_secondary_pressed
+      bg_color: 0x2A2A2A
+      bg_opa: COVER
+      border_color: 0x00D1FF
+      border_width: 2
+
+    # Icon button pressed state (T139 - touch feedback within 100ms)
+    - id: style_btn_icon_pressed
+      bg_color: 0x2A2A2A
+      bg_opa: COVER
+
   # =============================================================================
   # Pages - UI Screens
   # =============================================================================

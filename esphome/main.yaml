@@ -90,7 +90,8 @@ packages:
   lvgl: !include packages/lvgl.yaml
   state_machine: !include packages/state_machine.yaml
   connectivity: !include packages/connectivity.yaml
-  # diagnostics: !include packages/diagnostics.yaml  # DISABLED to save ~4KB heap
+  # diagnostics: !include packages/diagnostics.yaml  # DISABLED - heap exhaustion
+  # logging: !include packages/logging.yaml  # DISABLED - settings.yaml has debug mode
   media_player: !include packages/media_player.yaml
   album_art: !include packages/album_art.yaml  # Last.fm API with memory optimizations
   navigation: !include packages/navigation.yaml  # Screen navigation with animations (T042-T044)
@@ -101,6 +102,8 @@ packages:
   # Testing Phase 9 isolation - re-enabling idle + settings (no UI)
   idle: !include packages/idle.yaml  # Idle timer and screen dimming (T123-T127)
   settings: !include packages/settings.yaml  # Settings persistence to NVS (T120-T122)
+  # error_handler: !include packages/error_handler.yaml  # DISABLED - heap optimization
+  # burn_in: !include packages/burn_in_mitigation.yaml  # DISABLED - heap optimization
   # UI Screens
   players_ui: !include ui/players.yaml  # Player management screen (T055)
   grouping_ui: !include ui/grouping.yaml  # Multi-room grouping screen (T091)
@@ -110,6 +113,7 @@ packages:
   settings_ui: !include ui/settings.yaml  # Device Settings screen (T112-T119)
   # UI Components
   header: !include ui/components/header.yaml  # Header with player name (T065)
+  # error_toast: !include ui/components/error_toast.yaml  # DISABLED - heap optimization
 
 # =============================================================================
 # Logging
