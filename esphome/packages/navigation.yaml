@@ -85,6 +85,20 @@ globals:
     restore_value: no
     initial_value: 'false'
 
+  # Flag to track when returning from drill-down (Artist Albums -> Artists)
+  # Prevents duplicate page operations in navigate_back
+  - id: nav_returning_from_drill
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # Flag to track when returning from Album Songs (category 7) to parent category
+  # Used to cleanly detect this transition and perform album context cleanup
+  - id: nav_returning_from_album_songs
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
 # =============================================================================
 # Scripts - Navigation Control
 # =============================================================================
@@ -311,6 +325,7 @@ script:
   # ---------------------------------------------------------------------------
   # Returns to previous screen using navigation stack
   # If stack is empty, returns to HOME screen (screen 0)
+  # Special handling: Category 6 (Artist Albums) returns to Category 5 (Artists) at saved offset
   - id: navigate_back
     mode: restart
     then:
@@ -323,8 +338,43 @@ script:
 
           int current = id(current_screen);
           int depth = id(nav_stack_depth);
+          bool returning_from_drill_down = false;
 
-          if (depth > 0) {
+          // Special case: If currently in Album Songs (category 7) AND on browse screen, return to saved category (4 or 6)
+          // Must check current_screen == 9 to avoid false trigger when returning from Now Playing
+          if (id(current_screen) == 9 && id(current_browse_category) == 7) {
+            int saved_cat = id(browse_saved_category);
+
+            // C1 Fix: Validate saved category is either 4 (Albums) or 6 (ArtistAlbums)
+            if (saved_cat != 4 && saved_cat != 6) {
+              ESP_LOGE("navigation", "Invalid saved category %d, defaulting to Albums (4)", saved_cat);
+              saved_cat = 4;  // Safe fallback to Albums
+            }
+
+            ESP_LOGI("navigation", "Navigating back from Album Songs to category %d", saved_cat);
+            // Restore saved position and switch back to parent category
+            id(browse_page_offset) = id(browse_saved_offset);
+            id(current_browse_category) = saved_cat;
+            // Stay on browse page, just reconfigure and reload
+            id(nav_lock) = true;
+            id(nav_returning_from_drill) = true;  // Flag to prevent duplicate page ops
+            id(nav_returning_from_album_songs) = true;  // C2 Fix: Set flag for album songs transition
+            returning_from_drill_down = true;
+            // Don't modify navigation stack - we're staying on the same screen
+          }
+          // Special case: If currently in Artist Albums (category 6) AND on browse screen, return to Artists (category 5)
+          // Must check current_screen == 10 to avoid false trigger when returning from Now Playing
+          else if (id(current_screen) == 10 && id(current_browse_category) == 6) {
+            ESP_LOGI("navigation", "Navigating back from Artist Albums to Artists");
+            // Restore saved position and switch back to Artists category
+            id(browse_page_offset) = id(browse_saved_offset);
+            id(current_browse_category) = 5;
+            // Stay on browse page (screen 10), just reconfigure and reload
+            id(nav_lock) = true;
+            id(nav_returning_from_drill) = true;  // Flag to prevent duplicate page ops
+            returning_from_drill_down = true;
+            // Don't modify navigation stack - we're staying on the same screen
+          } else if (depth > 0) {
             // Pop from stack
             int target = id(nav_stack_0);
 
@@ -350,6 +400,67 @@ script:
           id(nav_lock) = true;
 
       # Show the target page with right animation (going back)
+      # Special case: Returning from Album Songs (category 7) to parent category (4=Albums or 6=ArtistAlbums)
+      - if:
+          condition:
+            # C2 Fix: Use dedicated flag instead of checking stale context variable
+            lambda: 'return id(nav_returning_from_album_songs);'
+          then:
+            # Clear album context to indicate we're no longer in drill-down
+            - lambda: |-
+                int parent_cat = id(current_browse_category);
+                ESP_LOGI("navigation", "Clearing album context, returning to category %d", parent_cat);
+                id(browse_context_album_id) = "";
+                id(browse_context_album_name) = "";
+                id(browse_saved_category) = -1;
+            # Reconfigure page for parent category (4=Albums or 6=ArtistAlbums)
+            - script.execute:
+                id: browse_configure_page
+                category: !lambda 'return id(current_browse_category);'
+            # Update alpha picker colors if returning to Albums (category 4)
+            - if:
+                condition:
+                  lambda: 'return id(current_browse_category) == 4;'
+                then:
+                  - script.execute:
+                      id: letter_index_update_colors
+                      category: 4
+            # Reload at saved position
+            - script.execute: browse_load_page
+            # Unlock after operations complete
+            - delay: 300ms
+            - lambda: |-
+                id(nav_lock) = false;
+                id(nav_returning_from_album_songs) = false;  // C2 Fix: Clear flag after cleanup
+                ESP_LOGI("navigation", "Returned to category %d from Album Songs", id(current_browse_category));
+      # Special case: Returning from Artist Albums (category 6) to Artists (category 5)
+      - if:
+          condition:
+            lambda: |-
+              // Check if we just transitioned from category 6 by looking at browse_context
+              return id(current_screen) == 10 && id(current_browse_category) == 5 &&
+                     !id(browse_context_artist_id).empty();
+          then:
+            # Clear artist context to indicate we're no longer in drill-down
+            - lambda: |-
+                id(browse_context_artist_id) = "";
+                id(browse_context_artist_name) = "";
+            # Reconfigure page for Artists category
+            - script.execute:
+                id: browse_configure_page
+                category: 5
+            # No page transition needed - already on page_browse
+            # Update alpha picker colors for artists
+            - script.execute:
+                id: letter_index_update_colors
+                category: 5
+            # Reload at saved position
+            - script.execute: browse_load_page
+            # Unlock after operations complete
+            - delay: 300ms
+            - lambda: |-
+                id(nav_lock) = false;
+                ESP_LOGI("navigation", "Returned to Artists from Artist Albums");
       - if:
           condition:
             lambda: 'return id(current_screen) == 0;'
@@ -426,34 +537,26 @@ script:
                 time: 250ms
       - if:
           condition:
-            lambda: 'return id(current_screen) == 9;'
+            # Skip if returning from drill-down (handled by special case above)
+            lambda: 'return id(current_screen) == 9 && !id(nav_returning_from_drill);'
           then:
-            - script.execute:
-                id: browse_configure_page
-                category: 4
+            # Just show the page - state is preserved from before we left
+            # No need to reconfigure or reload when returning via back navigation
             - lvgl.page.show:
                 id: page_browse
                 animation: OUT_RIGHT
                 time: 250ms
-            # Update alpha picker colors for albums
-            - script.execute:
-                id: letter_index_update_colors
-                category: 4
       - if:
           condition:
-            lambda: 'return id(current_screen) == 10;'
+            # Skip if returning from drill-down (handled by special case above)
+            lambda: 'return id(current_screen) == 10 && !id(nav_returning_from_drill);'
           then:
-            - script.execute:
-                id: browse_configure_page
-                category: 5
+            # Just show the page - state is preserved from before we left
+            # No need to reconfigure or reload when returning via back navigation
             - lvgl.page.show:
                 id: page_browse
                 animation: OUT_RIGHT
                 time: 250ms
-            # Update alpha picker colors for artists
-            - script.execute:
-                id: letter_index_update_colors
-                category: 5
       - if:
           condition:
             lambda: 'return id(current_screen) == 11;'
@@ -477,6 +580,8 @@ script:
       - delay: 300ms
       - lambda: |-
           id(nav_lock) = false;
+          id(nav_returning_from_drill) = false;  // Clear drill-down flag
+          id(nav_returning_from_album_songs) = false;  // Clear album songs transition flag
           ESP_LOGI("navigation", "Navigate back complete, now on screen %d", id(current_screen));
 
   # ---------------------------------------------------------------------------

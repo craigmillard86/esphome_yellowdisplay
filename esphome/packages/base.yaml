@@ -1,0 +1,108 @@
+# =============================================================================
+# Package: Base Configuration (Shared between all devices)
+# Purpose: Common configuration for all device variants
+# Dependencies: Device-specific substitutions must be defined
+# =============================================================================
+
+# Core ESPHome Configuration
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+  platformio_options:
+    board_build.f_cpu: 240000000L  # 240MHz CPU frequency
+
+  # Memory monitoring on boot
+  on_boot:
+    priority: 800  # Run very early, before most components init
+    then:
+      - lambda: |-
+          // Log initial heap status
+          uint32_t free_heap = esp_get_free_heap_size();
+          uint32_t largest_block = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+          ESP_LOGI("memory", "Boot heap status - Free: %u bytes, Largest block: %u bytes",
+                   free_heap, largest_block);
+
+# =============================================================================
+# Logging
+# =============================================================================
+
+logger:
+  level: INFO
+  logs:
+    component: ERROR  # Reduce component verbosity
+    lvgl: WARN  # Reduce LVGL verbosity
+  baud_rate: 115200
+  tx_buffer_size: 512
+
+# =============================================================================
+# Home Assistant Integration
+# =============================================================================
+
+api:
+  encryption:
+    key: !secret api_key
+
+  # Service callbacks for Music Assistant control
+  services:
+    - service: play_media
+      variables:
+        media_id: string
+      then:
+        - logger.log:
+            format: "Play media requested: %s"
+            args: ['media_id.c_str()']
+
+    - service: set_volume
+      variables:
+        volume: float
+      then:
+        - logger.log:
+            format: "Volume set to: %.0f%%"
+            args: ['volume']
+
+    # Settings services (T120)
+    - service: set_debug_mode
+      variables:
+        enabled: bool
+      then:
+        - script.execute:
+            id: set_debug_mode
+            enabled: !lambda 'return enabled;'
+
+    - service: reset_settings
+      then:
+        - script.execute: reset_settings
+
+# =============================================================================
+# Preferences (NVS Storage for persistent globals)
+# =============================================================================
+
+preferences:
+  flash_write_interval: 1min
+
+# =============================================================================
+# Over-The-Air Updates
+# =============================================================================
+
+ota:
+  platform: esphome
+  password: !secret ota_password
+
+# =============================================================================
+# Memory Monitoring
+# =============================================================================
+
+interval:
+  # Monitor heap health every 30 seconds
+  - interval: 30s
+    then:
+      - lambda: |-
+          uint32_t free_heap = esp_get_free_heap_size();
+          uint32_t largest_block = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+          uint32_t min_free = esp_get_minimum_free_heap_size();
+          float fragmentation = 100.0f * (1.0f - ((float)largest_block / (float)free_heap));
+          ESP_LOGI("heap_monitor", "Free: %u bytes | Largest block: %u bytes | Min free: %u bytes | Fragmentation: %.1f%%",
+                   free_heap, largest_block, min_free, fragmentation);
+          if (largest_block < 50000) {
+            ESP_LOGW("heap_monitor", "WARNING: Largest free block is below 50KB!");
+          }

@@ -1,0 +1,37 @@
+# =============================================================================
+# Device Configuration: ESP32-2432S028R (Original CYD - Cheap Yellow Display)
+# =============================================================================
+# MCU: ESP32-WROOM @ 240MHz
+# Display: 2.8" ILI9341 TFT 320x240
+# Touch: XPT2046 resistive (SPI)
+# Note: Uses SEPARATE SPI buses for display and touch
+# =============================================================================
+
+substitutions:
+  # Platform
+  esp_board: "esp32dev"
+  esp_variant: "esp32"
+  has_psram: "false"
+
+  # SPI - Display bus
+  spi_tft_clk: "14"
+  spi_tft_mosi: "13"
+  spi_tft_miso: "12"
+
+  # SPI - Touch bus (separate on original CYD)
+  spi_touch_clk: "25"
+  spi_touch_mosi: "32"
+  spi_touch_miso: "39"
+
+  # Display
+  display_cs: "15"
+  display_dc: "2"
+  display_model: "ILI9341"
+
+  # Touch - XPT2046 resistive (SPI)
+  touch_platform: "xpt2046"
+  touch_cs: "33"
+  touch_irq: "36"
+
+  # Backlight
+  backlight_pin: "21"

@@ -1,7 +1,7 @@
 # =============================================================================
-# Package: Touch Controller Configuration
+# Package: Touch Controller - XPT2046 (Original CYD)
 # Purpose: XPT2046 resistive touch controller initialization
-# Dependencies: packages/spi.yaml (requires 'touch' spi component)
+# Dependencies: packages/hardware/spi_touch.yaml (requires 'touch' spi component)
 # Exposes: touchscreen component 'touch_controller'
 # Hardware: XPT2046 on separate SPI bus from display
 # =============================================================================
@@ -10,8 +10,8 @@ touchscreen:
   - platform: xpt2046
     id: touch_controller
     spi_id: touch
-    cs_pin: 33
-    interrupt_pin: 36
+    cs_pin: ${touch_cs}
+    interrupt_pin: ${touch_irq}
     threshold: 400
     calibration:
       x_min: 280

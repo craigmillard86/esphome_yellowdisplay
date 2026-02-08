@@ -276,6 +276,46 @@ text_sensor:
 
 script:
   # ---------------------------------------------------------------------------
+  # Update Library Tile State
+  # ---------------------------------------------------------------------------
+  # Updates the Library tile visual state based on player selection
+  # Shows "Select Player" overlay when no player is selected
+  - id: update_library_tile_state
+    mode: single
+    then:
+      - lambda: |-
+          // Get widget references
+          auto library_tile = id(tile_library);
+          auto no_player_lbl = id(lbl_library_no_player);
+          auto icon_lbl = id(lbl_library_icon);
+          auto text_lbl = id(lbl_library_text);
+
+          // Check if widgets are initialized (may not be ready during early boot)
+          if (library_tile == nullptr || no_player_lbl == nullptr ||
+              icon_lbl == nullptr || text_lbl == nullptr) {
+            ESP_LOGW("player_mgr", "Library tile widgets not ready, deferring state update");
+            return;
+          }
+
+          bool has_player = !id(selected_player_id).empty();
+          if (has_player) {
+            // Hide overlay, show normal state
+            lv_obj_add_flag(no_player_lbl, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_bg_opa(library_tile, LV_OPA_COVER, 0);
+            // Restore normal icon/text colors
+            lv_obj_set_style_text_color(icon_lbl, lv_color_hex(0xFFFFFF), 0);
+            lv_obj_set_style_text_color(text_lbl, lv_color_hex(0xFFFFFF), 0);
+          } else {
+            // Show overlay, dim the tile (50% opacity)
+            lv_obj_clear_flag(no_player_lbl, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_bg_opa(library_tile, LV_OPA_50, 0);
+            // Dim icon/text to make overlay more visible
+            lv_obj_set_style_text_color(icon_lbl, lv_color_hex(0x666666), 0);
+            lv_obj_set_style_text_color(text_lbl, lv_color_hex(0x666666), 0);
+          }
+          ESP_LOGD("player_mgr", "Library tile state updated: player_selected=%d", has_player);
+
+  # ---------------------------------------------------------------------------
   # Initialize Player Manager (T067)
   # ---------------------------------------------------------------------------
   # Called on boot to restore selected player and validate availability
@@ -309,6 +349,9 @@ script:
 
       # Request player list update from HA
       - script.execute: refresh_player_list
+
+      # Update Library tile state based on player selection
+      - script.execute: update_library_tile_state
 
   # ---------------------------------------------------------------------------
   # Refresh Player List (T060)
@@ -440,6 +483,7 @@ script:
             // Update UI
             id(update_player_rows).execute();
             id(update_header_player_name).execute();
+            id(update_library_tile_state).execute();
             return;
           }
 
@@ -487,6 +531,9 @@ script:
 
       # Hide "No Player Selected" overlay on Now Playing screen
       - lvgl.widget.hide: no_player_overlay
+
+      # Update Library tile state (show normal appearance)
+      - script.execute: update_library_tile_state
 
       - logger.log:
           tag: "player_mgr"

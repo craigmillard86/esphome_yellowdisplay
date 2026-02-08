@@ -1,22 +1,23 @@
 # =============================================================================
-# Package: SPI Bus Configuration
+# Package: SPI Bus Configuration (Original CYD - ESP32-2432S028R)
 # Purpose: Dual SPI bus initialization for display and touch
-# Dependencies: None (hardware-level package)
+# Dependencies: Device file (devices/cyd_original.yaml)
 # Exposes: spi components 'tft' and 'touch'
 # Note: ESP32-2432S028R uses SEPARATE SPI buses for display and touch
 # =============================================================================
 
 spi:
   # SPI bus for ILI9341 TFT display
+  # GPIO12 is a strapping pin on ESP32 - ignore warning as it's used for MISO
   - id: tft
-    clk_pin: 14
-    mosi_pin: 13
+    clk_pin: ${spi_tft_clk}
+    mosi_pin: ${spi_tft_mosi}
     miso_pin:
-      number: 12
+      number: ${spi_tft_miso}
       ignore_strapping_warning: true
 
   # Separate SPI bus for XPT2046 touch controller
   - id: touch
-    clk_pin: 25
-    mosi_pin: 32
-    miso_pin: 39
+    clk_pin: ${spi_touch_clk}
+    mosi_pin: ${spi_touch_mosi}
+    miso_pin: ${spi_touch_miso}

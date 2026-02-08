@@ -1,0 +1,40 @@
+# =============================================================================
+# Device Configuration: Freenove ESP32-S3 CYD
+# =============================================================================
+# MCU: ESP32-S3 @ 240MHz with PSRAM
+# Display: 2.8" ILI9341 TFT 320x240
+# Touch: FT6336 capacitive (I2C)
+# Note: Single SPI bus for display, touch uses I2C
+# =============================================================================
+
+substitutions:
+  # Platform
+  esp_board: "esp32-s3-devkitc-1"
+  esp_variant: "esp32s3"
+  has_psram: "true"
+
+  # SPI - Display bus (FNK0104 pinout)
+  spi_tft_clk: "12"
+  spi_tft_mosi: "11"
+  spi_tft_miso: "13"
+
+  # SPI - Touch (not used on S3, uses I2C)
+  spi_touch_clk: ""
+  spi_touch_mosi: ""
+  spi_touch_miso: ""
+
+  # Display (FNK0104 pinout)
+  display_cs: "10"
+  display_dc: "46"
+  display_model: "ILI9341"
+
+  # Touch - FT6336 capacitive (I2C)
+  touch_platform: "ft63x6"
+  touch_i2c_sda: "16"
+  touch_i2c_scl: "15"
+  # Not used for I2C touch
+  touch_cs: ""
+  touch_irq: ""
+
+  # Backlight
+  backlight_pin: "45"

@@ -1,0 +1,30 @@
+# =============================================================================
+# Package: Touch Controller - FT63x6 (Freenove ESP32-S3)
+# Purpose: FT6336 capacitive touch controller initialization
+# Dependencies: None (uses I2C, not SPI)
+# Exposes: touchscreen component 'touch_controller'
+# Hardware: FT6336 capacitive touch via I2C
+# Pins: SDA=16, SCL=15
+# =============================================================================
+
+i2c:
+  sda: ${touch_i2c_sda}
+  scl: ${touch_i2c_scl}
+  scan: true
+  id: touch_i2c
+
+touchscreen:
+  - platform: ft63x6
+    id: touch_controller
+    i2c_id: touch_i2c
+    calibration:
+      x_min: 5
+      x_max: 325
+      y_min: 0
+      y_max: 205
+    transform:
+      swap_xy: true
+      mirror_y: true
+    # Reset idle timer on any touch (T126)
+    on_touch:
+      - script.execute: reset_idle_timer

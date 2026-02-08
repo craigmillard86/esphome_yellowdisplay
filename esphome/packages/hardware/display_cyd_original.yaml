@@ -1,7 +1,7 @@
 # =============================================================================
-# Package: Display Configuration
-# Purpose: ILI9341 TFT display initialization and hardware setup
-# Dependencies: packages/spi.yaml (requires 'tft' spi component)
+# Package: Display Configuration (Original CYD - ESP32-2432S028R)
+# Purpose: ILI9341 TFT display initialization
+# Dependencies: packages/hardware/spi_cyd_original.yaml (requires 'tft' spi)
 # Exposes: display component 'main_display'
 # Hardware: 240x320 ILI9341, configured for 320x240 landscape (rotation 90°)
 # =============================================================================
@@ -9,13 +9,13 @@
 display:
   - platform: ili9xxx
     id: main_display
-    model: ILI9341
+    model: ${display_model}
     spi_id: tft
     cs_pin:
-      number: 15
+      number: ${display_cs}
       ignore_strapping_warning: true
     dc_pin:
-      number: 2
+      number: ${display_dc}
       ignore_strapping_warning: true
     rotation: 90
     invert_colors: false
