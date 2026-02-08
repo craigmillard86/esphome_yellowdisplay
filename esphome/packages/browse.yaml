@@ -280,6 +280,22 @@ globals:
     restore_value: no
     initial_value: '""'
 
+  # ========== Album Songs Context (for drill-down from Albums → Songs) ==========
+  - id: browse_context_album_id
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+  - id: browse_context_album_name
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+  - id: browse_saved_category
+    type: int
+    restore_value: no
+    initial_value: '-1'
+
   - id: browse_saved_offset
     type: int
     restore_value: no
@@ -316,6 +332,11 @@ script:
               // For artist albums, use the stored artist name
               title = id(browse_context_artist_name).c_str();
               show_alpha = false;  // No alpha picker for filtered view
+              break;
+            case 7:
+              // For album songs, use the stored album name
+              title = id(browse_context_album_name).c_str();
+              show_alpha = false;  // No alpha picker for song list
               break;
           }
 
@@ -375,8 +396,8 @@ script:
             lv_obj_set_x(id(btn_browse_next), 206);
           }
 
-          // Show/hide Play All button (T014-T016) - visible only for Artist Albums (category 6)
-          if (category == 6) {
+          // Show/hide Play All button (T014-T016) - visible for Artist Albums (6) and Album Songs (7)
+          if (category == 6 || category == 7) {
             lv_obj_clear_flag(id(btn_browse_play_all), LV_OBJ_FLAG_HIDDEN);
           } else {
             lv_obj_add_flag(id(btn_browse_play_all), LV_OBJ_FLAG_HIDDEN);
@@ -467,6 +488,9 @@ script:
           url: !lambda |-
             if (category == 1) {
               return std::string("${ha_api_url}/api/template");
+            } else if (category == 6 || category == 7) {
+              // Artist Albums and Album Songs use browse_media (requires player entity_id)
+              return std::string("${ha_api_url}/api/services/media_player/browse_media?return_response");
             } else {
               return std::string("${ha_api_url}/api/services/music_assistant/get_library?return_response");
             }
@@ -520,13 +544,20 @@ script:
                 root["config_entry_id"] = "${ma_config_entry_id}";
                 break;
 
-              case 6: // Artist Albums - Query albums filtered by selected artist
-                root["media_type"] = "album";
-                root["artist"] = id(browse_context_artist_id).c_str();
-                root["limit"] = 4;
-                root["offset"] = offset;
-                root["order_by"] = "name";
-                root["config_entry_id"] = "${ma_config_entry_id}";
+              case 6: // Artist Albums - browse artist's children via browse_media
+                root["entity_id"] = id(selected_player_id).c_str();
+                root["media_content_type"] = "music";
+                root["media_content_id"] = id(browse_context_artist_id).c_str();
+                ESP_LOGI("browse", "Artist Albums: browsing URI '%s' via player '%s'",
+                         id(browse_context_artist_id).c_str(), id(selected_player_id).c_str());
+                break;
+
+              case 7: // Album Songs - browse album's children via browse_media
+                root["entity_id"] = id(selected_player_id).c_str();
+                root["media_content_type"] = "music";
+                root["media_content_id"] = id(browse_context_album_id).c_str();
+                ESP_LOGI("browse", "Album Songs: browsing URI '%s' via player '%s'",
+                         id(browse_context_album_id).c_str(), id(selected_player_id).c_str());
                 break;
 
               default:
@@ -652,15 +683,28 @@ script:
                     ESP_LOGI("browse", "Total items available: %d", total);
                   }
 
-                  // Parse each item in array (limit to 10 items)
+                  // For browse_media responses (categories 6, 7), find the "children" array
+                  int cat = id(current_browse_category);
+                  if (cat == 6 || cat == 7) {
+                    size_t children_pos = body.find("\"children\"");
+                    if (children_pos != std::string::npos) {
+                      pos = children_pos;
+                      ESP_LOGI("browse", "Found children array at pos %d", (int)children_pos);
+                    } else {
+                      ESP_LOGW("browse", "No children array found in browse_media response");
+                    }
+                  }
+
+                  // Parse each item in array (limit to 4 items per page)
                   while (item_count < 4 && pos < body.length()) {
-                    // Find next object start (after "items")
+                    // Find next object start
                     size_t obj_start = body.find("{", pos);
                     if (obj_start == std::string::npos) break;
 
-                    // Skip the outer service_response object
+                    // Skip wrapper objects
                     if (body.find("\"service_response\"", obj_start) == obj_start + 1 ||
-                        body.find("\"items\"", obj_start) < obj_start + 20) {
+                        body.find("\"items\"", obj_start) < obj_start + 20 ||
+                        body.find("\"children\"", obj_start) < obj_start + 20) {
                       pos = obj_start + 1;
                       continue;
                     }
@@ -680,27 +724,71 @@ script:
                     }
                     if (obj_end == obj_start) break;  // No matching brace found
 
-                    // Extract fields - try "uri" first (MA format), fallback to "id"
-                    std::string media_id = extract_json_string(obj_start, "uri");
+                    // Extract media_id - browse_media uses "media_content_id", get_library uses "uri"
+                    std::string media_id;
+                    if (cat == 6 || cat == 7) {
+                      media_id = extract_json_string(obj_start, "media_content_id");
+                    } else {
+                      media_id = extract_json_string(obj_start, "uri");
+                    }
                     if (media_id.empty()) {
                       media_id = extract_json_string(obj_start, "id");
                     }
 
-                    // Extract name/title
-                    std::string title = extract_json_string(obj_start, "name");
-                    if (title.empty()) {
+                    // Extract name/title - browse_media uses "title", get_library uses "name"
+                    std::string title;
+                    if (cat == 6 || cat == 7) {
                       title = extract_json_string(obj_start, "title");
+                      if (title.empty()) title = extract_json_string(obj_start, "name");
+                      // browse_media returns "Artist - Album/Song" format, strip the artist prefix
+                      size_t dash_pos = title.find(" - ");
+                      if (dash_pos != std::string::npos) {
+                        title = title.substr(dash_pos + 3);
+                      }
+                    } else {
+                      title = extract_json_string(obj_start, "name");
+                      if (title.empty()) title = extract_json_string(obj_start, "title");
                     }
 
-                    // Extract artist/subtitle - try multiple fields
-                    std::string artist = extract_json_string(obj_start, "artist");
-                    if (artist.empty()) {
-                      artist = extract_json_string(obj_start, "media_type");
+                    // Extract artist/subtitle - skip for categories 6 & 7 (context already shown in title)
+                    std::string artist;
+                    if (cat != 6 && cat != 7) {
+                      artist = extract_json_string(obj_start, "artist");
+                      if (artist.empty()) {
+                        artist = extract_json_string(obj_start, "media_type");
+                      }
                     }
 
                     if (media_id.empty() || title.empty()) {
                       pos = obj_end + 1;
                       continue;  // Skip invalid entries
+                    }
+
+                    // For category 7 (Album Songs), format title as "N. Song Title"
+                    int current_category = id(current_browse_category);
+                    if (current_category == 7) {
+                      // Extract track_number from response, use offset+item_count+1 as fallback
+                      int track_num = id(browse_page_offset) + item_count + 1;
+                      // Try to extract track_number from JSON
+                      std::string track_num_search = "\"track_number\":";
+                      size_t track_pos = body.find(track_num_search, obj_start);
+                      if (track_pos != std::string::npos && track_pos < obj_end) {
+                        size_t num_start = track_pos + track_num_search.length();
+                        while (num_start < body.length() && (body[num_start] == ' ' || body[num_start] == '\t')) num_start++;
+                        std::string num_str;
+                        while (num_start < body.length() && body[num_start] >= '0' && body[num_start] <= '9') {
+                          num_str += body[num_start++];
+                        }
+                        if (!num_str.empty()) {
+                          track_num = std::stoi(num_str);
+                        }
+                      }
+                      // Format as "N. Song Title"
+                      char formatted_title[128];
+                      snprintf(formatted_title, sizeof(formatted_title), "%d. %s", track_num, title.c_str());
+                      title = formatted_title;
+                      // Clear subtitle for songs (no need to show artist within album)
+                      artist = "";
                     }
 
                     ESP_LOGI("browse", "Item %d: uri=%s, name=%s, type=%s",
@@ -784,6 +872,11 @@ script:
             entity_id: !lambda 'return id(selected_player_id);'
             media_id: !lambda 'return std::string(media_id);'
 
+      # Navigate to Now Playing screen
+      - script.execute:
+          id: navigate_to
+          target_screen: 1  # Now Playing
+
       - logger.log:
           tag: "browse"
           level: INFO
@@ -816,6 +909,32 @@ script:
           target_screen: 1  # Now Playing
 
   # ---------------------------------------------------------------------------
+  # Play All Album (T014)
+  # ---------------------------------------------------------------------------
+  # Plays all songs from the currently selected album
+  - id: play_album_all
+    mode: single
+    then:
+      - lambda: |-
+          if (id(browse_context_album_id).empty()) {
+            ESP_LOGW("browse", "No album selected for Play All");
+            return;
+          }
+          if (id(selected_player_id).empty()) {
+            ESP_LOGW("browse", "No player selected for Play All");
+            return;
+          }
+          ESP_LOGI("browse", "Playing all from album: %s", id(browse_context_album_name).c_str());
+      - homeassistant.service:
+          service: music_assistant.play_media
+          data:
+            entity_id: !lambda 'return id(selected_player_id);'
+            media_id: !lambda 'return id(browse_context_album_id);'
+      - script.execute:
+          id: navigate_to
+          target_screen: 1  # Now Playing
+
+  # ---------------------------------------------------------------------------
   # Refresh Browse List
   # ---------------------------------------------------------------------------
   # Reloads current category (useful after playback or favorites change)
@@ -841,6 +960,7 @@ script:
   # ---------------------------------------------------------------------------
   # Filters albums by selected artist (category 6)
   # Saves current position for back navigation
+  # NOTE: Requires a player to be selected (browse_media API needs entity_id)
   - id: browse_artist_albums
     mode: single
     parameters:
@@ -848,6 +968,12 @@ script:
       artist_name: string
     then:
       - lambda: |-
+          // Check if player is selected (required for browse_media API)
+          if (id(selected_player_id).empty()) {
+            ESP_LOGW("browse", "Cannot browse artist albums: no player selected");
+            return;
+          }
+
           // Save current position for back navigation
           id(browse_saved_offset) = id(browse_page_offset);
 
@@ -864,13 +990,69 @@ script:
 
           ESP_LOGI("browse", "Browsing albums for artist: %s (ID: %s)", artist_name.c_str(), artist_id.c_str());
 
-      # Configure UI for artist albums view (shows Play All, hides alpha picker, sets title)
-      - script.execute:
-          id: browse_configure_page
-          category: 6
+      # Skip if player check failed (lambda returned early)
+      - if:
+          condition:
+            lambda: 'return !id(selected_player_id).empty();'
+          then:
+            # Configure UI for artist albums view (shows Play All, hides alpha picker, sets title)
+            - script.execute:
+                id: browse_configure_page
+                category: 6
 
-      # Load first page of artist's albums
-      - script.execute: browse_load_page
+            # Load first page of artist's albums
+            - script.execute: browse_load_page
+
+  # ---------------------------------------------------------------------------
+  # Browse Album Songs (Drill-down from Albums or Artist Albums)
+  # ---------------------------------------------------------------------------
+  # Shows songs within a selected album (category 7)
+  # NOTE: Requires a player to be selected (browse_media API needs entity_id)
+  # Parameters:
+  #   album_id: string (Music Assistant album URI)
+  #   album_name: string (Album display name)
+  - id: browse_album_songs
+    mode: single
+    parameters:
+      album_id: std::string
+      album_name: std::string
+    then:
+      - lambda: |-
+          // Check if player is selected (required for browse_media API)
+          if (id(selected_player_id).empty()) {
+            ESP_LOGW("browse", "Cannot browse album songs: no player selected");
+            return;
+          }
+
+          ESP_LOGI("browse", "Browse album songs: %s (ID: %s)", album_name.c_str(), album_id.c_str());
+
+          // Save current position for back navigation
+          id(browse_saved_category) = id(current_browse_category);
+          id(browse_saved_offset) = id(browse_page_offset);
+
+          // Set album context
+          id(browse_context_album_id) = album_id;
+          id(browse_context_album_name) = album_name;
+
+          // Switch to album songs mode
+          id(current_browse_category) = 7;
+          id(browse_page_offset) = 0;
+          id(browse_loaded_items) = 0;
+          id(browse_total_items) = 0;  // Will be populated from response
+          id(browse_alpha_filter) = "";  // Reset filter
+
+      # Skip if player check failed (lambda returned early)
+      - if:
+          condition:
+            lambda: 'return !id(selected_player_id).empty();'
+          then:
+            # Configure UI for album songs view (shows Play All, hides alpha picker, sets title)
+            - script.execute:
+                id: browse_configure_page
+                category: 7
+
+            # Load first page of album's songs
+            - script.execute: browse_load_page
 
   # ---------------------------------------------------------------------------
   # Clear Browse Data
@@ -1122,11 +1304,11 @@ script:
             if (category == 1) {
               return std::string("${ha_api_url}/api/template");
             }
-            // Category 6 (Artist Albums): uses search service
-            if (category == 6) {
-              return std::string("${ha_api_url}/api/services/music_assistant/search?return_response");
+            // Categories 6 & 7 use browse_media (requires player entity_id)
+            if (category == 6 || category == 7) {
+              return std::string("${ha_api_url}/api/services/media_player/browse_media?return_response");
             }
-            // All other categories use HA get_library service
+            // Other categories use HA get_library service
             return std::string("${ha_api_url}/api/services/music_assistant/get_library?return_response");
           request_headers:
             Authorization: "Bearer ${ha_api_token}"
@@ -1177,14 +1359,19 @@ script:
                 root["config_entry_id"] = "${ma_config_entry_id}";
                 ESP_LOGI("browse", "Artists: offset=%d, filter='%s'", offset, alpha_filter.c_str());
                 break;
-              case 6: // Artist Albums - uses search to find albums by artist name
-                root["name"] = id(browse_context_artist_name).c_str();
-                root["media_type"] = JsonArray();
-                root["media_type"].add("album");
-                root["limit"] = 25;
-                root["config_entry_id"] = "${ma_config_entry_id}";
-                ESP_LOGI("browse", "Artist Albums (search): artist='%s'",
-                         id(browse_context_artist_name).c_str());
+              case 6: // Artist Albums - browse artist's children via browse_media
+                root["entity_id"] = id(selected_player_id).c_str();
+                root["media_content_type"] = "music";
+                root["media_content_id"] = id(browse_context_artist_id).c_str();
+                ESP_LOGI("browse", "Artist Albums: browsing URI '%s' via player '%s'",
+                         id(browse_context_artist_id).c_str(), id(selected_player_id).c_str());
+                break;
+              case 7: // Album Songs - browse album's children via browse_media
+                root["entity_id"] = id(selected_player_id).c_str();
+                root["media_content_type"] = "music";
+                root["media_content_id"] = id(browse_context_album_id).c_str();
+                ESP_LOGI("browse", "Album Songs: browsing URI '%s' via player '%s'",
+                         id(browse_context_album_id).c_str(), id(selected_player_id).c_str());
                 break;
               default:
                 root["template"] = "{\"items\":[]}";
@@ -1329,25 +1516,25 @@ script:
                   }
 
                   // HA format: {"service_response":{"items":[{...}]}} or {"items":[{...}]}
-                  // For search (category 6): {"service_response":{"albums":[{...}]}}
+                  // For browse_media (category 6, 7): {"service_response":{"children":[{...}]}}
+                  int category = id(current_browse_category);
                   size_t items_start = body.find("\"items\"");
                   if (items_start != std::string::npos) {
                     pos = items_start;
                   }
-                  // For category 6 (Artist Albums via search), look for "albums" array
-                  if (id(current_browse_category) == 6) {
-                    size_t albums_start = body.find("\"albums\"");
-                    if (albums_start != std::string::npos) {
-                      pos = albums_start;
-                      ESP_LOGI("browse", "Found albums array for search results at pos %d", albums_start);
+                  // For categories 6 and 7, look for "children" array from browse_media
+                  if (category == 6 || category == 7) {
+                    size_t children_start = body.find("\"children\"");
+                    if (children_start != std::string::npos) {
+                      pos = children_start;
+                      ESP_LOGI("browse", "Found children array at pos %d", (int)children_start);
+                    } else {
+                      ESP_LOGW("browse", "No children array found in browse_media response");
                     }
                   }
 
-                  // Category for logging
-                  int category = id(current_browse_category);
-
-                  // For category 6, we need client-side pagination (skip offset items)
-                  int skip_count = (category == 6) ? id(browse_page_offset) : 0;
+                  // For categories 6 and 7, we need client-side pagination (skip offset items)
+                  int skip_count = (category == 6 || category == 7) ? id(browse_page_offset) : 0;
                   int skipped = 0;
                   int total_found = 0;  // Track total items for category 6
 
@@ -1357,7 +1544,7 @@ script:
                     // Skip wrapper objects
                     if (body.find("\"service_response\"", obj_start) == obj_start + 1 ||
                         body.find("\"items\"", obj_start) < obj_start + 20 ||
-                        body.find("\"albums\"", obj_start) < obj_start + 20) {
+                        body.find("\"children\"", obj_start) < obj_start + 20) {
                       pos = obj_start + 1;
                       continue;
                     }
@@ -1376,17 +1563,37 @@ script:
                     }
                     if (obj_end == obj_start) break;  // No matching brace found
 
-                    // Extract media_id - HA service returns "uri" field
-                    std::string media_id = extract_json_string(obj_start, "uri");
+                    // Extract media_id - browse_media uses "media_content_id", get_library uses "uri"
+                    std::string media_id;
+                    if (category == 6 || category == 7) {
+                      media_id = extract_json_string(obj_start, "media_content_id");
+                    } else {
+                      media_id = extract_json_string(obj_start, "uri");
+                    }
                     if (media_id.empty()) media_id = extract_json_value(obj_start, "id");
 
-                    std::string title = extract_json_string(obj_start, "name");
-                    if (title.empty()) title = extract_json_string(obj_start, "title");
+                    // Extract name/title - browse_media uses "title", get_library uses "name"
+                    std::string title;
+                    if (category == 6 || category == 7) {
+                      title = extract_json_string(obj_start, "title");
+                      if (title.empty()) title = extract_json_string(obj_start, "name");
+                      // browse_media returns "Artist - Album/Song" format, strip the artist prefix
+                      size_t dash_pos = title.find(" - ");
+                      if (dash_pos != std::string::npos) {
+                        title = title.substr(dash_pos + 3);
+                      }
+                    } else {
+                      title = extract_json_string(obj_start, "name");
+                      if (title.empty()) title = extract_json_string(obj_start, "title");
+                    }
 
-                    // Extract artist/subtitle
-                    std::string artist = extract_json_string(obj_start, "artist");
-                    if (artist.empty()) artist = extract_json_string(obj_start, "display_name");
-                    if (artist.empty()) artist = extract_json_string(obj_start, "media_type");
+                    // Extract artist/subtitle - skip for categories 6 & 7 (context already shown in title)
+                    std::string artist;
+                    if (category != 6 && category != 7) {
+                      artist = extract_json_string(obj_start, "artist");
+                      if (artist.empty()) artist = extract_json_string(obj_start, "display_name");
+                      if (artist.empty()) artist = extract_json_string(obj_start, "media_type");
+                    }
 
                     if (media_id.empty() || title.empty()) {
                       pos = obj_end + 1;
@@ -1401,6 +1608,32 @@ script:
                       skipped++;
                       pos = obj_end + 1;
                       continue;
+                    }
+
+                    // For category 7 (Album Songs), format title as "N. Song Title"
+                    if (category == 7) {
+                      // Extract track_number from response, use offset+item_count+1 as fallback
+                      int track_num = id(browse_page_offset) + item_count + 1;
+                      // Try to extract track_number from JSON
+                      std::string track_num_search = "\"track_number\":";
+                      size_t track_pos = body.find(track_num_search, obj_start);
+                      if (track_pos != std::string::npos && track_pos < obj_end) {
+                        size_t num_start = track_pos + track_num_search.length();
+                        while (num_start < body.length() && (body[num_start] == ' ' || body[num_start] == '\t')) num_start++;
+                        std::string num_str;
+                        while (num_start < body.length() && body[num_start] >= '0' && body[num_start] <= '9') {
+                          num_str += body[num_start++];
+                        }
+                        if (!num_str.empty()) {
+                          track_num = std::stoi(num_str);
+                        }
+                      }
+                      // Format as "N. Song Title"
+                      char formatted_title[128];
+                      snprintf(formatted_title, sizeof(formatted_title), "%d. %s", track_num, title.c_str());
+                      title = formatted_title;
+                      // Clear subtitle for songs (no need to show artist within album)
+                      artist = "";
                     }
 
                     // Log first character for debugging
@@ -1419,22 +1652,22 @@ script:
                     pos = obj_end + 1;
                   }
 
-                  // For category 6, count remaining items for total
-                  if (category == 6) {
+                  // For categories 6 and 7, count remaining items for total
+                  if (category == 6 || category == 7) {
                     while (pos < body.length()) {
                       size_t obj_start = body.find("{", pos);
                       if (obj_start == std::string::npos) break;
                       size_t obj_end = body.find("}", obj_start);
                       if (obj_end == std::string::npos) break;
-                      // Check if it has a uri (valid album object)
-                      if (body.find("\"uri\"", obj_start) < obj_end) {
+                      // Check if it has a media_content_id (valid browse_media child object)
+                      if (body.find("\"media_content_id\"", obj_start) < obj_end) {
                         total_found++;
                       }
                       pos = obj_end + 1;
                     }
                     if (total_found > 0) {
                       id(browse_total_items) = total_found;
-                      ESP_LOGI("browse", "Category 6: found %d total albums", total_found);
+                      ESP_LOGI("browse", "Category %d: found %d total items", category, total_found);
                     }
                   }
 
@@ -1474,19 +1707,41 @@ script:
 
           // Show empty state if no items
           if (loaded_count == 0) {
+            // Set category-specific empty message
+            const char* empty_msg = "No items found";
+            int category = id(current_browse_category);
+            switch (category) {
+              case 1: empty_msg = "No recent items"; break;
+              case 2: empty_msg = "No favorites"; break;
+              case 3: empty_msg = "No playlists"; break;
+              case 4: empty_msg = "No albums found"; break;
+              case 5: empty_msg = "No artists found"; break;
+              case 6: empty_msg = "No albums by this artist"; break;
+              case 7: empty_msg = "No songs in this album"; break;
+            }
+            lv_label_set_text(id(lbl_browse_empty_message), empty_msg);
             lv_obj_clear_flag(id(browse_empty_state), LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(id(browse_pagination_footer), LV_OBJ_FLAG_HIDDEN);
-            ESP_LOGI("browse_ui", "No items to display, showing empty state");
+            ESP_LOGI("browse_ui", "No items to display, showing empty state: %s", empty_msg);
             return;
           }
 
           // Hide empty state
           lv_obj_add_flag(id(browse_empty_state), LV_OBJ_FLAG_HIDDEN);
 
+          // For categories 6 & 7 (Artist Albums, Album Songs), hide subtitles
+          int category = id(current_browse_category);
+          bool hide_subtitles = (category == 6 || category == 7);
+
           // Update item 0
           if (loaded_count > 0) {
             lv_label_set_text(id(lbl_browse_item_0_title), id(browse_item_0_title).c_str());
-            lv_label_set_text(id(lbl_browse_item_0_subtitle), id(browse_item_0_subtitle).c_str());
+            if (hide_subtitles) {
+              lv_obj_add_flag(id(lbl_browse_item_0_subtitle), LV_OBJ_FLAG_HIDDEN);
+            } else {
+              lv_label_set_text(id(lbl_browse_item_0_subtitle), id(browse_item_0_subtitle).c_str());
+              lv_obj_clear_flag(id(lbl_browse_item_0_subtitle), LV_OBJ_FLAG_HIDDEN);
+            }
             lv_obj_clear_flag(id(browse_item_0), LV_OBJ_FLAG_HIDDEN);
           } else {
             lv_obj_add_flag(id(browse_item_0), LV_OBJ_FLAG_HIDDEN);
@@ -1495,7 +1750,12 @@ script:
           // Update item 1
           if (loaded_count > 1) {
             lv_label_set_text(id(lbl_browse_item_1_title), id(browse_item_1_title).c_str());
-            lv_label_set_text(id(lbl_browse_item_1_subtitle), id(browse_item_1_subtitle).c_str());
+            if (hide_subtitles) {
+              lv_obj_add_flag(id(lbl_browse_item_1_subtitle), LV_OBJ_FLAG_HIDDEN);
+            } else {
+              lv_label_set_text(id(lbl_browse_item_1_subtitle), id(browse_item_1_subtitle).c_str());
+              lv_obj_clear_flag(id(lbl_browse_item_1_subtitle), LV_OBJ_FLAG_HIDDEN);
+            }
             lv_obj_clear_flag(id(browse_item_1), LV_OBJ_FLAG_HIDDEN);
           } else {
             lv_obj_add_flag(id(browse_item_1), LV_OBJ_FLAG_HIDDEN);
@@ -1504,7 +1764,12 @@ script:
           // Update item 2
           if (loaded_count > 2) {
             lv_label_set_text(id(lbl_browse_item_2_title), id(browse_item_2_title).c_str());
-            lv_label_set_text(id(lbl_browse_item_2_subtitle), id(browse_item_2_subtitle).c_str());
+            if (hide_subtitles) {
+              lv_obj_add_flag(id(lbl_browse_item_2_subtitle), LV_OBJ_FLAG_HIDDEN);
+            } else {
+              lv_label_set_text(id(lbl_browse_item_2_subtitle), id(browse_item_2_subtitle).c_str());
+              lv_obj_clear_flag(id(lbl_browse_item_2_subtitle), LV_OBJ_FLAG_HIDDEN);
+            }
             lv_obj_clear_flag(id(browse_item_2), LV_OBJ_FLAG_HIDDEN);
           } else {
             lv_obj_add_flag(id(browse_item_2), LV_OBJ_FLAG_HIDDEN);
@@ -1513,7 +1778,12 @@ script:
           // Update item 3
           if (loaded_count > 3) {
             lv_label_set_text(id(lbl_browse_item_3_title), id(browse_item_3_title).c_str());
-            lv_label_set_text(id(lbl_browse_item_3_subtitle), id(browse_item_3_subtitle).c_str());
+            if (hide_subtitles) {
+              lv_obj_add_flag(id(lbl_browse_item_3_subtitle), LV_OBJ_FLAG_HIDDEN);
+            } else {
+              lv_label_set_text(id(lbl_browse_item_3_subtitle), id(browse_item_3_subtitle).c_str());
+              lv_obj_clear_flag(id(lbl_browse_item_3_subtitle), LV_OBJ_FLAG_HIDDEN);
+            }
             lv_obj_clear_flag(id(browse_item_3), LV_OBJ_FLAG_HIDDEN);
           } else {
             lv_obj_add_flag(id(browse_item_3), LV_OBJ_FLAG_HIDDEN);

@@ -53,7 +53,7 @@ lvgl:
             x: -8
             y: 14
 
-        # Play All Button - visible only in Artist Albums view (category 6) (T014-T016)
+        # Play All Button - visible in Artist Albums (category 6) and Album Songs (category 7)
         - button:
             id: btn_browse_play_all
             x: 244
@@ -71,8 +71,17 @@ lvgl:
               - logger.log:
                   tag: "browse"
                   level: INFO
-                  format: "Play All button pressed"
-              - script.execute: play_artist_all
+                  format: "Play All button pressed for category %d"
+                  args: ['id(current_browse_category)']
+              - lambda: |-
+                  int category = id(current_browse_category);
+                  if (category == 6) {
+                    // Artist Albums - play all by artist
+                    id(play_artist_all).execute();
+                  } else if (category == 7) {
+                    // Album Songs - play all from album
+                    id(play_album_all).execute();
+                  }
             widgets:
               - label:
                   text: "Play All"
@@ -131,6 +140,7 @@ lvgl:
                   text_color: 0x4A4A4A
                   align: TOP_MID
               - label:
+                  id: lbl_browse_empty_message
                   text: "No items found"
                   text_font: roboto_12
                   text_color: 0x808080
@@ -175,15 +185,27 @@ lvgl:
                         condition:
                           lambda: 'return id(current_browse_category) == 5;'
                         then:
+                          # Artists -> Artist Albums drill-down
                           - script.execute:
                               id: browse_artist_albums
                               artist_id: !lambda 'return id(browse_item_0_media_id);'
                               artist_name: !lambda 'return id(browse_item_0_title);'
                         else:
-                          - script.execute:
-                              id: play_media_item
-                              media_id: !lambda 'return id(browse_item_0_media_id);'
-                              item_title: !lambda 'return id(browse_item_0_title);'
+                          - if:
+                              condition:
+                                lambda: 'return id(current_browse_category) == 4 || id(current_browse_category) == 6;'
+                              then:
+                                # Albums or Artist Albums -> Album Songs drill-down
+                                - script.execute:
+                                    id: browse_album_songs
+                                    album_id: !lambda 'return id(browse_item_0_media_id);'
+                                    album_name: !lambda 'return id(browse_item_0_title);'
+                              else:
+                                # Default: play the media item (playlists, songs, etc.)
+                                - script.execute:
+                                    id: play_media_item
+                                    media_id: !lambda 'return id(browse_item_0_media_id);'
+                                    item_title: !lambda 'return id(browse_item_0_title);'
                   widgets:
                     - label:
                         id: lbl_browse_item_0_title
@@ -230,15 +252,27 @@ lvgl:
                         condition:
                           lambda: 'return id(current_browse_category) == 5;'
                         then:
+                          # Artists -> Artist Albums drill-down
                           - script.execute:
                               id: browse_artist_albums
                               artist_id: !lambda 'return id(browse_item_1_media_id);'
                               artist_name: !lambda 'return id(browse_item_1_title);'
                         else:
-                          - script.execute:
-                              id: play_media_item
-                              media_id: !lambda 'return id(browse_item_1_media_id);'
-                              item_title: !lambda 'return id(browse_item_1_title);'
+                          - if:
+                              condition:
+                                lambda: 'return id(current_browse_category) == 4 || id(current_browse_category) == 6;'
+                              then:
+                                # Albums or Artist Albums -> Album Songs drill-down
+                                - script.execute:
+                                    id: browse_album_songs
+                                    album_id: !lambda 'return id(browse_item_1_media_id);'
+                                    album_name: !lambda 'return id(browse_item_1_title);'
+                              else:
+                                # Default: play the media item (playlists, songs, etc.)
+                                - script.execute:
+                                    id: play_media_item
+                                    media_id: !lambda 'return id(browse_item_1_media_id);'
+                                    item_title: !lambda 'return id(browse_item_1_title);'
                   widgets:
                     - label:
                         id: lbl_browse_item_1_title
@@ -285,15 +319,27 @@ lvgl:
                         condition:
                           lambda: 'return id(current_browse_category) == 5;'
                         then:
+                          # Artists -> Artist Albums drill-down
                           - script.execute:
                               id: browse_artist_albums
                               artist_id: !lambda 'return id(browse_item_2_media_id);'
                               artist_name: !lambda 'return id(browse_item_2_title);'
                         else:
-                          - script.execute:
-                              id: play_media_item
-                              media_id: !lambda 'return id(browse_item_2_media_id);'
-                              item_title: !lambda 'return id(browse_item_2_title);'
+                          - if:
+                              condition:
+                                lambda: 'return id(current_browse_category) == 4 || id(current_browse_category) == 6;'
+                              then:
+                                # Albums or Artist Albums -> Album Songs drill-down
+                                - script.execute:
+                                    id: browse_album_songs
+                                    album_id: !lambda 'return id(browse_item_2_media_id);'
+                                    album_name: !lambda 'return id(browse_item_2_title);'
+                              else:
+                                # Default: play the media item (playlists, songs, etc.)
+                                - script.execute:
+                                    id: play_media_item
+                                    media_id: !lambda 'return id(browse_item_2_media_id);'
+                                    item_title: !lambda 'return id(browse_item_2_title);'
                   widgets:
                     - label:
                         id: lbl_browse_item_2_title
@@ -340,15 +386,27 @@ lvgl:
                         condition:
                           lambda: 'return id(current_browse_category) == 5;'
                         then:
+                          # Artists -> Artist Albums drill-down
                           - script.execute:
                               id: browse_artist_albums
                               artist_id: !lambda 'return id(browse_item_3_media_id);'
                               artist_name: !lambda 'return id(browse_item_3_title);'
                         else:
-                          - script.execute:
-                              id: play_media_item
-                              media_id: !lambda 'return id(browse_item_3_media_id);'
-                              item_title: !lambda 'return id(browse_item_3_title);'
+                          - if:
+                              condition:
+                                lambda: 'return id(current_browse_category) == 4 || id(current_browse_category) == 6;'
+                              then:
+                                # Albums or Artist Albums -> Album Songs drill-down
+                                - script.execute:
+                                    id: browse_album_songs
+                                    album_id: !lambda 'return id(browse_item_3_media_id);'
+                                    album_name: !lambda 'return id(browse_item_3_title);'
+                              else:
+                                # Default: play the media item (playlists, songs, etc.)
+                                - script.execute:
+                                    id: play_media_item
+                                    media_id: !lambda 'return id(browse_item_3_media_id);'
+                                    item_title: !lambda 'return id(browse_item_3_title);'
                   widgets:
                     - label:
                         id: lbl_browse_item_3_title

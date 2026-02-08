@@ -12,25 +12,26 @@
 
 font:
   # Primary text font - 24pt for titles
-  # Reduced glyphs for memory optimization - basic ASCII + curly quotes + ellipsis + degree
+  # Glyphs: ASCII printable + degree + ellipsis + curly quotes (U+2018, U+2019, U+201C, U+201D)
   - file: "gfonts://Roboto@500"
     id: roboto_24
     size: 24
-    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~°…\u2018\u2019\u201C\u201D"
+    glyphs: >-
+      !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~ °…‘’“”
 
   # Body text font - 16pt for buttons, labels
-  # Reduced glyphs for memory optimization - basic ASCII + curly quotes + ellipsis + degree
   - file: "gfonts://Roboto"
     id: roboto_16
     size: 16
-    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~°…\u2018\u2019\u201C\u201D"
+    glyphs: >-
+      !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~ °…‘’“”
 
   # Small text font - 12pt for metadata, time
-  # Reduced glyphs for memory optimization - basic ASCII + curly quotes + ellipsis + degree
   - file: "gfonts://Roboto"
     id: roboto_12
     size: 12
-    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~°…\u2018\u2019\u201C\u201D"
+    glyphs: >-
+      !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~ °…‘’“”
 
   # Material Design Icons for UI controls
   - file: "https://github.com/Templarian/MaterialDesign-Webfont/raw/master/fonts/materialdesignicons-webfont.ttf"
@@ -284,6 +285,9 @@ lvgl:
     - id: page_home
       # Apply base screen style (dark background #121212)
       styles: style_screen
+      on_load:
+        # Ensure Library tile shows correct state when home screen loads
+        - script.execute: update_library_tile_state
 
       widgets:
         # =====================================================================
@@ -339,6 +343,7 @@ lvgl:
         # =====================================================================
         # Library/collection browser tile
         # Shows library icon and "Library" text
+        # When no player selected: shows "Select Player" overlay and redirects to Players
         - button:
             id: tile_library
             x: 164
@@ -351,17 +356,31 @@ lvgl:
               border_color: 0x00D1FF
               border_width: 2
             on_click:
-              - logger.log:
-                  tag: "ui"
-                  level: INFO
-                  format: "Library tile pressed"
-              # Navigate to Library screen (T089)
-              - script.execute:
-                  id: navigate_to
-                  target_screen: 3  # LIBRARY
+              - if:
+                  condition:
+                    lambda: 'return id(selected_player_id).empty();'
+                  then:
+                    - logger.log:
+                        tag: "ui"
+                        level: INFO
+                        format: "Library tile pressed - no player selected, redirecting to Players"
+                    # Navigate to Players screen to select a player first
+                    - script.execute:
+                        id: navigate_to
+                        target_screen: 2  # PLAYERS
+                  else:
+                    - logger.log:
+                        tag: "ui"
+                        level: INFO
+                        format: "Library tile pressed"
+                    # Navigate to Library screen (T089)
+                    - script.execute:
+                        id: navigate_to
+                        target_screen: 3  # LIBRARY
             widgets:
               # Library icon centered at top
               - label:
+                  id: lbl_library_icon
                   text: "\U000F0251"
                   text_font: icons_24
                   text_color: 0xFFFFFF
@@ -371,6 +390,7 @@ lvgl:
 
               # "Library" label
               - label:
+                  id: lbl_library_text
                   text: "Library"
                   text_font: roboto_12
                   text_color: 0xFFFFFF
@@ -378,6 +398,16 @@ lvgl:
                   align: BOTTOM_MID
                   x: 0
                   y: -12
+
+              # "Select Player" overlay (hidden by default, shown when no player selected)
+              - label:
+                  id: lbl_library_no_player
+                  text: "Select Player"
+                  text_font: roboto_12
+                  text_color: 0xFF6B35  # Orange warning color
+                  text_align: CENTER
+                  align: CENTER
+                  hidden: true
 
         # =====================================================================
         # BOTTOM LEFT TILE - SPEAKERS (T050)
@@ -1035,6 +1065,15 @@ lvgl:
 # - lbl_volume_icon: Volume icon inside btn_mute that changes based on mute state
 #   Muted:   lv_label_set_text(id(lbl_volume_icon), "\U000F0581");  // mdi:volume-mute
 #   Unmuted: lv_label_set_text(id(lbl_volume_icon), "\U000F057E");  // mdi:volume-high
+#
+# Home Dashboard - Library Tile (T049):
+# - tile_library: Library tile button, dimmed when no player selected
+# - lbl_library_icon: Library icon, color changes based on player selection state
+# - lbl_library_text: "Library" text, color changes based on player selection state
+# - lbl_library_no_player: Warning overlay showing "Select Player" (hidden when player selected)
+#   Updated by update_library_tile_state script in player_manager.yaml
+#   When no player selected: tile dimmed to 50%, orange warning text visible
+#   When player selected: normal appearance, warning hidden
 #
 # Media Player Entity:
 # The buttons call services on "media_player.lards_speaker2" entity.
