@@ -481,6 +481,18 @@ lvgl:
     - id: page_main
       # Apply base screen style (dark background #121212, white text)
       styles: style_screen
+      on_load:
+        # Refresh album art display when entering Now Playing screen
+        # This handles the case where album art downloaded while on boot screen
+        - lambda: |-
+            if (id(has_album_art)) {
+              ESP_LOGD("ui", "Now Playing loaded - refreshing album art display");
+            }
+        - if:
+            condition:
+              lambda: 'return id(has_album_art);'
+            then:
+              - script.execute: album_art_show_image
 
       widgets:
         # =====================================================================
@@ -530,6 +542,9 @@ lvgl:
             border_color: 0x2A2A2A
             border_opa: COVER
             pad_all: 0
+            scrollable: false
+            scrollbar_mode: "off"
+            clip_corner: true
             widgets:
               # Album art placeholder icon (music note)
               # Shown when no album art is available

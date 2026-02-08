@@ -18,10 +18,10 @@ touchscreen:
     id: touch_controller
     i2c_id: touch_i2c
     calibration:
-      x_min: 0
-      x_max: 320
+      x_min: 5
+      x_max: 325
       y_min: 0
-      y_max: 240
+      y_max: 205
     transform:
       swap_xy: true
       mirror_y: true

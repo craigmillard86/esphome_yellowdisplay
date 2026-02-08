@@ -22,11 +22,11 @@ substitutions:
   # Album art fetch timeout (milliseconds)
   album_art_timeout_ms: "5000"
 
-  # Album art dimensions (pixels) - 100x100 for memory safety during HTTP download
-  # 100x100 RGB565 = 20000 bytes - leaves headroom when HTTP fragments heap
-  # (128x128 = 32KB fails because HTTP download leaves only ~30KB contiguous)
-  album_art_width: "100"
-  album_art_height: "100"
+  # Album art dimensions (pixels) - 128x128 matches container size
+  # 128x128 RGB565 = 32768 bytes (~32KB)
+  # ESP32-S3 with 8MB PSRAM has plenty of headroom
+  album_art_width: "128"
+  album_art_height: "128"
 
 # =============================================================================
 # HTTP Request Component (required for Last.fm API and online_image)
@@ -84,15 +84,16 @@ globals:
 
   # Minimum free heap required for image decode (bytes)
   # This is the largest contiguous block needed, not total free heap
-  # Calculation for 174x174 large image -> 100x100 display:
+  # Calculation for 174x174 large image -> 128x128 display:
   #   - HTTP receive buffers: ~8KB (TCP window)
   #   - PNG streaming buffer: ~16KB (buffer_size)
-  #   - Final RGB565 buffer: 100x100x2 = 20KB
-  #   Total: ~44KB needed, use 35KB threshold with streaming
+  #   - Final RGB565 buffer: 128x128x2 = 32KB
+  #   Total: ~56KB needed, use 100KB threshold for safety
+  # ESP32-S3 with 8MB PSRAM has ~8MB available
   - id: album_art_min_heap
     type: uint32_t
     restore_value: no
-    initial_value: '35000'  # 35KB minimum - streaming decode needs less
+    initial_value: '100000'  # 100KB minimum - plenty of headroom with PSRAM
 
   # Current display track info (updated by both HA sensors AND player state refresh)
   # This allows album art lookup to work for ANY player, not just the default one
@@ -117,9 +118,10 @@ online_image:
     format: PNG  # Last.fm serves PNG images
     type: RGB565
     resize: ${album_art_width}x${album_art_height}
-    # Large images are 174x174 (~50KB PNG), downscaled to 128x128 RGB565 (32KB final)
+    # Large images are 174x174 (~50KB PNG), decoded to 128x128 RGB565 (32KB final)
     # Using HTTP instead of HTTPS eliminates ~80KB SSL overhead
-    buffer_size: 16384  # 16KB streaming buffer
+    # With 8MB PSRAM, we can use larger buffer for faster downloads
+    buffer_size: 32768  # 32KB streaming buffer
     update_interval: never  # Manual updates only
 
     on_download_finished:

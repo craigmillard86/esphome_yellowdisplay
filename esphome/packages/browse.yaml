@@ -782,7 +782,7 @@ script:
           service: music_assistant.play_media
           data:
             entity_id: !lambda 'return id(selected_player_id);'
-            media_id: !lambda 'return media_id;'
+            media_id: !lambda 'return std::string(media_id);'
 
       - logger.log:
           tag: "browse"
@@ -809,8 +809,8 @@ script:
       - homeassistant.service:
           service: music_assistant.play_media
           data:
-            entity_id: !lambda 'return id(selected_player_id).c_str();'
-            media_id: !lambda 'return id(browse_context_artist_id).c_str();'
+            entity_id: !lambda 'return id(selected_player_id);'
+            media_id: !lambda 'return id(browse_context_artist_id);'
       - script.execute:
           id: navigate_to
           target_screen: 1  # Now Playing
