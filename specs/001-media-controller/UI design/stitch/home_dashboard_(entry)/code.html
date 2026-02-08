@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Home Dashboard (Entry)</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Be Vietnam Pro", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        /* Optimization for small TFT 320x240 feel */
+        .tft-container {
+            width: 320px;
+            height: 240px;
+            overflow: hidden;
+            position: relative;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            font-size: 28px;
+        }
+        .active-icon {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-black flex items-center justify-center min-h-screen">
+<!-- Main Container (Representing the 320x240 LCD) -->
+<div class="tft-container bg-background-light dark:bg-background-dark font-display flex flex-col">
+<!-- Slim Status Bar (TopAppBar-inspired) -->
+<div class="flex items-center bg-background-light dark:bg-background-dark px-3 py-1.5 justify-between border-b border-primary/10">
+<div class="text-xs font-bold text-gray-600 dark:text-gray-400">
+                10:45 AM
+            </div>
+<h2 class="text-gray-900 dark:text-white text-xs font-bold leading-tight tracking-tight flex-1 text-center truncate px-2">
+                Living Room
+            </h2>
+<div class="flex items-center justify-end text-primary">
+<span class="material-symbols-outlined !text-[16px]">wifi</span>
+</div>
+</div>
+<!-- Main Content: Navigation Grid (ImageGrid-inspired) -->
+<div class="flex-1 p-2 grid grid-cols-2 grid-rows-2 gap-2">
+<!-- Now Playing Tile -->
+<button class="relative flex flex-col items-center justify-center gap-1 rounded-lg bg-primary/10 border border-primary/20 active:bg-primary active:text-white transition-colors overflow-hidden group">
+<div class="absolute inset-0 opacity-10 bg-cover bg-center" data-alt="album art abstract blurry cover" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCSvy9TCOCturtiKRgWkXEJeeVp6UBQFWZLWa3t9JOGKVy_DCqQZTA78mwmpS1IfUNUvTCeM5j18PPKlgkgU4JiLHVutP9m8JvikT1aSKwwd3meNYsKiOSRUmvp5kRuwW25ccZ1I-vzIjs3-EzMFFpZO18N3lPCBZ779LZKMj8Jon6BZq8URtLJ8fTZAW5on3zCr_RhwT61dUbKsDdf7c2TikGWdB_WoasHpkbgdqOs1nth5W8_vZuFsEnG0UVmsKy6rE0Nl3XBLS5o');"></div>
+<div class="relative z-10 text-primary group-active:text-white">
+<span class="material-symbols-outlined active-icon">play_circle</span>
+</div>
+<span class="relative z-10 text-[11px] font-bold text-gray-900 dark:text-white uppercase tracking-wider">Now Playing</span>
+</button>
+<!-- Library Tile -->
+<button class="flex flex-col items-center justify-center gap-1 rounded-lg bg-gray-100 dark:bg-white/5 border border-transparent active:bg-primary active:text-white transition-colors">
+<div class="text-primary">
+<span class="material-symbols-outlined">library_music</span>
+</div>
+<span class="text-[11px] font-bold text-gray-900 dark:text-white uppercase tracking-wider">Library</span>
+</button>
+<!-- Speakers Tile -->
+<button class="flex flex-col items-center justify-center gap-1 rounded-lg bg-gray-100 dark:bg-white/5 border border-transparent active:bg-primary active:text-white transition-colors relative">
+<div class="text-primary">
+<span class="material-symbols-outlined">speaker_group</span>
+</div>
+<span class="text-[11px] font-bold text-gray-900 dark:text-white uppercase tracking-wider">Speakers</span>
+<!-- Active Badge -->
+<div class="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full"></div>
+</button>
+<!-- Favorites Tile -->
+<button class="flex flex-col items-center justify-center gap-1 rounded-lg bg-gray-100 dark:bg-white/5 border border-transparent active:bg-primary active:text-white transition-colors">
+<div class="text-primary">
+<span class="material-symbols-outlined">star</span>
+</div>
+<span class="text-[11px] font-bold text-gray-900 dark:text-white uppercase tracking-wider">Favorites</span>
+</button>
+</div>
+<!-- Mini Bottom Bar (BottomNavBar-inspired - thin for space efficiency) -->
+<div class="flex gap-1 border-t border-gray-200 dark:border-white/5 bg-gray-50 dark:bg-[#192633] px-2 py-1">
+<a class="flex flex-1 items-center justify-center rounded-full text-primary" href="#">
+<span class="material-symbols-outlined !text-[20px] active-icon">home</span>
+</a>
+<a class="flex flex-1 items-center justify-center text-gray-400" href="#">
+<span class="material-symbols-outlined !text-[20px]">search</span>
+</a>
+<a class="flex flex-1 items-center justify-center text-gray-400" href="#">
+<span class="material-symbols-outlined !text-[20px]">settings</span>
+</a>
+</div>
+</div>
+</body></html>

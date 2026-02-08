@@ -1,0 +1,893 @@
+# =============================================================================
+# UI Screen: Player Management (T055)
+# Purpose: Screen for selecting and managing media players
+# Dependencies: packages/lvgl.yaml (LVGL framework, theme, fonts, icons)
+#               packages/player_manager.yaml (player state management)
+#               packages/navigation.yaml (screen navigation)
+# Exposes: page_players LVGL page with player list
+# Display: 320x240 ILI9341 in landscape orientation
+# =============================================================================
+
+# This file implements:
+# - T055: Create Player Management screen layout
+# - T063: Implement tap-to-select behavior for player rows
+# - T103: Add Group button to Player Management header
+
+# =============================================================================
+# Display Order Mapping (for tree view sorting)
+# =============================================================================
+# Maps UI row index to actual player data index
+# Updated by update_player_rows script when sorting by groups
+
+globals:
+  - id: display_order_row_0
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: display_order_row_1
+    type: int
+    restore_value: no
+    initial_value: '1'
+  - id: display_order_row_2
+    type: int
+    restore_value: no
+    initial_value: '2'
+  - id: display_order_row_3
+    type: int
+    restore_value: no
+    initial_value: '3'
+
+# Screen Layout:
+# +--------------------------------------------------+
+# | [<] Players 0/0                [Unjoin] [Group]  |  <- Header (44px)
+# +--------------------------------------------------+
+# | +----------------------------------------------+ |
+# | | [*] Player 1 Name              [===] [pwr]   | |  <- Player rows
+# | +----------------------------------------------+ |  <- 56px each
+# | | [ ] Player 2 Name              [===] [pwr]   | |
+# | +----------------------------------------------+ |
+# | | ...                                          | |
+# | +----------------------------------------------+ |
+# +--------------------------------------------------+
+
+lvgl:
+  pages:
+    # =========================================================================
+    # Players Screen (T055)
+    # =========================================================================
+    - id: page_players
+      bg_color: 0x121212
+      border_width: 0
+      shadow_width: 0
+      widgets:
+        # =====================================================================
+        # HEADER AREA (44px height)
+        # =====================================================================
+
+        # Back Button - Top Left (44x44px touch target)
+        - button:
+            id: btn_players_back
+            x: 0
+            y: 0
+            width: 44
+            height: 44
+            bg_opa: TRANSP
+            border_width: 0
+            shadow_width: 0
+            pad_all: 0
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Players screen back button pressed"
+              - script.execute: navigate_back
+            widgets:
+              - label:
+                  text: "\U000F004D"  # mdi:arrow-left
+                  text_font: icons_24
+                  text_color: 0xB3B3B3
+                  align: CENTER
+
+        # Screen Title - Left aligned after back button
+        - label:
+            id: lbl_players_title
+            text: "Players"
+            text_font: roboto_16
+            text_color: 0xFFFFFF
+            x: 48
+            y: 12
+
+        # Player Count Badge - Next to title
+        - label:
+            id: lbl_players_count
+            text: "0/0"
+            text_font: roboto_12
+            text_color: 0xB3B3B3
+            x: 110
+            y: 14
+
+        # Unjoin Button - Top Right (left of Group button)
+        # Removes selected player from its group
+        # Only visible when selected player is in a group
+        - button:
+            id: btn_players_unjoin
+            align: TOP_RIGHT
+            x: -44
+            y: 0
+            width: 44
+            height: 44
+            bg_opa: TRANSP
+            border_width: 0
+            shadow_width: 0
+            pad_all: 0
+            hidden: true  # Hidden by default, shown when player is in group
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Unjoin button pressed"
+              - script.execute: unjoin_selected_player
+            widgets:
+              - label:
+                  id: lbl_unjoin_icon
+                  text: "\U000F04C3"  # mdi:speaker-off (unjoin/solo)
+                  text_font: icons_24
+                  text_color: 0xFF6B35  # Orange for destructive action
+                  align: CENTER
+
+        # Group Button - Top Right (T103)
+        # Opens the grouping screen for multi-room speaker groups
+        - button:
+            id: btn_players_group
+            align: TOP_RIGHT
+            x: 0
+            y: 0
+            width: 44
+            height: 44
+            bg_opa: TRANSP
+            border_width: 0
+            shadow_width: 0
+            pad_all: 0
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Group button pressed - navigating to grouping screen"
+              - script.execute:
+                  id: navigate_to
+                  target_screen: 11
+            widgets:
+              - label:
+                  text: "\U000F0D38"  # mdi:speaker-multiple (group)
+                  text_font: icons_24
+                  text_color: 0x00D1FF
+                  align: CENTER
+
+        # Header Divider Line
+        - obj:
+            x: 0
+            y: 43
+            width: 320
+            height: 1
+            bg_color: 0x2A2A2A
+            bg_opa: COVER
+            border_width: 0
+
+        # =====================================================================
+        # SCROLLABLE PLAYER LIST CONTAINER
+        # =====================================================================
+        # Flex container with vertical scroll for player rows
+        # Position: Below header, fills remaining screen
+        # Size: 320x196 (240 - 44 header)
+
+        - obj:
+            id: player_list_container
+            x: 0
+            y: 44
+            width: 320
+            height: 196
+            bg_color: 0x121212
+            bg_opa: COVER
+            border_width: 0
+            shadow_width: 0
+            pad_all: 4
+            scrollbar_mode: AUTO
+            layout:
+              type: FLEX
+              flex_flow: COLUMN
+              flex_align_main: START
+              flex_align_cross: CENTER
+              flex_align_track: CENTER
+            widgets:
+              # =================================================================
+              # PLAYER ROW 0
+              # =================================================================
+              - button:
+                  id: player_row_0
+                  width: 304
+                  height: 56
+                  bg_color: 0x1E1E1E
+                  radius: 8
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  pad_all: 8
+                  hidden: true  # Hidden until player registered
+                  pressed:
+                    bg_color: 0x2A2A2A
+                  on_click:
+                    - logger.log:
+                        tag: "ui"
+                        level: INFO
+                        format: "Player row 0 selected (mapped)"
+                    - script.execute:
+                        id: select_player
+                        player_index: !lambda 'return id(display_order_row_0);'
+                  widgets:
+                    # Selection indicator (checkmark when selected)
+                    - label:
+                        id: player_0_check
+                        text: "\U000F012C"  # mdi:check-circle (filled)
+                        text_font: icons_24
+                        text_color: 0x00D1FF
+                        x: 4
+                        y: 8
+                        hidden: true
+                    # Selection indicator (empty circle when not selected)
+                    - label:
+                        id: player_0_circle
+                        text: "\U000F0765"  # mdi:circle-outline
+                        text_font: icons_24
+                        text_color: 0x666666
+                        x: 4
+                        y: 8
+                    # Crown icon for group leader (hidden by default)
+                    - label:
+                        id: player_0_crown
+                        text: "\U000F01A5"  # mdi:crown
+                        text_font: icons_24
+                        text_color: 0xFFD700  # Gold
+                        x: 36
+                        y: 8
+                        hidden: true
+                    # Link icon for group member (hidden by default)
+                    - label:
+                        id: player_0_link
+                        text: "\U000F0337"  # mdi:link
+                        text_font: icons_24
+                        text_color: 0x4CAF50  # Green
+                        x: 36
+                        y: 8
+                        hidden: true
+                    # Player name
+                    - label:
+                        id: player_0_name_lbl
+                        text: "Player 0"
+                        text_font: roboto_16
+                        text_color: 0xFFFFFF
+                        x: 36
+                        y: 4
+                        width: 140
+                        long_mode: SCROLL_CIRCULAR
+                    # Online/Offline status
+                    - label:
+                        id: player_0_status
+                        text: "Online"
+                        text_font: roboto_12
+                        text_color: 0x00D1FF
+                        x: 36
+                        y: 24
+                    # Volume slider (wider now that power button removed)
+                    - slider:
+                        id: player_0_volume_slider
+                        x: 180
+                        y: 16
+                        width: 110
+                        height: 20
+                        min_value: 0
+                        max_value: 100
+                        value: 50
+                        bg_color: 0x2A2A2A
+                        radius: 4
+                        indicator:
+                          bg_color: 0x00D1FF
+                          radius: 4
+                        knob:
+                          bg_color: 0xFFFFFF
+                          radius: 6
+                          width: 12
+                          height: 12
+                        on_release:
+                          - script.execute:
+                              id: set_player_volume
+                              player_index: !lambda 'return id(display_order_row_0);'
+                              volume_percent: !lambda 'return (int)x;'
+
+              # =================================================================
+              # PLAYER ROW 1
+              # =================================================================
+              - button:
+                  id: player_row_1
+                  width: 304
+                  height: 56
+                  bg_color: 0x1E1E1E
+                  radius: 8
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  pad_all: 8
+                  hidden: true
+                  pressed:
+                    bg_color: 0x2A2A2A
+                  on_click:
+                    - script.execute:
+                        id: select_player
+                        player_index: !lambda 'return id(display_order_row_1);'
+                  widgets:
+                    - label:
+                        id: player_1_check
+                        text: "\U000F012C"
+                        text_font: icons_24
+                        text_color: 0x00D1FF
+                        x: 4
+                        y: 8
+                        hidden: true
+                    - label:
+                        id: player_1_circle
+                        text: "\U000F0765"
+                        text_font: icons_24
+                        text_color: 0x666666
+                        x: 4
+                        y: 8
+                    # Crown icon for group leader
+                    - label:
+                        id: player_1_crown
+                        text: "\U000F01A5"
+                        text_font: icons_24
+                        text_color: 0xFFD700
+                        x: 36
+                        y: 8
+                        hidden: true
+                    # Link icon for group member
+                    - label:
+                        id: player_1_link
+                        text: "\U000F0337"
+                        text_font: icons_24
+                        text_color: 0x4CAF50
+                        x: 36
+                        y: 8
+                        hidden: true
+                    - label:
+                        id: player_1_name_lbl
+                        text: "Player 1"
+                        text_font: roboto_16
+                        text_color: 0xFFFFFF
+                        x: 36
+                        y: 4
+                        width: 140
+                        long_mode: SCROLL_CIRCULAR
+                    - label:
+                        id: player_1_status
+                        text: "Online"
+                        text_font: roboto_12
+                        text_color: 0x00D1FF
+                        x: 36
+                        y: 24
+                    - slider:
+                        id: player_1_volume_slider
+                        x: 180
+                        y: 16
+                        width: 110
+                        height: 20
+                        min_value: 0
+                        max_value: 100
+                        value: 50
+                        bg_color: 0x2A2A2A
+                        radius: 4
+                        indicator:
+                          bg_color: 0x00D1FF
+                          radius: 4
+                        knob:
+                          bg_color: 0xFFFFFF
+                          radius: 6
+                          width: 12
+                          height: 12
+                        on_release:
+                          - script.execute:
+                              id: set_player_volume
+                              player_index: !lambda 'return id(display_order_row_1);'
+                              volume_percent: !lambda 'return (int)x;'
+
+              # =================================================================
+              # PLAYER ROW 2
+              # =================================================================
+              - button:
+                  id: player_row_2
+                  width: 304
+                  height: 56
+                  bg_color: 0x1E1E1E
+                  radius: 8
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  pad_all: 8
+                  hidden: true
+                  pressed:
+                    bg_color: 0x2A2A2A
+                  on_click:
+                    - script.execute:
+                        id: select_player
+                        player_index: !lambda 'return id(display_order_row_2);'
+                  widgets:
+                    - label:
+                        id: player_2_check
+                        text: "\U000F012C"
+                        text_font: icons_24
+                        text_color: 0x00D1FF
+                        x: 4
+                        y: 8
+                        hidden: true
+                    - label:
+                        id: player_2_circle
+                        text: "\U000F0765"
+                        text_font: icons_24
+                        text_color: 0x666666
+                        x: 4
+                        y: 8
+                    # Crown icon for group leader
+                    - label:
+                        id: player_2_crown
+                        text: "\U000F01A5"
+                        text_font: icons_24
+                        text_color: 0xFFD700
+                        x: 36
+                        y: 8
+                        hidden: true
+                    # Link icon for group member
+                    - label:
+                        id: player_2_link
+                        text: "\U000F0337"
+                        text_font: icons_24
+                        text_color: 0x4CAF50
+                        x: 36
+                        y: 8
+                        hidden: true
+                    - label:
+                        id: player_2_name_lbl
+                        text: "Player 2"
+                        text_font: roboto_16
+                        text_color: 0xFFFFFF
+                        x: 36
+                        y: 4
+                        width: 140
+                        long_mode: SCROLL_CIRCULAR
+                    - label:
+                        id: player_2_status
+                        text: "Online"
+                        text_font: roboto_12
+                        text_color: 0x00D1FF
+                        x: 36
+                        y: 24
+                    - slider:
+                        id: player_2_volume_slider
+                        x: 180
+                        y: 16
+                        width: 110
+                        height: 20
+                        min_value: 0
+                        max_value: 100
+                        value: 50
+                        bg_color: 0x2A2A2A
+                        radius: 4
+                        indicator:
+                          bg_color: 0x00D1FF
+                          radius: 4
+                        knob:
+                          bg_color: 0xFFFFFF
+                          radius: 6
+                          width: 12
+                          height: 12
+                        on_release:
+                          - script.execute:
+                              id: set_player_volume
+                              player_index: !lambda 'return id(display_order_row_2);'
+                              volume_percent: !lambda 'return (int)x;'
+
+              # =================================================================
+              # PLAYER ROW 3
+              # =================================================================
+              - button:
+                  id: player_row_3
+                  width: 304
+                  height: 56
+                  bg_color: 0x1E1E1E
+                  radius: 8
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  pad_all: 8
+                  hidden: true
+                  pressed:
+                    bg_color: 0x2A2A2A
+                  on_click:
+                    - script.execute:
+                        id: select_player
+                        player_index: !lambda 'return id(display_order_row_3);'
+                  widgets:
+                    - label:
+                        id: player_3_check
+                        text: "\U000F012C"
+                        text_font: icons_24
+                        text_color: 0x00D1FF
+                        x: 4
+                        y: 8
+                        hidden: true
+                    - label:
+                        id: player_3_circle
+                        text: "\U000F0765"
+                        text_font: icons_24
+                        text_color: 0x666666
+                        x: 4
+                        y: 8
+                    # Crown icon for group leader
+                    - label:
+                        id: player_3_crown
+                        text: "\U000F01A5"
+                        text_font: icons_24
+                        text_color: 0xFFD700
+                        x: 36
+                        y: 8
+                        hidden: true
+                    # Link icon for group member
+                    - label:
+                        id: player_3_link
+                        text: "\U000F0337"
+                        text_font: icons_24
+                        text_color: 0x4CAF50
+                        x: 36
+                        y: 8
+                        hidden: true
+                    - label:
+                        id: player_3_name_lbl
+                        text: "Player 3"
+                        text_font: roboto_16
+                        text_color: 0xFFFFFF
+                        x: 36
+                        y: 4
+                        width: 140
+                        long_mode: SCROLL_CIRCULAR
+                    - label:
+                        id: player_3_status
+                        text: "Online"
+                        text_font: roboto_12
+                        text_color: 0x00D1FF
+                        x: 36
+                        y: 24
+                    - slider:
+                        id: player_3_volume_slider
+                        x: 180
+                        y: 16
+                        width: 110
+                        height: 20
+                        min_value: 0
+                        max_value: 100
+                        value: 50
+                        bg_color: 0x2A2A2A
+                        radius: 4
+                        indicator:
+                          bg_color: 0x00D1FF
+                          radius: 4
+                        knob:
+                          bg_color: 0xFFFFFF
+                          radius: 6
+                          width: 12
+                          height: 12
+                        on_release:
+                          - script.execute:
+                              id: set_player_volume
+                              player_index: !lambda 'return id(display_order_row_3);'
+                              volume_percent: !lambda 'return (int)x;'
+
+              # =================================================================
+              # "No Players" Message (shown when list is empty)
+              # =================================================================
+              - label:
+                  id: lbl_no_players
+                  text: "No players available"
+                  text_font: roboto_16
+                  text_color: 0x666666
+                  align: CENTER
+                  y: 60
+
+# =============================================================================
+# Scripts - Player Row UI Updates
+# =============================================================================
+
+script:
+  # ---------------------------------------------------------------------------
+  # Update Player Row UI (T062)
+  # ---------------------------------------------------------------------------
+  # Updates player row display based on player data with TREE VIEW sorting
+  # Groups are displayed together: leader first, then members indented below
+  # Called when navigating to players screen or when player state changes
+  - id: update_player_rows
+    mode: restart
+    then:
+      - lambda: |-
+          ESP_LOGI("players_ui", "Updating player row UI with tree view...");
+
+          int visible_count = 0;
+          int selected_group_status = 0;  // Track selected player's group status
+
+          // Player data arrays
+          std::string entities[4] = {
+            id(player_0_entity_id), id(player_1_entity_id),
+            id(player_2_entity_id), id(player_3_entity_id)
+          };
+          std::string names[4] = {
+            id(player_0_name), id(player_1_name),
+            id(player_2_name), id(player_3_name)
+          };
+          bool online[4] = {
+            id(player_0_online), id(player_1_online),
+            id(player_2_online), id(player_3_online)
+          };
+          int volumes[4] = {
+            id(player_0_volume), id(player_1_volume),
+            id(player_2_volume), id(player_3_volume)
+          };
+          int group_statuses[4] = {
+            id(player_0_group_status), id(player_1_group_status),
+            id(player_2_group_status), id(player_3_group_status)
+          };
+          int group_sizes[4] = {
+            id(player_0_group_size), id(player_1_group_size),
+            id(player_2_group_size), id(player_3_group_size)
+          };
+          std::string group_leaders[4] = {
+            id(player_0_group_leader), id(player_1_group_leader),
+            id(player_2_group_leader), id(player_3_group_leader)
+          };
+
+          // UI widget arrays
+          lv_obj_t* rows[4] = {
+            id(player_row_0), id(player_row_1), id(player_row_2), id(player_row_3)
+          };
+          lv_obj_t* checks[4] = {
+            id(player_0_check), id(player_1_check), id(player_2_check), id(player_3_check)
+          };
+          lv_obj_t* circles[4] = {
+            id(player_0_circle), id(player_1_circle), id(player_2_circle), id(player_3_circle)
+          };
+          lv_obj_t* crowns[4] = {
+            id(player_0_crown), id(player_1_crown), id(player_2_crown), id(player_3_crown)
+          };
+          lv_obj_t* links[4] = {
+            id(player_0_link), id(player_1_link), id(player_2_link), id(player_3_link)
+          };
+          lv_obj_t* name_lbls[4] = {
+            id(player_0_name_lbl), id(player_1_name_lbl), id(player_2_name_lbl), id(player_3_name_lbl)
+          };
+          lv_obj_t* status_lbls[4] = {
+            id(player_0_status), id(player_1_status), id(player_2_status), id(player_3_status)
+          };
+          lv_obj_t* vol_sliders[4] = {
+            id(player_0_volume_slider), id(player_1_volume_slider),
+            id(player_2_volume_slider), id(player_3_volume_slider)
+          };
+
+          // Build sorted display order: leaders first, then their members, then ungrouped
+          int display_order[4];
+          bool used[4] = {false, false, false, false};
+          int display_idx = 0;
+
+          // Pass 1: Add leaders and their members
+          for (int i = 0; i < 4; i++) {
+            if (!entities[i].empty() && !used[i] && group_statuses[i] == 1) {
+              // This is a leader - add it
+              display_order[display_idx++] = i;
+              used[i] = true;
+
+              // Find and add all members of this leader
+              for (int j = 0; j < 4; j++) {
+                if (!entities[j].empty() && !used[j] && group_statuses[j] == 2) {
+                  // Check if this member belongs to leader i
+                  if (group_leaders[j] == entities[i]) {
+                    display_order[display_idx++] = j;
+                    used[j] = true;
+                  }
+                }
+              }
+            }
+          }
+
+          // Pass 2: Add ungrouped players
+          for (int i = 0; i < 4; i++) {
+            if (!entities[i].empty() && !used[i]) {
+              display_order[display_idx++] = i;
+              used[i] = true;
+            }
+          }
+
+          // Fill remaining with -1 (empty)
+          while (display_idx < 4) {
+            display_order[display_idx++] = -1;
+          }
+
+          ESP_LOGD("players_ui", "Display order: %d, %d, %d, %d",
+                   display_order[0], display_order[1], display_order[2], display_order[3]);
+
+          // Save display order to globals for click handlers
+          id(display_order_row_0) = display_order[0];
+          id(display_order_row_1) = display_order[1];
+          id(display_order_row_2) = display_order[2];
+          id(display_order_row_3) = display_order[3];
+
+          // Render rows in sorted order
+          for (int row_idx = 0; row_idx < 4; row_idx++) {
+            int player_idx = display_order[row_idx];
+
+            lv_obj_t* row = rows[row_idx];
+            lv_obj_t* check = checks[row_idx];
+            lv_obj_t* circle = circles[row_idx];
+            lv_obj_t* crown = crowns[row_idx];
+            lv_obj_t* link = links[row_idx];
+            lv_obj_t* name_lbl = name_lbls[row_idx];
+            lv_obj_t* status_lbl = status_lbls[row_idx];
+            lv_obj_t* vol_slider = vol_sliders[row_idx];
+
+            // Null check
+            if (row == nullptr) continue;
+
+            // Hide row if no player data
+            if (player_idx < 0 || entities[player_idx].empty()) {
+              lv_obj_add_flag(row, LV_OBJ_FLAG_HIDDEN);
+              continue;
+            }
+
+            // Get player data
+            const std::string& entity_id = entities[player_idx];
+            const std::string& name = names[player_idx];
+            bool is_online = online[player_idx];
+            int volume = volumes[player_idx];
+            int group_status = group_statuses[player_idx];
+            int group_size = group_sizes[player_idx];
+
+            visible_count++;
+            lv_obj_clear_flag(row, LV_OBJ_FLAG_HIDDEN);
+
+            // Reset border to default
+            lv_obj_set_style_border_color(row, lv_color_hex(0x2A2A2A), 0);
+            lv_obj_set_style_border_width(row, 1, 0);
+
+            // Update name
+            lv_label_set_text(name_lbl, name.c_str());
+
+            // Check if this is selected player
+            bool is_selected = (entity_id == id(selected_player_id));
+
+            if (is_selected) {
+              lv_obj_clear_flag(check, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_add_flag(circle, LV_OBJ_FLAG_HIDDEN);
+              selected_group_status = group_status;
+            } else {
+              lv_obj_add_flag(check, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_clear_flag(circle, LV_OBJ_FLAG_HIDDEN);
+            }
+
+            // Update crown/link icons and indentation based on group status
+            if (group_status == 1) {
+              // Leader - show crown, gold border
+              lv_obj_clear_flag(crown, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_add_flag(link, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_set_style_border_color(row, lv_color_hex(0xFFD700), 0);
+              lv_obj_set_style_border_width(row, 2, 0);
+              lv_obj_set_style_x(name_lbl, 64, 0);
+              lv_obj_set_style_x(status_lbl, 64, 0);
+            } else if (group_status == 2) {
+              // Member - show link icon, indent more
+              lv_obj_add_flag(crown, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_clear_flag(link, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_set_style_x(name_lbl, 64, 0);
+              lv_obj_set_style_x(status_lbl, 64, 0);
+            } else {
+              // Not in group - normal position
+              lv_obj_add_flag(crown, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_add_flag(link, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_set_style_x(name_lbl, 36, 0);
+              lv_obj_set_style_x(status_lbl, 36, 0);
+            }
+
+            // Update status text
+            if (is_online) {
+              if (group_status == 1) {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "Leader (%d)", group_size);
+                lv_label_set_text(status_lbl, buf);
+                lv_obj_set_style_text_color(status_lbl, lv_color_hex(0xFFD700), 0);
+              } else if (group_status == 2) {
+                lv_label_set_text(status_lbl, "Grouped");
+                lv_obj_set_style_text_color(status_lbl, lv_color_hex(0x4CAF50), 0);
+              } else {
+                lv_label_set_text(status_lbl, "Online");
+                lv_obj_set_style_text_color(status_lbl, lv_color_hex(0x00D1FF), 0);
+              }
+              lv_obj_set_style_text_color(name_lbl, lv_color_hex(0xFFFFFF), 0);
+              lv_obj_set_style_text_color(circle, lv_color_hex(0x666666), 0);
+            } else {
+              lv_label_set_text(status_lbl, "Offline");
+              lv_obj_set_style_text_color(status_lbl, lv_color_hex(0x666666), 0);
+              lv_obj_set_style_text_color(name_lbl, lv_color_hex(0x666666), 0);
+              lv_obj_set_style_text_color(circle, lv_color_hex(0x444444), 0);
+            }
+
+            // Update volume slider
+            lv_slider_set_value(vol_slider, volume, LV_ANIM_OFF);
+          }
+
+          // Show/hide unjoin button based on selected player's group status
+          lv_obj_t* unjoin_btn = id(btn_players_unjoin);
+          if (unjoin_btn != nullptr) {
+            if (selected_group_status > 0) {
+              lv_obj_clear_flag(unjoin_btn, LV_OBJ_FLAG_HIDDEN);
+              ESP_LOGD("players_ui", "Unjoin button shown (group_status=%d)", selected_group_status);
+            } else {
+              lv_obj_add_flag(unjoin_btn, LV_OBJ_FLAG_HIDDEN);
+            }
+          }
+
+          // Show/hide "No players" message (with null check)
+          lv_obj_t* no_players_lbl = id(lbl_no_players);
+          if (no_players_lbl != nullptr) {
+            if (visible_count == 0) {
+              lv_obj_clear_flag(no_players_lbl, LV_OBJ_FLAG_HIDDEN);
+            } else {
+              lv_obj_add_flag(no_players_lbl, LV_OBJ_FLAG_HIDDEN);
+            }
+          }
+
+          // Update count label (with null check)
+          lv_obj_t* count_lbl = id(lbl_players_count);
+          if (count_lbl != nullptr) {
+            char count_str[16];
+            snprintf(count_str, sizeof(count_str), "%d/%d",
+                     id(online_player_count), id(available_player_count));
+            lv_label_set_text(count_lbl, count_str);
+          }
+
+          ESP_LOGI("players_ui", "Updated %d visible player rows", visible_count);
+
+# =============================================================================
+# Usage Notes
+# =============================================================================
+#
+# This screen displays available media players in a scrollable list.
+# Each row shows:
+#   - Selection indicator (checkmark if selected, circle if not)
+#   - Crown icon for group leaders (gold)
+#   - Link icon for group members (indented appearance)
+#   - Player name (with scroll for long names)
+#   - Status (Online/Offline/Leader/Grouped)
+#   - Volume slider (110px width)
+#
+# Layout Notes:
+#   - Row width is 304px to account for scrollbar (320 - 8 padding - 8 scrollbar)
+#   - Scrollbar appears automatically when content overflows (scrollbar_mode: AUTO)
+#   - Each row is 56px height with 8px padding
+#
+# Offline players are shown in grey (#666666) per FR-034.
+# Tapping an offline player shows brief orange border feedback.
+#
+# When a player is selected:
+#   - It becomes the active media player for all controls
+#   - Selection is persisted to NVS for boot restore
+#   - The checkmark indicator appears
+#
+# To update the UI when player states change:
+#   - script.execute: update_player_rows
+#
+# Navigation:
+#   - Back button returns to previous screen (navigate_back)
+#   - Home screen Speakers tile navigates here (navigate_to target_screen: 2)
+#
+# =============================================================================

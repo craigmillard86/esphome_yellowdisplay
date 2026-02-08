@@ -1,0 +1,835 @@
+# =============================================================================
+# UI Screen: Favorites Browse List (T075, T080, T081, T088, T090)
+# Purpose: Display favorited tracks synced from Music Assistant
+# Dependencies: Same as browse_recent.yaml
+# Exposes: page_browse_favorites LVGL page
+# Display: 320x240 ILI9341 in landscape orientation
+# =============================================================================
+
+# Implementation: Same pattern as browse_recent.yaml
+# - T075: Implement Favorites list view (synced from MA)
+# - T080: Add loading indicator during content fetch
+# - T081: Add empty state message for empty categories
+# - T088: Add navigation breadcrumbs or back button
+# - T090: Wire Favorites tile navigation from home (done in lvgl.yaml)
+
+# For brevity, this is an abbreviated version.
+# Full implementation follows the exact same pattern as browse_recent.yaml with:
+# - Screen ID: page_browse_favorites
+# - Category: 2 (FAVORITES)
+# - Title: "Favorites"
+# - Icon: \U000F02D1 (mdi:heart)
+# - Empty state: "No Favorites" / "Star your favorite tracks in Music Assistant"
+
+lvgl:
+  pages:
+    - id: page_browse_favorites
+      bg_color: 0x121212
+      border_width: 0
+      shadow_width: 0
+      on_load:
+        - logger.log:
+            tag: "browse"
+            level: INFO
+            format: "Favorites screen loaded"
+        # Show loading indicator, hide empty state and items
+        - lambda: |-
+            lv_obj_clear_flag(id(loading_indicator_favorites), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(empty_state_favorites), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_pagination_footer), LV_OBJ_FLAG_HIDDEN);
+            // Hide all items initially
+            lv_obj_add_flag(id(favorites_item_0), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_item_1), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_item_2), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_item_3), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_item_4), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_item_5), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_item_6), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_item_7), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_item_8), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_item_9), LV_OBJ_FLAG_HIDDEN);
+        # Load content
+        - script.execute:
+            id: browse_category
+            category: 2  # FAVORITES
+      widgets:
+        # Header (same pattern as browse_recent)
+        - button:
+            id: btn_favorites_back
+            x: 0
+            y: 0
+            width: 44
+            height: 44
+            bg_opa: TRANSP
+            border_width: 0
+            shadow_width: 0
+            pad_all: 0
+            on_click:
+              - script.execute: navigate_back
+            widgets:
+              - label:
+                  text: "\U000F004D"
+                  text_font: icons_24
+                  text_color: 0xB3B3B3
+                  align: CENTER
+
+        - label:
+            id: lbl_favorites_title
+            text: "Favorites"
+            text_font: roboto_16
+            text_color: 0xFFFFFF
+            align: TOP_MID
+            x: 0
+            y: 12
+
+        # Header - Page indicator
+        - label:
+            id: lbl_favorites_page_indicator
+            text: ""
+            text_font: roboto_12
+            text_color: 0x808080
+            align: TOP_RIGHT
+            x: -8
+            y: 14
+
+        - obj:
+            x: 0
+            y: 43
+            width: 320
+            height: 1
+            bg_color: 0x2A2A2A
+            bg_opa: COVER
+            border_width: 0
+
+        # List container (full width 304px, height 160px for pagination footer)
+        - obj:
+            id: favorites_list_container
+            x: 8
+            y: 48
+            width: 304
+            height: 160
+            bg_opa: TRANSP
+            border_width: 0
+            scrollable: true
+            scroll_dir: VER
+            widgets:
+              # List Item 0
+              - button:
+                  id: favorites_item_0
+                  x: 0
+                  y: 0
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_0_media_id);'
+                        item_title: !lambda 'return id(browse_item_0_title);'
+                  widgets:
+                    - label:
+                        id: lbl_favorites_item_0_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    - label:
+                        id: lbl_favorites_item_0_subtitle
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+              # List Item 1
+              - button:
+                  id: favorites_item_1
+                  x: 0
+                  y: 40
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_1_media_id);'
+                        item_title: !lambda 'return id(browse_item_1_title);'
+                  widgets:
+                    - label:
+                        id: lbl_favorites_item_1_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    - label:
+                        id: lbl_favorites_item_1_subtitle
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+              # List Item 2
+              - button:
+                  id: favorites_item_2
+                  x: 0
+                  y: 80
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_2_media_id);'
+                        item_title: !lambda 'return id(browse_item_2_title);'
+                  widgets:
+                    - label:
+                        id: lbl_favorites_item_2_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    - label:
+                        id: lbl_favorites_item_2_subtitle
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+              # List Item 3
+              - button:
+                  id: favorites_item_3
+                  x: 0
+                  y: 120
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_3_media_id);'
+                        item_title: !lambda 'return id(browse_item_3_title);'
+                  widgets:
+                    - label:
+                        id: lbl_favorites_item_3_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    - label:
+                        id: lbl_favorites_item_3_subtitle
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+              # List Item 4
+              - button:
+                  id: favorites_item_4
+                  x: 0
+                  y: 160
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_4_media_id);'
+                        item_title: !lambda 'return id(browse_item_4_title);'
+                  widgets:
+                    - label:
+                        id: lbl_favorites_item_4_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    - label:
+                        id: lbl_favorites_item_4_subtitle
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+              # List Item 5
+              - button:
+                  id: favorites_item_5
+                  x: 0
+                  y: 200
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_5_media_id);'
+                        item_title: !lambda 'return id(browse_item_5_title);'
+                  widgets:
+                    - label:
+                        id: lbl_favorites_item_5_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    - label:
+                        id: lbl_favorites_item_5_subtitle
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+              # List Item 6
+              - button:
+                  id: favorites_item_6
+                  x: 0
+                  y: 240
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_6_media_id);'
+                        item_title: !lambda 'return id(browse_item_6_title);'
+                  widgets:
+                    - label:
+                        id: lbl_favorites_item_6_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    - label:
+                        id: lbl_favorites_item_6_subtitle
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+              # List Item 7
+              - button:
+                  id: favorites_item_7
+                  x: 0
+                  y: 280
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_7_media_id);'
+                        item_title: !lambda 'return id(browse_item_7_title);'
+                  widgets:
+                    - label:
+                        id: lbl_favorites_item_7_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    - label:
+                        id: lbl_favorites_item_7_subtitle
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+              # List Item 8
+              - button:
+                  id: favorites_item_8
+                  x: 0
+                  y: 320
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_8_media_id);'
+                        item_title: !lambda 'return id(browse_item_8_title);'
+                  widgets:
+                    - label:
+                        id: lbl_favorites_item_8_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    - label:
+                        id: lbl_favorites_item_8_subtitle
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+              # List Item 9
+              - button:
+                  id: favorites_item_9
+                  x: 0
+                  y: 360
+                  width: 288
+                  height: 36
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_9_media_id);'
+                        item_title: !lambda 'return id(browse_item_9_title);'
+                  widgets:
+                    - label:
+                        id: lbl_favorites_item_9_title
+                        text: "Track Title"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 272
+                        long_mode: DOT
+                    - label:
+                        id: lbl_favorites_item_9_subtitle
+                        text: "Artist"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 272
+                        long_mode: DOT
+
+        # Pagination Footer (full width 304px since no alphabet picker)
+        - obj:
+            id: favorites_pagination_footer
+            x: 8
+            y: 212
+            width: 304
+            height: 28
+            bg_opa: TRANSP
+            border_width: 0
+            hidden: true
+            widgets:
+              # Previous button
+              - button:
+                  id: btn_favorites_prev
+                  x: 0
+                  y: 0
+                  width: 70
+                  height: 26
+                  bg_color: 0x2A2A2A
+                  bg_opa: COVER
+                  radius: 4
+                  border_width: 0
+                  shadow_width: 0
+                  on_click:
+                    - script.execute: browse_page_prev
+                  widgets:
+                    - label:
+                        text: "< Prev"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              # Next button
+              - button:
+                  id: btn_favorites_next
+                  x: 234
+                  y: 0
+                  width: 70
+                  height: 26
+                  bg_color: 0x2A2A2A
+                  bg_opa: COVER
+                  radius: 4
+                  border_width: 0
+                  shadow_width: 0
+                  on_click:
+                    - script.execute: browse_page_next
+                  widgets:
+                    - label:
+                        text: "Next >"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+
+        # Loading indicator
+        - obj:
+            id: loading_indicator_favorites
+            x: 0
+            y: 44
+            width: 320
+            height: 196
+            bg_opa: TRANSP
+            border_width: 0
+            hidden: false
+            widgets:
+              - spinner:
+                  align: CENTER
+                  width: 48
+                  height: 48
+                  spin_time: 1s
+                  arc_length: 60
+                  arc_width: 4
+                  arc_color: 0x00D1FF
+                  indicator:
+                    arc_color: 0x1E1E1E
+                    arc_width: 4
+              - label:
+                  text: "Loading favorites..."
+                  text_font: roboto_12
+                  text_color: 0xB3B3B3
+                  align: CENTER
+                  y: 40
+
+        # Empty state
+        - obj:
+            id: empty_state_favorites
+            x: 0
+            y: 44
+            width: 320
+            height: 196
+            bg_opa: TRANSP
+            border_width: 0
+            hidden: true
+            widgets:
+              - label:
+                  text: "\U000F02D1"  # mdi:heart
+                  text_font: icons_24
+                  text_color: 0x666666
+                  align: CENTER
+                  y: -30
+              - label:
+                  text: "No Favorites"
+                  text_font: roboto_16
+                  text_color: 0xB3B3B3
+                  align: CENTER
+                  y: 10
+              - label:
+                  text: "Star your favorite tracks in Music Assistant"
+                  text_font: roboto_12
+                  text_color: 0x666666
+                  align: CENTER
+                  y: 35
+                  width: 280
+                  text_align: CENTER
+
+# =============================================================================
+# Scripts - UI Update Logic
+# =============================================================================
+
+script:
+  - id: update_favorites_list
+    mode: single
+    then:
+      - lambda: |-
+          ESP_LOGI("browse_ui", "Updating Favorites list UI");
+
+          int loaded_count = id(browse_loaded_items);
+          int offset = id(browse_page_offset);
+          int total = id(browse_total_items);
+
+          // Hide loading indicator
+          lv_obj_add_flag(id(loading_indicator_favorites), LV_OBJ_FLAG_HIDDEN);
+
+          // Show empty state if no items loaded
+          if (loaded_count == 0) {
+            lv_obj_clear_flag(id(empty_state_favorites), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_pagination_footer), LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(id(lbl_favorites_page_indicator), "");
+            lv_obj_add_flag(id(favorites_item_0), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_item_1), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_item_2), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_item_3), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_item_4), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_item_5), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_item_6), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_item_7), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_item_8), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(favorites_item_9), LV_OBJ_FLAG_HIDDEN);
+            return;
+          }
+
+          // Hide empty state
+          lv_obj_add_flag(id(empty_state_favorites), LV_OBJ_FLAG_HIDDEN);
+
+          // Update page indicator
+          char page_text[32];
+          if (total > 0) {
+            snprintf(page_text, sizeof(page_text), "%d-%d of %d", offset + 1, offset + loaded_count, total);
+          } else {
+            snprintf(page_text, sizeof(page_text), "%d-%d", offset + 1, offset + loaded_count);
+          }
+          lv_label_set_text(id(lbl_favorites_page_indicator), page_text);
+
+          // Show/hide pagination buttons based on position
+          if (loaded_count > 0 && (offset > 0 || (total > 0 && offset + loaded_count < total))) {
+            lv_obj_clear_flag(id(favorites_pagination_footer), LV_OBJ_FLAG_HIDDEN);
+
+            // Prev button visibility
+            if (offset > 0) {
+              lv_obj_clear_flag(id(btn_favorites_prev), LV_OBJ_FLAG_HIDDEN);
+            } else {
+              lv_obj_add_flag(id(btn_favorites_prev), LV_OBJ_FLAG_HIDDEN);
+            }
+
+            // Next button visibility
+            if (total > 0 && offset + loaded_count < total) {
+              lv_obj_clear_flag(id(btn_favorites_next), LV_OBJ_FLAG_HIDDEN);
+            } else if (total == 0 && loaded_count == 10) {
+              // If we don't know total but got full page, assume more
+              lv_obj_clear_flag(id(btn_favorites_next), LV_OBJ_FLAG_HIDDEN);
+            } else {
+              lv_obj_add_flag(id(btn_favorites_next), LV_OBJ_FLAG_HIDDEN);
+            }
+          } else {
+            lv_obj_add_flag(id(favorites_pagination_footer), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Update items 0-9
+          if (loaded_count > 0) {
+            lv_label_set_text(id(lbl_favorites_item_0_title), id(browse_item_0_title).c_str());
+            lv_label_set_text(id(lbl_favorites_item_0_subtitle), id(browse_item_0_subtitle).c_str());
+            lv_obj_clear_flag(id(favorites_item_0), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(favorites_item_0), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (loaded_count > 1) {
+            lv_label_set_text(id(lbl_favorites_item_1_title), id(browse_item_1_title).c_str());
+            lv_label_set_text(id(lbl_favorites_item_1_subtitle), id(browse_item_1_subtitle).c_str());
+            lv_obj_clear_flag(id(favorites_item_1), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(favorites_item_1), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (loaded_count > 2) {
+            lv_label_set_text(id(lbl_favorites_item_2_title), id(browse_item_2_title).c_str());
+            lv_label_set_text(id(lbl_favorites_item_2_subtitle), id(browse_item_2_subtitle).c_str());
+            lv_obj_clear_flag(id(favorites_item_2), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(favorites_item_2), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (loaded_count > 3) {
+            lv_label_set_text(id(lbl_favorites_item_3_title), id(browse_item_3_title).c_str());
+            lv_label_set_text(id(lbl_favorites_item_3_subtitle), id(browse_item_3_subtitle).c_str());
+            lv_obj_clear_flag(id(favorites_item_3), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(favorites_item_3), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (loaded_count > 4) {
+            lv_label_set_text(id(lbl_favorites_item_4_title), id(browse_item_4_title).c_str());
+            lv_label_set_text(id(lbl_favorites_item_4_subtitle), id(browse_item_4_subtitle).c_str());
+            lv_obj_clear_flag(id(favorites_item_4), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(favorites_item_4), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (loaded_count > 5) {
+            lv_label_set_text(id(lbl_favorites_item_5_title), id(browse_item_5_title).c_str());
+            lv_label_set_text(id(lbl_favorites_item_5_subtitle), id(browse_item_5_subtitle).c_str());
+            lv_obj_clear_flag(id(favorites_item_5), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(favorites_item_5), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (loaded_count > 6) {
+            lv_label_set_text(id(lbl_favorites_item_6_title), id(browse_item_6_title).c_str());
+            lv_label_set_text(id(lbl_favorites_item_6_subtitle), id(browse_item_6_subtitle).c_str());
+            lv_obj_clear_flag(id(favorites_item_6), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(favorites_item_6), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (loaded_count > 7) {
+            lv_label_set_text(id(lbl_favorites_item_7_title), id(browse_item_7_title).c_str());
+            lv_label_set_text(id(lbl_favorites_item_7_subtitle), id(browse_item_7_subtitle).c_str());
+            lv_obj_clear_flag(id(favorites_item_7), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(favorites_item_7), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (loaded_count > 8) {
+            lv_label_set_text(id(lbl_favorites_item_8_title), id(browse_item_8_title).c_str());
+            lv_label_set_text(id(lbl_favorites_item_8_subtitle), id(browse_item_8_subtitle).c_str());
+            lv_obj_clear_flag(id(favorites_item_8), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(favorites_item_8), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (loaded_count > 9) {
+            lv_label_set_text(id(lbl_favorites_item_9_title), id(browse_item_9_title).c_str());
+            lv_label_set_text(id(lbl_favorites_item_9_subtitle), id(browse_item_9_subtitle).c_str());
+            lv_obj_clear_flag(id(favorites_item_9), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(favorites_item_9), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Scroll list to top
+          lv_obj_scroll_to_y(id(favorites_list_container), 0, LV_ANIM_OFF);
+
+          ESP_LOGI("browse_ui", "Favorites list UI updated: %d items visible", loaded_count);

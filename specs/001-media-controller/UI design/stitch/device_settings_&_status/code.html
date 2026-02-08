@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Device Settings &amp; Status</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* Custom slider appearance for LVGL feel */
+        input[type='range']::-webkit-slider-thumb {
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            background: #ffffff;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid #137fec;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-white font-display">
+<!-- Screen Container: Emulating a 320x240 LCD centered on a mobile screen for preview -->
+<div class="flex items-center justify-center min-h-screen bg-slate-900 p-4">
+<!-- Main UI Surface -->
+<div class="relative w-[320px] h-[520px] md:h-[480px] bg-background-light dark:bg-background-dark overflow-hidden flex flex-col border border-white/10 shadow-2xl rounded-xl">
+<!-- TopAppBar -->
+<div class="flex items-center bg-background-light dark:bg-background-dark p-4 pb-2 justify-between border-b border-white/5">
+<div class="text-white flex size-10 shrink-0 items-center cursor-pointer">
+<span class="material-symbols-outlined text-2xl">arrow_back</span>
+</div>
+<h2 class="text-white text-base font-bold leading-tight tracking-tight flex-1 text-center pr-10">System Settings</h2>
+</div>
+<!-- Scrollable Content Area -->
+<div class="flex-1 overflow-y-auto overflow-x-hidden pb-6">
+<!-- Section Header -->
+<h3 class="text-white text-sm font-bold leading-tight tracking-wide px-4 pb-2 pt-4 uppercase opacity-60">Network Status</h3>
+<!-- ListItem: IP Address -->
+<div class="flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-[64px] py-1 justify-between border-b border-white/5">
+<div class="flex items-center gap-3">
+<div class="text-white flex items-center justify-center rounded-lg bg-primary/20 shrink-0 size-10">
+<span class="material-symbols-outlined text-primary">lan</span>
+</div>
+<div class="flex flex-col justify-center">
+<p class="text-white text-sm font-medium leading-normal line-clamp-1">IP Address</p>
+<p class="text-[#92adc9] text-xs font-normal leading-normal line-clamp-2">192.168.1.142</p>
+</div>
+</div>
+<div class="shrink-0">
+<p class="text-white/40 text-xs font-normal leading-normal">v4</p>
+</div>
+</div>
+<!-- ListItem: MA Server -->
+<div class="flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-[64px] py-1 justify-between border-b border-white/5">
+<div class="flex items-center gap-3">
+<div class="text-white flex items-center justify-center rounded-lg bg-primary/20 shrink-0 size-10">
+<span class="material-symbols-outlined text-primary">cloud_done</span>
+</div>
+<div class="flex flex-col justify-center">
+<p class="text-white text-sm font-medium leading-normal line-clamp-1">MA Server</p>
+<p class="text-[#92adc9] text-xs font-normal leading-normal line-clamp-2">Connected</p>
+</div>
+</div>
+<div class="shrink-0">
+<div class="flex size-6 items-center justify-center">
+<div class="size-2 rounded-full bg-[#0bda5b] animate-pulse"></div>
+</div>
+</div>
+</div>
+<!-- ListItem: Wi-Fi Strength -->
+<div class="flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-[64px] py-1 justify-between border-b border-white/5">
+<div class="flex items-center gap-3">
+<div class="text-white flex items-center justify-center rounded-lg bg-primary/20 shrink-0 size-10">
+<span class="material-symbols-outlined text-primary">signal_wifi_4_bar</span>
+</div>
+<div class="flex flex-col justify-center">
+<p class="text-white text-sm font-medium leading-normal line-clamp-1">Wi-Fi Strength</p>
+<p class="text-[#92adc9] text-xs font-normal leading-normal line-clamp-2">Strong (-45dBm)</p>
+</div>
+</div>
+<div class="shrink-0">
+<p class="text-white text-xs font-normal leading-normal">88%</p>
+</div>
+</div>
+<!-- Section: Controls -->
+<h3 class="text-white text-sm font-bold leading-tight tracking-wide px-4 pb-2 pt-6 uppercase opacity-60">Display</h3>
+<!-- Brightness Slider -->
+<div class="px-4 py-3">
+<div class="flex justify-between items-center mb-2">
+<span class="text-xs text-[#92adc9] font-medium">Brightness</span>
+<span class="text-xs text-white font-bold">75%</span>
+</div>
+<div class="flex items-center gap-3 bg-white/5 p-3 rounded-lg">
+<span class="material-symbols-outlined text-sm text-white/50">light_mode</span>
+<input class="w-full h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-primary" type="range" value="75"/>
+<span class="material-symbols-outlined text-xl text-white">light_mode</span>
+</div>
+</div>
+<!-- Actions -->
+<div class="px-4 pt-6">
+<button class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors active:scale-95">
+<span class="material-symbols-outlined">restart_alt</span>
+<span>Reboot Device</span>
+</button>
+<p class="text-center text-[10px] text-white/30 mt-4">Firmware v2.4.1-stable</p>
+</div>
+</div>
+<!-- Decorative Bottom Bar (iOS style) -->
+<div class="h-6 flex items-center justify-center">
+<div class="w-20 h-1 bg-white/10 rounded-full"></div>
+</div>
+</div>
+</div>
+</body></html>

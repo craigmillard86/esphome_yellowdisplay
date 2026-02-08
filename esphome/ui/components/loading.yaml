@@ -1,0 +1,129 @@
+# =============================================================================
+# UI Component: Loading Indicator (T072)
+# Purpose: Loading spinner and message for async operations
+# Dependencies: packages/lvgl.yaml (LVGL framework, theme, fonts, icons)
+# Usage: Included in browse screens during content fetch
+# Display: 320x240 ILI9341 in landscape orientation
+# =============================================================================
+
+# This component implements:
+# - T072: Create loading indicator component
+#
+# Component Design:
+# - Centered spinner with rotating arc
+# - "Loading..." text message below spinner
+# - Cyan accent color (#00D1FF) for visibility
+# - Initially hidden, shown during async operations
+# - Transparent background to overlay content
+#
+# Usage Example:
+# - obj:
+#     id: loading_indicator
+#     x: 0
+#     y: 44  # Below header
+#     width: 320
+#     height: 196  # Screen height - header
+#     bg_opa: TRANSP
+#     border_width: 0
+#     hidden: true
+#     widgets:
+#       - spinner:
+#           id: spinner_loading
+#           align: CENTER
+#           width: 48
+#           height: 48
+#           spin_time: 1s
+#           arc_length: 60
+#           arc_width: 4
+#           arc_color: 0x00D1FF
+#           indicator:
+#             arc_color: 0x1E1E1E
+#             arc_width: 4
+#       - label:
+#           id: lbl_loading_message
+#           text: "Loading..."
+#           text_font: roboto_12
+#           text_color: 0xB3B3B3
+#           align: CENTER
+#           y: 40
+
+# =============================================================================
+# Implementation Pattern
+# =============================================================================
+#
+# Show Loading Indicator:
+# - lambda: |-
+#     lv_obj_clear_flag(id(loading_indicator), LV_OBJ_FLAG_HIDDEN);
+#
+# Hide Loading Indicator:
+# - lambda: |-
+#     lv_obj_add_flag(id(loading_indicator), LV_OBJ_FLAG_HIDDEN);
+#
+# Update Loading Message:
+# - lambda: |-
+#     lv_label_set_text(id(lbl_loading_message), "Fetching albums...");
+#
+# =============================================================================
+# Design Guidelines
+# =============================================================================
+#
+# Spinner Configuration:
+# - Size: 48x48px for visibility
+# - Spin time: 1 second (smooth rotation)
+# - Arc length: 60 degrees (partial circle)
+# - Arc width: 4px (visible but not heavy)
+# - Foreground: Cyan (#00D1FF) for brand consistency
+# - Background: Dark gray (#1E1E1E) for contrast
+#
+# Text Configuration:
+# - Font: roboto_12 (small, non-intrusive)
+# - Color: Secondary gray (#B3B3B3)
+# - Position: 40px below spinner center
+# - Alignment: Center
+#
+# Container Configuration:
+# - Transparent background (overlay mode)
+# - Full width/height below header
+# - No border or shadow
+# - Initially hidden (hidden: true)
+#
+# Animation Notes:
+# - Spinner uses built-in LVGL rotation animation
+# - No additional animations needed
+# - Smooth 60fps rotation on ESP32
+#
+# Memory Optimization:
+# - Single spinner instance reused across screens
+# - Lightweight LVGL widgets
+# - No image assets (all vector-based)
+#
+# Accessibility:
+# - Visual feedback for loading state
+# - Non-blocking (UI remains responsive)
+# - Clear indication of async operation
+#
+# =============================================================================
+# Usage in Browse Screens
+# =============================================================================
+#
+# Pattern for all browse screens:
+#
+# 1. Show loading indicator before fetch:
+#    - lambda: |-
+#        lv_obj_clear_flag(id(loading_indicator_recent), LV_OBJ_FLAG_HIDDEN);
+#
+# 2. Fetch content from Music Assistant:
+#    - http_request.get:
+#        url: "http://homeassistant.local:8123/api/music_assistant/browse/recent"
+#        headers:
+#          Authorization: "Bearer ${ha_long_lived_token}"
+#        on_response:
+#          - lambda: |-
+#              // Parse response and populate list
+#              lv_obj_add_flag(id(loading_indicator_recent), LV_OBJ_FLAG_HIDDEN);
+#
+# 3. Hide loading indicator after completion:
+#    - Always hide in both success and error paths
+#    - Show empty state if no results
+#
+# =============================================================================

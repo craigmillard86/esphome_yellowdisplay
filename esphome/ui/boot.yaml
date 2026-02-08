@@ -1,0 +1,48 @@
+# =============================================================================
+# UI Screen: Boot Screen
+# Purpose: Display "Starting..." message during device initialization
+# Dependencies: packages/lvgl.yaml (LVGL framework, theme, fonts)
+# Exposes: ui_boot_screen (LVGL page/screen component)
+# Display: Simple centered text on dark background shown during boot phase
+# =============================================================================
+
+lvgl:
+  # =============================================================================
+  # Boot Screen Definition
+  # =============================================================================
+  # This screen is displayed immediately during device startup while the system
+  # initializes WiFi, Home Assistant API, and other components.
+  # Constitution reference: §1.1.4 UI must display valid Boot state
+
+  pages:
+    - id: ui_boot_screen
+      # Apply base screen style (dark background #121212, white text)
+      styles: style_screen
+
+      # Screen layout configuration
+      layout:
+        type: FLEX
+        flex_flow: COLUMN_WRAP
+        flex_align_main: CENTER       # Center vertically
+        flex_align_cross: CENTER      # Center horizontally
+
+      # =============================================================================
+      # Boot Message Label
+      # =============================================================================
+      # Centered white "Starting..." text using roboto_24 font
+
+      widgets:
+        - label:
+            id: ui_boot_lbl_message
+            text: "Starting..."
+            # Use primary label style (white text, 24pt Roboto, centered)
+            styles: style_label_primary
+            text_align: CENTER
+
+            # Ensure text is centered within the screen
+            align: CENTER
+
+            # Text styling
+            text_color: 0xFFFFFF        # White text
+            bg_color: 0x121212          # Deep Charcoal background
+            bg_opa: TRANSP              # Transparent background (screen provides bg)

@@ -1,0 +1,40 @@
+# =============================================================================
+# Package: Backlight Control
+# Purpose: PWM-based backlight brightness control
+# Dependencies: None (hardware-level package)
+# Exposes: light component 'backlight'
+# Hardware: TFT backlight on GPIO21, active HIGH
+# =============================================================================
+
+# PWM output for backlight control
+# Frequency: 1000Hz provides flicker-free operation
+# GPIO21 drives backlight transistor/MOSFET (active HIGH)
+output:
+  - platform: ledc
+    pin: GPIO21
+    id: backlight_pwm
+    frequency: 1000Hz
+
+# Light component for brightness control
+# Exposed to Home Assistant as light.cyd_music_remote_backlight
+light:
+  - platform: monochromatic
+    id: backlight
+    name: "Backlight"
+    output: backlight_pwm
+
+    # Default brightness at boot: 50% per constitution §8.1
+    default_transition_length: 0s
+    restore_mode: ALWAYS_ON
+
+    # Gamma correction for perceptually linear brightness
+    gamma_correct: 2.8
+
+# Turn on backlight at boot
+esphome:
+  on_boot:
+    priority: 800  # Run early
+    then:
+      - light.turn_on:
+          id: backlight
+          brightness: 50%

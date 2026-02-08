@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Now Playing (Control)</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Be Vietnam Pro"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        /* Fixed size for 320x240 simulation */
+        .tft-screen {
+            width: 320px;
+            height: 240px;
+            overflow: hidden;
+            position: relative;
+        }
+        /* Custom hide scrollbars */
+        ::-webkit-scrollbar { display: none; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-gray-900 flex items-center justify-center min-h-screen font-display">
+<!-- 320x240 LCD Simulator Container -->
+<div class="tft-screen bg-background-light dark:bg-background-dark text-white rounded-lg shadow-2xl border-4 border-gray-800">
+<!-- Top Bar / Cast Icon -->
+<div class="absolute top-2 right-2 z-10">
+<button class="flex items-center justify-center size-8 bg-white/10 rounded-full text-white active:bg-primary/40">
+<span class="material-symbols-outlined text-[20px]">cast</span>
+</button>
+</div>
+<!-- Main Content Area (Split Layout) -->
+<div class="flex h-[180px] p-3 gap-3">
+<!-- Left Side: Album Art -->
+<div class="w-[120px] shrink-0">
+<div class="w-full aspect-square rounded-lg bg-cover bg-center shadow-lg" data-alt="Modern synthwave album cover with vibrant neon colors" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAnEPhWMPoTybp3IgKLsS-W69Dqp-cZIGBfbLIfyNW2sg0b0B-3tj1xpm8PFvyyspWESYx7Khgxm9P4uA5JhM83c0xihvNmx7g6vxWn_B7ZHYtth-sNqQ-LYA4z4O-bmwbLldEoAfeYDU8ytJ62XIAzJ4UgaCJRwB-ui-hmnjScvc1H_sk0zv7ijnhyXVXqKH4Ng35SoLpOOVRZjhuaU07fbTNvf-Bn5A2oi6vQIv268TpGbRON2tZkSixBARB__GXGPxmUA568uLVB');">
+</div>
+</div>
+<!-- Right Side: Metadata & Main Controls -->
+<div class="flex-1 flex flex-col justify-center min-w-0">
+<!-- Text Metadata -->
+<div class="mb-2">
+<h2 class="text-[16px] font-bold leading-tight truncate">Midnight City</h2>
+<p class="text-[13px] text-primary font-medium truncate">M83</p>
+</div>
+<!-- Playback Controls Row -->
+<div class="flex items-center justify-between gap-1 mt-1 pr-2">
+<button class="flex items-center justify-center size-9 text-white/90 active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-[28px]">skip_previous</span>
+</button>
+<button class="flex items-center justify-center size-12 bg-primary rounded-full text-white shadow-lg active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[32px]">pause</span>
+</button>
+<button class="flex items-center justify-center size-9 text-white/90 active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-[28px]">skip_next</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Bottom Controls Area -->
+<div class="absolute bottom-0 left-0 right-0 px-3 pb-3 flex flex-col gap-3 bg-gradient-to-t from-background-dark via-background-dark/90 to-transparent pt-4">
+<!-- Progress Bar -->
+<div class="flex flex-col gap-1">
+<div class="flex justify-between items-center text-[10px] text-white/60 font-medium px-0.5">
+<span>1:45</span>
+<span>3:55</span>
+</div>
+<div class="h-1.5 w-full bg-white/20 rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 45%;"></div>
+</div>
+</div>
+<!-- Volume Slider -->
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[14px] text-white/60">volume_down</span>
+<div class="flex-1 h-1 bg-white/10 rounded-full relative flex items-center">
+<div class="h-full bg-white/60 rounded-full" style="width: 70%;"></div>
+<!-- Volume Handle -->
+<div class="size-3 bg-white rounded-full shadow-md absolute" style="left: calc(70% - 6px);"></div>
+</div>
+<span class="material-symbols-outlined text-[14px] text-white/60">volume_up</span>
+</div>
+</div>
+<!-- Touch Feedback Overlay (Visual Only) -->
+<div class="absolute inset-0 pointer-events-none border border-white/5 rounded-lg"></div>
+</div>
+</body></html>

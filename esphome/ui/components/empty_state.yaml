@@ -1,0 +1,154 @@
+# =============================================================================
+# UI Component: Empty State Message (T073)
+# Purpose: Display message when category has no content
+# Dependencies: packages/lvgl.yaml (LVGL framework, theme, fonts, icons)
+# Usage: Included in browse screens when list is empty
+# Display: 320x240 ILI9341 in landscape orientation
+# =============================================================================
+
+# This component implements:
+# - T073: Create empty state message component
+#
+# Component Design:
+# - Centered icon (grayed out)
+# - "No Items Found" primary message
+# - Helpful secondary message with context
+# - Initially hidden, shown when list is empty
+# - Transparent background
+#
+# Usage Example:
+# - obj:
+#     id: empty_state_recent
+#     x: 0
+#     y: 44  # Below header
+#     width: 320
+#     height: 196  # Screen height - header
+#     bg_opa: TRANSP
+#     border_width: 0
+#     hidden: true
+#     widgets:
+#       - label:
+#           text: "\U000F0251"  # mdi:library-music
+#           text_font: icons_24
+#           text_color: 0x666666
+#           align: CENTER
+#           y: -30
+#       - label:
+#           id: lbl_empty_primary
+#           text: "No Recent Tracks"
+#           text_font: roboto_16
+#           text_color: 0xB3B3B3
+#           align: CENTER
+#           y: 10
+#       - label:
+#           id: lbl_empty_secondary
+#           text: "Play music to see recent tracks"
+#           text_font: roboto_12
+#           text_color: 0x666666
+#           align: CENTER
+#           y: 35
+#           width: 280
+#           text_align: CENTER
+
+# =============================================================================
+# Implementation Pattern
+# =============================================================================
+#
+# Show Empty State:
+# - lambda: |-
+#     lv_obj_clear_flag(id(empty_state_recent), LV_OBJ_FLAG_HIDDEN);
+#
+# Hide Empty State:
+# - lambda: |-
+#     lv_obj_add_flag(id(empty_state_recent), LV_OBJ_FLAG_HIDDEN);
+#
+# Update Empty State Messages:
+# - lambda: |-
+#     lv_label_set_text(id(lbl_empty_primary), "No Favorites");
+#     lv_label_set_text(id(lbl_empty_secondary), "Star your favorite tracks to see them here");
+#
+# =============================================================================
+# Design Guidelines
+# =============================================================================
+#
+# Icon Configuration:
+# - Size: 24px (icons_24 font)
+# - Color: Inactive gray (#666666)
+# - Position: 30px above center
+# - Semantic icon per category (music, heart, playlist, etc.)
+#
+# Primary Text Configuration:
+# - Font: roboto_16 (prominent but not overwhelming)
+# - Color: Secondary gray (#B3B3B3)
+# - Position: 10px below center
+# - Alignment: Center
+# - Content: Short, descriptive message
+#
+# Secondary Text Configuration:
+# - Font: roboto_12 (smaller, helpful)
+# - Color: Inactive gray (#666666)
+# - Position: 35px below center
+# - Alignment: Center
+# - Width: 280px (allow text wrapping)
+# - Content: Helpful hint or action suggestion
+#
+# Container Configuration:
+# - Transparent background (overlay mode)
+# - Full width/height below header
+# - No border or shadow
+# - Initially hidden (hidden: true)
+#
+# =============================================================================
+# Empty State Messages by Category
+# =============================================================================
+#
+# Recently Played:
+# - Icon: \U000F075A (mdi:music)
+# - Primary: "No Recent Tracks"
+# - Secondary: "Play music to see recent tracks"
+#
+# Favorites:
+# - Icon: \U000F02D1 (mdi:heart)
+# - Primary: "No Favorites"
+# - Secondary: "Star your favorite tracks in Music Assistant"
+#
+# Playlists:
+# - Icon: \U000F0486 (mdi:playlist-music)
+# - Primary: "No Playlists"
+# - Secondary: "Create playlists in Music Assistant"
+#
+# Albums:
+# - Icon: \U000F0025 (mdi:album)
+# - Primary: "No Albums Found"
+# - Secondary: "Check your Music Assistant library"
+#
+# Artists:
+# - Icon: \U000F0006 (mdi:account-music)
+# - Primary: "No Artists Found"
+# - Secondary: "Check your Music Assistant library"
+#
+# Search Results:
+# - Icon: \U000F0349 (mdi:magnify)
+# - Primary: "No Results Found"
+# - Secondary: "Try a different search term"
+#
+# =============================================================================
+# Accessibility Notes
+# =============================================================================
+#
+# - Clear visual hierarchy (icon → primary → secondary)
+# - High contrast text for readability
+# - Helpful guidance for user action
+# - Non-blocking (can navigate away)
+# - Consistent positioning across screens
+#
+# =============================================================================
+# Memory Optimization
+# =============================================================================
+#
+# - Text-only design (no images)
+# - Single icon from icon font
+# - Lightweight LVGL labels
+# - Reusable pattern across all browse screens
+#
+# =============================================================================

@@ -1,0 +1,633 @@
+# =============================================================================
+# Package: Navigation System (T042, T043, T044)
+# Purpose: Screen management and transition animations for multi-page UI
+# Dependencies: packages/lvgl.yaml (LVGL pages and display configuration)
+# Exposes: Navigation scripts, screen state tracking
+# Display: 320x240 ILI9341 in landscape orientation
+# =============================================================================
+
+# This package implements:
+# - T042: Screen management with navigation stack (forward/back navigation)
+# - T043: Slide-left transition animations for forward navigation (200-300ms)
+# - T044: Slide-right transition animations for back navigation (200-300ms)
+
+# Note: ESPHome's LVGL component uses lvgl.page.show for page transitions.
+# Custom animations can be added later if needed.
+
+# =============================================================================
+# Substitutions - Animation Configuration
+# =============================================================================
+
+substitutions:
+  # Navigation stack depth limit (prevent stack overflow)
+  nav_stack_max_depth: "3"
+
+# =============================================================================
+# Global Variables - Navigation State Management
+# =============================================================================
+
+globals:
+  # Current active screen identifier
+  # 0 = HOME
+  # 1 = NOW_PLAYING (page_main)
+  # 2 = PLAYERS
+  # 3 = LIBRARY
+  # 4 = FAVORITES (browse_favorites)
+  # 5 = SEARCH
+  # 6 = BOOT (initial screen)
+  # 7 = BROWSE_RECENT
+  # 8 = BROWSE_PLAYLISTS
+  # 9 = BROWSE_ALBUMS
+  # 10 = BROWSE_ARTISTS
+  # 11 = GROUPING (page_grouping - multi-room speaker groups)
+  # 12 = SETTINGS (page_settings - device settings)
+  - id: current_screen
+    type: int
+    restore_value: no
+    initial_value: '6'  # Start on boot screen
+
+  # Previous screen for back navigation
+  # Stores the screen ID to return to when back is pressed
+  - id: previous_screen
+    type: int
+    restore_value: no
+    initial_value: '6'
+
+  # Navigation stack for multi-level back navigation
+  # Format: Array of up to 3 screen IDs
+  # Index 0 = oldest, Index 2 = most recent
+  # -1 indicates empty slot
+  - id: nav_stack_0
+    type: int
+    restore_value: no
+    initial_value: '-1'
+
+  - id: nav_stack_1
+    type: int
+    restore_value: no
+    initial_value: '-1'
+
+  - id: nav_stack_2
+    type: int
+    restore_value: no
+    initial_value: '-1'
+
+  # Navigation stack depth counter
+  # Tracks how many levels deep in navigation stack
+  - id: nav_stack_depth
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Lock flag to prevent navigation during transitions
+  - id: nav_lock
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+# =============================================================================
+# Scripts - Navigation Control
+# =============================================================================
+
+script:
+  # ---------------------------------------------------------------------------
+  # Navigate To Screen (Forward Navigation with Stack Push)
+  # ---------------------------------------------------------------------------
+  # Usage: script.execute with target_screen parameter
+  # Example: - script.execute:
+  #              id: navigate_to
+  #              target_screen: 1  # Navigate to NOW_PLAYING
+  - id: navigate_to
+    mode: restart  # Restart if called during animation
+    parameters:
+      target_screen: int
+    then:
+      - lambda: |-
+          // Check if navigation is locked during animation
+          if (id(nav_lock)) {
+            ESP_LOGW("navigation", "Navigation locked during transition, ignoring");
+            return;
+          }
+
+          int target = target_screen;
+          int current = id(current_screen);
+
+          // Validate target screen
+          if (target < 0 || target > 12) {
+            ESP_LOGE("navigation", "Invalid target screen: %d", target);
+            return;
+          }
+
+          // All screens now implemented (Phase 6 complete)
+          // Validate screen range only
+
+          // Skip if already on target screen
+          if (target == current) {
+            ESP_LOGD("navigation", "Already on screen %d, skipping", target);
+            return;
+          }
+
+          ESP_LOGI("navigation", "Navigate from screen %d to screen %d", current, target);
+
+          // Push current screen to navigation stack
+          int depth = id(nav_stack_depth);
+          if (depth < ${nav_stack_max_depth}) {
+            // Shift stack and add current screen
+            if (depth >= 2) id(nav_stack_2) = id(nav_stack_1);
+            if (depth >= 1) id(nav_stack_1) = id(nav_stack_0);
+            id(nav_stack_0) = current;
+            id(nav_stack_depth) = depth + 1;
+            ESP_LOGD("navigation", "Pushed screen %d to stack (depth now %d)", current, depth + 1);
+          } else {
+            // Stack full, shift and discard oldest
+            id(nav_stack_2) = id(nav_stack_1);
+            id(nav_stack_1) = id(nav_stack_0);
+            id(nav_stack_0) = current;
+            ESP_LOGW("navigation", "Navigation stack full, discarded oldest entry");
+          }
+
+          // Update previous screen tracker
+          id(previous_screen) = current;
+
+          // Lock navigation during transition
+          id(nav_lock) = true;
+
+          // Update current screen
+          id(current_screen) = target;
+
+      # Show the target page using ESPHome's LVGL page mechanism
+      - if:
+          condition:
+            lambda: 'return target_screen == 0;'
+          then:
+            - lvgl.page.show:
+                id: page_home
+                animation: OUT_LEFT
+                time: 250ms
+      - if:
+          condition:
+            lambda: 'return target_screen == 1;'
+          then:
+            - lvgl.page.show:
+                id: page_main
+                animation: OUT_LEFT
+                time: 250ms
+            # Show/hide "No Player Selected" overlay based on selection state
+            - lambda: |-
+                if (id(selected_player_id).empty()) {
+                  lv_obj_clear_flag(id(no_player_overlay), LV_OBJ_FLAG_HIDDEN);
+                } else {
+                  lv_obj_add_flag(id(no_player_overlay), LV_OBJ_FLAG_HIDDEN);
+                }
+      - if:
+          condition:
+            lambda: 'return target_screen == 2;'
+          then:
+            - lvgl.page.show:
+                id: page_players
+                animation: OUT_LEFT
+                time: 250ms
+            # Refresh group status and update player row UI when navigating to players screen
+            - script.execute: refresh_player_group_status
+            - script.execute: update_player_rows
+      - if:
+          condition:
+            lambda: 'return target_screen == 3;'
+          then:
+            - lvgl.page.show:
+                id: page_library
+                animation: OUT_LEFT
+                time: 250ms
+      - if:
+          condition:
+            lambda: 'return target_screen == 4;'
+          then:
+            - script.execute:
+                id: browse_configure_page
+                category: 2
+            - lvgl.page.show:
+                id: page_browse
+                animation: OUT_LEFT
+                time: 250ms
+            - script.execute:
+                id: browse_category
+                category: 2
+      # Screen 5 (SEARCH) removed for memory optimization
+      - if:
+          condition:
+            lambda: 'return target_screen == 6;'
+          then:
+            - lvgl.page.show:
+                id: page_boot
+                animation: OUT_LEFT
+                time: 250ms
+      # Screen 7 (BROWSE_RECENT) removed for memory optimization
+      - if:
+          condition:
+            lambda: 'return target_screen == 8;'
+          then:
+            - script.execute:
+                id: browse_configure_page
+                category: 3
+            - lvgl.page.show:
+                id: page_browse
+                animation: OUT_LEFT
+                time: 250ms
+            - script.execute:
+                id: browse_category
+                category: 3
+      - if:
+          condition:
+            lambda: 'return target_screen == 9;'
+          then:
+            - script.execute:
+                id: browse_configure_page
+                category: 4
+            - lvgl.page.show:
+                id: page_browse
+                animation: OUT_LEFT
+                time: 250ms
+            # Index is built by upfront sync on HA connect, no on-demand building needed
+            - script.execute:
+                id: browse_category
+                category: 4
+            # Update alpha picker colors based on index state
+            - script.execute:
+                id: letter_index_update_colors
+                category: 4
+      - if:
+          condition:
+            lambda: 'return target_screen == 10;'
+          then:
+            - script.execute:
+                id: browse_configure_page
+                category: 5
+            - lvgl.page.show:
+                id: page_browse
+                animation: OUT_LEFT
+                time: 250ms
+            # Index is built by upfront sync on HA connect, no on-demand building needed
+            - script.execute:
+                id: browse_category
+                category: 5
+            # Update alpha picker colors based on index state
+            - script.execute:
+                id: letter_index_update_colors
+                category: 5
+      - if:
+          condition:
+            lambda: 'return target_screen == 11;'
+          then:
+            - lvgl.page.show:
+                id: page_grouping
+                animation: OUT_LEFT
+                time: 250ms
+            # Refresh group status before initializing to get latest group info
+            - script.execute: refresh_player_group_status
+            - delay: 200ms
+            # Initialize grouping screen and update checkboxes
+            - script.execute: grouping_init
+            - delay: 50ms
+            - script.execute: grouping_update_checkboxes
+      - if:
+          condition:
+            lambda: 'return target_screen == 12;'
+          then:
+            - lvgl.page.show:
+                id: page_settings
+                animation: OUT_LEFT
+                time: 250ms
+            # Load current settings and update UI
+            - script.execute: settings_update_ui
+
+      # Wait for animation and unlock
+      - delay: 300ms
+      - lambda: |-
+          id(nav_lock) = false;
+          ESP_LOGI("navigation", "Navigation complete, now on screen %d", id(current_screen));
+
+  # ---------------------------------------------------------------------------
+  # Navigate Back (Pop from Stack with Backward Animation)
+  # ---------------------------------------------------------------------------
+  # Returns to previous screen using navigation stack
+  # If stack is empty, returns to HOME screen (screen 0)
+  - id: navigate_back
+    mode: restart
+    then:
+      - lambda: |-
+          // Check if navigation is locked
+          if (id(nav_lock)) {
+            ESP_LOGW("navigation", "Navigation locked during transition, ignoring back");
+            return;
+          }
+
+          int current = id(current_screen);
+          int depth = id(nav_stack_depth);
+
+          if (depth > 0) {
+            // Pop from stack
+            int target = id(nav_stack_0);
+
+            // Shift stack down (C1 fix: always clear top slot)
+            if (depth >= 2) id(nav_stack_0) = id(nav_stack_1);
+            if (depth >= 3) id(nav_stack_1) = id(nav_stack_2);
+            id(nav_stack_2) = -1;  // Always clear top slot after pop
+
+            id(nav_stack_depth) = depth - 1;
+            ESP_LOGD("navigation", "Popped screen %d from stack (depth now %d)", target, depth - 1);
+
+            // Update screens
+            id(previous_screen) = current;
+            id(current_screen) = target;
+          } else {
+            // Stack empty, default to HOME screen
+            ESP_LOGD("navigation", "Navigation stack empty, returning to HOME");
+            id(previous_screen) = current;
+            id(current_screen) = 0;
+          }
+
+          // Lock navigation
+          id(nav_lock) = true;
+
+      # Show the target page with right animation (going back)
+      - if:
+          condition:
+            lambda: 'return id(current_screen) == 0;'
+          then:
+            - lvgl.page.show:
+                id: page_home
+                animation: OUT_RIGHT
+                time: 250ms
+      - if:
+          condition:
+            lambda: 'return id(current_screen) == 1;'
+          then:
+            - lvgl.page.show:
+                id: page_main
+                animation: OUT_RIGHT
+                time: 250ms
+            # Show/hide "No Player Selected" overlay based on selection state
+            - lambda: |-
+                if (id(selected_player_id).empty()) {
+                  lv_obj_clear_flag(id(no_player_overlay), LV_OBJ_FLAG_HIDDEN);
+                } else {
+                  lv_obj_add_flag(id(no_player_overlay), LV_OBJ_FLAG_HIDDEN);
+                }
+      - if:
+          condition:
+            lambda: 'return id(current_screen) == 2;'
+          then:
+            - lvgl.page.show:
+                id: page_players
+                animation: OUT_RIGHT
+                time: 250ms
+            # Refresh group status and update player row UI when navigating back to players screen
+            - script.execute: refresh_player_group_status
+            - script.execute: update_player_rows
+      - if:
+          condition:
+            lambda: 'return id(current_screen) == 3;'
+          then:
+            - lvgl.page.show:
+                id: page_library
+                animation: OUT_RIGHT
+                time: 250ms
+      - if:
+          condition:
+            lambda: 'return id(current_screen) == 4;'
+          then:
+            - script.execute:
+                id: browse_configure_page
+                category: 2
+            - lvgl.page.show:
+                id: page_browse
+                animation: OUT_RIGHT
+                time: 250ms
+      # Screen 5 (SEARCH) removed for memory optimization
+      - if:
+          condition:
+            lambda: 'return id(current_screen) == 6;'
+          then:
+            - lvgl.page.show:
+                id: page_boot
+                animation: OUT_RIGHT
+                time: 250ms
+      # Screen 7 (BROWSE_RECENT) removed for memory optimization
+      - if:
+          condition:
+            lambda: 'return id(current_screen) == 8;'
+          then:
+            - script.execute:
+                id: browse_configure_page
+                category: 3
+            - lvgl.page.show:
+                id: page_browse
+                animation: OUT_RIGHT
+                time: 250ms
+      - if:
+          condition:
+            lambda: 'return id(current_screen) == 9;'
+          then:
+            - script.execute:
+                id: browse_configure_page
+                category: 4
+            - lvgl.page.show:
+                id: page_browse
+                animation: OUT_RIGHT
+                time: 250ms
+            # Update alpha picker colors for albums
+            - script.execute:
+                id: letter_index_update_colors
+                category: 4
+      - if:
+          condition:
+            lambda: 'return id(current_screen) == 10;'
+          then:
+            - script.execute:
+                id: browse_configure_page
+                category: 5
+            - lvgl.page.show:
+                id: page_browse
+                animation: OUT_RIGHT
+                time: 250ms
+            # Update alpha picker colors for artists
+            - script.execute:
+                id: letter_index_update_colors
+                category: 5
+      - if:
+          condition:
+            lambda: 'return id(current_screen) == 11;'
+          then:
+            - lvgl.page.show:
+                id: page_grouping
+                animation: OUT_RIGHT
+                time: 250ms
+      - if:
+          condition:
+            lambda: 'return id(current_screen) == 12;'
+          then:
+            - lvgl.page.show:
+                id: page_settings
+                animation: OUT_RIGHT
+                time: 250ms
+            # Update settings UI when navigating back
+            - script.execute: settings_update_ui
+
+      # Wait for animation and unlock
+      - delay: 300ms
+      - lambda: |-
+          id(nav_lock) = false;
+          ESP_LOGI("navigation", "Navigate back complete, now on screen %d", id(current_screen));
+
+  # ---------------------------------------------------------------------------
+  # Navigate Home (Clear Stack and Return to Home Screen)
+  # ---------------------------------------------------------------------------
+  # Quickly returns to HOME screen, clearing navigation stack
+  # Useful for "home button" functionality
+  - id: navigate_home
+    mode: restart
+    then:
+      - lambda: |-
+          if (id(nav_lock)) {
+            ESP_LOGW("navigation", "Navigation locked, ignoring home navigation");
+            return;
+          }
+
+          int current = id(current_screen);
+
+          // Skip if already home
+          if (current == 0) {
+            ESP_LOGD("navigation", "Already on HOME screen");
+            return;
+          }
+
+          ESP_LOGI("navigation", "Navigate home from screen %d", current);
+
+          // Clear navigation stack
+          id(nav_stack_0) = -1;
+          id(nav_stack_1) = -1;
+          id(nav_stack_2) = -1;
+          id(nav_stack_depth) = 0;
+
+          id(previous_screen) = current;
+          id(current_screen) = 0;
+          id(nav_lock) = true;
+
+      # Show home page with right animation
+      - lvgl.page.show:
+          id: page_home
+          animation: OUT_RIGHT
+          time: 250ms
+
+      - delay: 300ms
+      - lambda: |-
+          id(nav_lock) = false;
+          ESP_LOGI("navigation", "Navigate home complete");
+
+  # ---------------------------------------------------------------------------
+  # Clear Navigation Stack
+  # ---------------------------------------------------------------------------
+  # Utility script to reset navigation stack without navigating
+  # Useful after logout or app reset
+  - id: nav_clear_stack
+    mode: single
+    then:
+      - lambda: |-
+          ESP_LOGI("navigation", "Clearing navigation stack");
+          id(nav_stack_0) = -1;
+          id(nav_stack_1) = -1;
+          id(nav_stack_2) = -1;
+          id(nav_stack_depth) = 0;
+
+  # ---------------------------------------------------------------------------
+  # Initialize Navigation (Boot Sequence)
+  # ---------------------------------------------------------------------------
+  # Sets up initial screen state after boot
+  # Call this after LVGL is fully initialized
+  - id: nav_initialize
+    mode: single
+    then:
+      - lambda: |-
+          ESP_LOGI("navigation", "Initializing navigation system");
+
+          // Start on boot screen
+          id(current_screen) = 6;
+          id(previous_screen) = 6;
+
+          // Clear navigation stack
+          id(nav_stack_0) = -1;
+          id(nav_stack_1) = -1;
+          id(nav_stack_2) = -1;
+          id(nav_stack_depth) = 0;
+
+          id(nav_lock) = false;
+
+          ESP_LOGI("navigation", "Navigation system ready");
+
+      # Show boot screen
+      - lvgl.page.show:
+          id: page_boot
+          animation: NONE
+          time: 0ms
+
+      # Auto-navigate to HOME (dashboard) after boot delay
+      - delay: 2s
+      - script.execute:
+          id: navigate_to
+          target_screen: 0  # HOME (page_home)
+
+# =============================================================================
+# Usage Examples
+# =============================================================================
+#
+# Navigate to a specific screen (forward with animation):
+#   - script.execute:
+#       id: navigate_to
+#       target_screen: 1  # NOW_PLAYING
+#
+# Go back to previous screen:
+#   - script.execute: navigate_back
+#
+# Return to home screen (clear stack):
+#   - script.execute: navigate_home
+#
+# Example button with navigation:
+#   - button:
+#       id: btn_to_players
+#       on_click:
+#         - script.execute:
+#             id: navigate_to
+#             target_screen: 2  # PLAYERS screen
+#
+# Example back button:
+#   - button:
+#       id: btn_back
+#       on_click:
+#         - script.execute: navigate_back
+#
+# =============================================================================
+# Screen ID Reference
+# =============================================================================
+# 0 = HOME              (page_home)
+# 1 = NOW_PLAYING       (page_main)
+# 2 = PLAYERS           (page_players - ui/players.yaml)
+# 3 = LIBRARY           (page_library - ui/library.yaml - T070)
+# 4 = FAVORITES         (page_browse_favorites - ui/browse_favorites.yaml - T075, T090)
+# 5 = SEARCH            (page_search - ui/search.yaml - T083-T087)
+# 6 = BOOT              (page_boot)
+# 7 = BROWSE_RECENT     (page_browse_recent - ui/browse_recent.yaml - T074)
+# 8 = BROWSE_PLAYLISTS  (page_browse_playlists - ui/browse_playlists.yaml - T076)
+# 9 = BROWSE_ALBUMS     (page_browse_albums - ui/browse_albums.yaml - T077)
+# 10 = BROWSE_ARTISTS   (page_browse_artists - ui/browse_artists.yaml - T078)
+# 11 = GROUPING         (page_grouping - ui/grouping.yaml - T091-T103)
+#
+# =============================================================================
+# Animation Notes
+# =============================================================================
+# - Uses ESPHome's lvgl.page.show action for page transitions
+# - OUT_LEFT animation for forward navigation
+# - OUT_RIGHT animation for back navigation
+# - 250ms duration provides smooth transitions
+# - Navigation lock prevents glitches during transition
+#
+# =============================================================================

@@ -1,0 +1,1100 @@
+# =============================================================================
+# Package: Media Player Integration (Music Assistant)
+# Purpose: Subscribe to Home Assistant media_player entity for state updates
+#          and provide service calls for media control
+# Dependencies: homeassistant.yaml (requires active HA Native API connection)
+# Exposes: Media state sensors, control scripts, service calls
+# =============================================================================
+
+# This package implements:
+# - Media player state subscription from Home Assistant
+# - Sensors for media metadata (title, artist, album, position, duration, volume, state)
+# - Service calls for media control (play, pause, next, previous, volume)
+# - Debouncing for rapid button presses (200ms minimum)
+# - Optimistic UI update support
+
+# =============================================================================
+# Substitutions
+# =============================================================================
+
+substitutions:
+  # Default media player entity_id (can be overridden in main.yaml)
+  # This is the fallback if no player is selected at runtime
+  default_media_player: "media_player.lards_speaker2"
+
+  # Debounce interval for button presses (milliseconds)
+  media_button_debounce_ms: "200"
+
+  # Polling interval for media position updates (2-4 Hz per constitution)
+  media_position_poll_interval: "250ms"
+
+# =============================================================================
+# Global Variables
+# =============================================================================
+
+globals:
+  # Currently active media player entity_id
+  # Can be changed at runtime to switch between different players
+  - id: active_player_entity
+    type: std::string
+    restore_value: no
+    initial_value: '"${default_media_player}"'
+
+  # Timestamp of last button press (milliseconds)
+  # Used for debouncing rapid button presses
+  - id: last_media_button_press_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+  # Optimistic media state (for immediate UI feedback)
+  # 0 = idle, 1 = playing, 2 = paused, 3 = buffering
+  - id: optimistic_media_state
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Flag to indicate optimistic update is pending
+  # Cleared when actual state is received from HA
+  - id: optimistic_update_pending
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # Optimistic volume level (0.0 to 1.0)
+  - id: optimistic_volume
+    type: float
+    restore_value: no
+    initial_value: '0.5'
+
+  # Cached media position for local tracking
+  - id: cached_media_position
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+
+  # Timestamp when position was last updated from HA
+  - id: position_update_timestamp_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+  # Mute state tracking (synced from Home Assistant)
+  - id: is_volume_muted
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+# =============================================================================
+# Text Sensors - Subscribe to Home Assistant Media Player State
+# =============================================================================
+
+text_sensor:
+  # Media player state (playing, paused, idle, off, unavailable)
+  - platform: homeassistant
+    id: ha_media_state
+    entity_id: ${default_media_player}
+    internal: true
+    on_value:
+      then:
+        # T127: Reset idle timer on media state change
+        - script.execute: reset_idle_timer
+
+        - lambda: |-
+            // Clear optimistic update flag when real state arrives
+            id(optimistic_update_pending) = false;
+
+            // Update optimistic state to match actual
+            if (x == "playing") {
+              id(optimistic_media_state) = 1;
+            } else if (x == "paused") {
+              id(optimistic_media_state) = 2;
+            } else if (x == "buffering") {
+              id(optimistic_media_state) = 3;
+            } else {
+              id(optimistic_media_state) = 0;  // idle/off/unavailable
+            }
+
+            ESP_LOGI("media", "Media state updated: %s", x.c_str());
+
+        - component.update: media_state_display
+
+        # T109: Check for MA service unavailable (HA connected but player unavailable)
+        - if:
+            condition:
+              lambda: 'return x == "unavailable" && id(system_state) == 2;'
+            then:
+              - lvgl.label.update:
+                  id: lbl_status
+                  text: "Service Unavailable"
+                  text_color: 0xFF6B35
+              - logger.log:
+                  tag: "media"
+                  level: WARN
+                  format: "Media player unavailable - Music Assistant may be down"
+            else:
+              # Restore "Connected" status when player becomes available again
+              - if:
+                  condition:
+                    lambda: 'return id(system_state) == 2;'
+                  then:
+                    - lvgl.label.update:
+                        id: lbl_status
+                        text: "Connected"
+                        text_color: 0x00D1FF
+
+        # Update play/pause button icon based on media state
+        - if:
+            condition:
+              lambda: 'return x == "playing";'
+            then:
+              - lvgl.label.update:
+                  id: lbl_play_icon
+                  text: "\U000F03E4"  # mdi:pause
+            else:
+              - lvgl.label.update:
+                  id: lbl_play_icon
+                  text: "\U000F040A"  # mdi:play
+
+  # Media title
+  - platform: homeassistant
+    id: ha_media_title
+    entity_id: ${default_media_player}
+    attribute: media_title
+    internal: true
+    on_value:
+      then:
+        - component.update: media_title_display
+        - lvgl.label.update:
+            id: lbl_title
+            text: !lambda 'return x.c_str();'
+        # Update display global for album art lookup (works with any player)
+        - lambda: 'id(current_display_title) = x;'
+        - logger.log:
+            tag: "media"
+            level: INFO
+            format: "Media title: %s"
+            args: ['x.c_str()']
+
+  # Media artist
+  - platform: homeassistant
+    id: ha_media_artist
+    entity_id: ${default_media_player}
+    attribute: media_artist
+    internal: true
+    on_value:
+      then:
+        - component.update: media_artist_display
+        - lvgl.label.update:
+            id: lbl_artist
+            text: !lambda 'return x.c_str();'
+        # Update display global for album art lookup (works with any player)
+        - lambda: 'id(current_display_artist) = x;'
+        - logger.log:
+            tag: "media"
+            level: INFO
+            format: "Media artist: %s"
+            args: ['x.c_str()']
+
+  # Media album
+  - platform: homeassistant
+    id: ha_media_album
+    entity_id: ${default_media_player}
+    attribute: media_album_name
+    internal: true
+    on_value:
+      then:
+        - component.update: media_album_display
+        - lvgl.label.update:
+            id: lbl_album
+            text: !lambda 'return x.c_str();'
+        - logger.log:
+            tag: "media"
+            level: DEBUG
+            format: "Media album: %s"
+            args: ['x.c_str()']
+
+  # Exposed media state sensor with optimistic support
+  - platform: template
+    id: media_state_display
+    name: "Media State"
+    icon: "mdi:play-circle"
+    update_interval: never
+    lambda: |-
+      // Use optimistic state if update pending, otherwise use actual state
+      if (id(optimistic_update_pending)) {
+        switch (id(optimistic_media_state)) {
+          case 1: return {"playing"};
+          case 2: return {"paused"};
+          case 3: return {"buffering"};
+          default: return {"idle"};
+        }
+      }
+
+      if (id(ha_media_state).has_state()) {
+        return {id(ha_media_state).state};
+      }
+      return {"unavailable"};
+
+  # Exposed media title
+  - platform: template
+    id: media_title_display
+    name: "Media Title"
+    icon: "mdi:music"
+    update_interval: never
+    lambda: |-
+      if (id(ha_media_title).has_state()) {
+        return {id(ha_media_title).state};
+      }
+      return {"No media"};
+
+  # Exposed media artist
+  - platform: template
+    id: media_artist_display
+    name: "Media Artist"
+    icon: "mdi:account-music"
+    update_interval: never
+    lambda: |-
+      if (id(ha_media_artist).has_state()) {
+        return {id(ha_media_artist).state};
+      }
+      return {""};
+
+  # Exposed media album
+  - platform: template
+    id: media_album_display
+    name: "Media Album"
+    icon: "mdi:album"
+    update_interval: never
+    lambda: |-
+      if (id(ha_media_album).has_state()) {
+        return {id(ha_media_album).state};
+      }
+      return {""};
+
+  # Active player entity display
+  - platform: template
+    id: active_player_display
+    name: "Active Player"
+    icon: "mdi:speaker"
+    update_interval: 10s
+    lambda: |-
+      return {id(active_player_entity)};
+
+  # Media player friendly name from Home Assistant
+  - platform: homeassistant
+    id: ha_player_friendly_name
+    entity_id: ${default_media_player}
+    attribute: friendly_name
+    internal: true
+    on_value:
+      then:
+        - component.update: player_friendly_name_display
+        - lvgl.label.update:
+            id: lbl_player_name
+            text: !lambda 'return x.c_str();'
+        - logger.log:
+            tag: "media"
+            level: INFO
+            format: "Player friendly name: %s"
+            args: ['x.c_str()']
+
+  # Exposed player friendly name
+  - platform: template
+    id: player_friendly_name_display
+    name: "Player Name"
+    icon: "mdi:speaker"
+    update_interval: never
+    lambda: |-
+      if (id(ha_player_friendly_name).has_state()) {
+        return {id(ha_player_friendly_name).state};
+      }
+      return {"Unknown Player"};
+
+# =============================================================================
+# Sensors - Numeric Media Attributes
+# =============================================================================
+
+sensor:
+  # Media position (seconds) from Home Assistant
+  - platform: homeassistant
+    id: ha_media_position
+    entity_id: ${default_media_player}
+    attribute: media_position
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(cached_media_position) = x;
+            id(position_update_timestamp_ms) = millis();
+            ESP_LOGD("media", "Media position updated: %.1f seconds", x);
+
+  # Media duration (seconds) from Home Assistant
+  - platform: homeassistant
+    id: ha_media_duration
+    entity_id: ${default_media_player}
+    attribute: media_duration
+    internal: true
+    on_value:
+      then:
+        - logger.log:
+            tag: "media"
+            level: DEBUG
+            format: "Media duration: %.1f seconds"
+            args: ['x']
+
+  # Volume level (0.0 to 1.0) from Home Assistant
+  - platform: homeassistant
+    id: ha_volume_level
+    entity_id: ${default_media_player}
+    attribute: volume_level
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            // Update optimistic volume when real value arrives
+            id(optimistic_volume) = x;
+            ESP_LOGD("media", "Volume updated: %.0f%%", x * 100);
+        - component.update: volume_level_display
+        # Update LVGL volume slider to match HA volume
+        - lvgl.slider.update:
+            id: slider_volume
+            value: !lambda 'return (int)(x * 100);'
+        # Update volume icon using centralized script (H2 fix)
+        - script.execute: update_volume_icon
+
+  # Exposed media position with local interpolation
+  - platform: template
+    id: media_position_display
+    name: "Media Position"
+    icon: "mdi:progress-clock"
+    unit_of_measurement: "s"
+    accuracy_decimals: 0
+    update_interval: ${media_position_poll_interval}
+    lambda: |-
+      // If playing, interpolate position based on elapsed time
+      if (id(optimistic_media_state) == 1 && id(position_update_timestamp_ms) > 0) {
+        float elapsed_seconds = (millis() - id(position_update_timestamp_ms)) / 1000.0;
+        float interpolated = id(cached_media_position) + elapsed_seconds;
+
+        // Clamp to duration if available
+        if (id(ha_media_duration).has_state() && id(ha_media_duration).state > 0) {
+          if (interpolated > id(ha_media_duration).state) {
+            interpolated = id(ha_media_duration).state;
+          }
+        }
+
+        return interpolated;
+      }
+
+      return id(cached_media_position);
+
+  # Exposed media duration
+  - platform: template
+    id: media_duration_display
+    name: "Media Duration"
+    icon: "mdi:timer"
+    unit_of_measurement: "s"
+    accuracy_decimals: 0
+    update_interval: never
+    lambda: |-
+      if (id(ha_media_duration).has_state()) {
+        return id(ha_media_duration).state;
+      }
+      return 0;
+
+  # Exposed volume level with optimistic support (percentage)
+  - platform: template
+    id: volume_level_display
+    name: "Volume Level"
+    icon: "mdi:volume-high"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    update_interval: never
+    lambda: |-
+      return id(optimistic_volume) * 100.0;
+
+# =============================================================================
+# Binary Sensors - Media State Helpers
+# =============================================================================
+
+binary_sensor:
+  # Is media currently playing?
+  - platform: template
+    id: media_is_playing
+    name: "Media Playing"
+    icon: "mdi:play"
+    lambda: |-
+      return id(optimistic_media_state) == 1;
+
+  # Is media currently paused?
+  - platform: template
+    id: media_is_paused
+    name: "Media Paused"
+    icon: "mdi:pause"
+    lambda: |-
+      return id(optimistic_media_state) == 2;
+
+  # Is volume muted? (from Home Assistant attribute)
+  - platform: homeassistant
+    id: ha_is_volume_muted
+    entity_id: ${default_media_player}
+    attribute: is_volume_muted
+    internal: true
+    on_state:
+      then:
+        - lambda: |-
+            id(is_volume_muted) = x;
+            ESP_LOGI("media", "Mute state updated from HA: %s", x ? "muted" : "unmuted");
+        # Update mute button icon using centralized script (H2 fix)
+        - script.execute: update_volume_icon
+
+# =============================================================================
+# Scripts - Media Control with Debouncing
+# =============================================================================
+
+script:
+  # Check if button press should be debounced
+  # Returns true if enough time has passed since last press
+  - id: check_media_debounce
+    mode: single
+    then:
+      - lambda: |-
+          uint32_t now = millis();
+          uint32_t elapsed = now - id(last_media_button_press_ms);
+
+          if (elapsed >= ${media_button_debounce_ms}) {
+            id(last_media_button_press_ms) = now;
+            // Debounce passed - action will continue
+          } else {
+            ESP_LOGD("media", "Button debounced - %dms since last press", elapsed);
+          }
+
+  # Play media
+  - id: media_play
+    mode: single
+    then:
+      - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Play ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
+          uint32_t now = millis();
+          uint32_t elapsed = now - id(last_media_button_press_ms);
+
+          if (elapsed < ${media_button_debounce_ms}) {
+            ESP_LOGD("media", "Play debounced - %dms since last press", elapsed);
+            return;
+          }
+          id(last_media_button_press_ms) = now;
+
+          // Optimistic update
+          id(optimistic_media_state) = 1;  // playing
+          id(optimistic_update_pending) = true;
+
+          ESP_LOGI("media", "Play requested for: %s", id(active_player_entity).c_str());
+
+      - component.update: media_state_display
+
+      - lambda: |-
+          ESP_LOGI("media", "Calling service: media_player.media_play for %s", id(active_player_entity).c_str());
+
+      - homeassistant.service:
+          service: media_player.media_play
+          data:
+            entity_id: !lambda 'return id(active_player_entity);'
+
+  # Pause media
+  - id: media_pause
+    mode: single
+    then:
+      - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Pause ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
+          uint32_t now = millis();
+          uint32_t elapsed = now - id(last_media_button_press_ms);
+
+          if (elapsed < ${media_button_debounce_ms}) {
+            ESP_LOGD("media", "Pause debounced - %dms since last press", elapsed);
+            return;
+          }
+          id(last_media_button_press_ms) = now;
+
+          // Optimistic update
+          id(optimistic_media_state) = 2;  // paused
+          id(optimistic_update_pending) = true;
+
+          ESP_LOGI("media", "Pause requested for: %s", id(active_player_entity).c_str());
+
+      - component.update: media_state_display
+
+      - lambda: |-
+          ESP_LOGI("media", "Calling service: media_player.media_pause for %s", id(active_player_entity).c_str());
+
+      - homeassistant.service:
+          service: media_player.media_pause
+          data:
+            entity_id: !lambda 'return id(active_player_entity);'
+
+  # Toggle play/pause
+  - id: media_play_pause
+    mode: single
+    then:
+      - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Play/Pause ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
+          uint32_t now = millis();
+          uint32_t elapsed = now - id(last_media_button_press_ms);
+
+          if (elapsed < ${media_button_debounce_ms}) {
+            ESP_LOGD("media", "Play/Pause debounced - %dms since last press", elapsed);
+            return;
+          }
+          id(last_media_button_press_ms) = now;
+
+          // Optimistic toggle
+          if (id(optimistic_media_state) == 1) {
+            id(optimistic_media_state) = 2;  // paused
+          } else {
+            id(optimistic_media_state) = 1;  // playing
+          }
+          id(optimistic_update_pending) = true;
+
+          ESP_LOGI("media", "Play/Pause toggled for: %s", id(active_player_entity).c_str());
+
+      - component.update: media_state_display
+
+      # Optimistic icon update: show pause icon if now playing, play icon if now paused
+      - if:
+          condition:
+            lambda: 'return id(optimistic_media_state) == 1;'
+          then:
+            - lvgl.label.update:
+                id: lbl_play_icon
+                text: "\U000F03E4"  # mdi:pause
+          else:
+            - lvgl.label.update:
+                id: lbl_play_icon
+                text: "\U000F040A"  # mdi:play
+
+      - lambda: |-
+          ESP_LOGI("media", "Calling service: media_player.media_play_pause for %s", id(active_player_entity).c_str());
+
+      - homeassistant.service:
+          service: media_player.media_play_pause
+          data:
+            entity_id: !lambda 'return id(active_player_entity);'
+
+  # Next track
+  - id: media_next_track
+    mode: single
+    then:
+      - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Next track ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
+          uint32_t now = millis();
+          uint32_t elapsed = now - id(last_media_button_press_ms);
+
+          if (elapsed < ${media_button_debounce_ms}) {
+            ESP_LOGD("media", "Next track debounced - %dms since last press", elapsed);
+            return;
+          }
+          id(last_media_button_press_ms) = now;
+
+          // Reset position for next track
+          id(cached_media_position) = 0;
+          id(position_update_timestamp_ms) = millis();
+
+          ESP_LOGI("media", "Next track requested for: %s", id(active_player_entity).c_str());
+
+      - lambda: |-
+          ESP_LOGI("media", "Calling service: media_player.media_next_track for %s", id(active_player_entity).c_str());
+
+      - homeassistant.service:
+          service: media_player.media_next_track
+          data:
+            entity_id: !lambda 'return id(active_player_entity);'
+
+  # Previous track
+  - id: media_previous_track
+    mode: single
+    then:
+      - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Previous track ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
+          uint32_t now = millis();
+          uint32_t elapsed = now - id(last_media_button_press_ms);
+
+          if (elapsed < ${media_button_debounce_ms}) {
+            ESP_LOGD("media", "Previous track debounced - %dms since last press", elapsed);
+            return;
+          }
+          id(last_media_button_press_ms) = now;
+
+          // Reset position for previous track
+          id(cached_media_position) = 0;
+          id(position_update_timestamp_ms) = millis();
+
+          ESP_LOGI("media", "Previous track requested for: %s", id(active_player_entity).c_str());
+
+      - lambda: |-
+          ESP_LOGI("media", "Calling service: media_player.media_previous_track for %s", id(active_player_entity).c_str());
+
+      - homeassistant.service:
+          service: media_player.media_previous_track
+          data:
+            entity_id: !lambda 'return id(active_player_entity);'
+
+  # Set volume (0-100)
+  - id: media_volume_set
+    mode: restart
+    parameters:
+      volume_percent: int
+    then:
+      - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Volume set ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
+          // Clamp volume to valid range
+          int clamped = volume_percent;
+          if (clamped < 0) clamped = 0;
+          if (clamped > 100) clamped = 100;
+
+          // Optimistic update
+          id(optimistic_volume) = clamped / 100.0;
+
+          ESP_LOGI("media", "Volume set to %d%% for: %s", clamped, id(active_player_entity).c_str());
+
+      - component.update: volume_level_display
+
+      - lambda: |-
+          ESP_LOGI("media", "Calling service: media_player.volume_set (%.0f%%) for %s",
+                   id(optimistic_volume) * 100, id(active_player_entity).c_str());
+
+      - homeassistant.service:
+          service: media_player.volume_set
+          data:
+            entity_id: !lambda 'return id(active_player_entity);'
+            volume_level: !lambda 'return id(optimistic_volume);'
+
+  # Volume up (increment by 5%)
+  - id: media_volume_up
+    mode: single
+    then:
+      - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Volume up ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
+          uint32_t now = millis();
+          uint32_t elapsed = now - id(last_media_button_press_ms);
+
+          if (elapsed < ${media_button_debounce_ms}) {
+            ESP_LOGD("media", "Volume up debounced - %dms since last press", elapsed);
+            return;
+          }
+          id(last_media_button_press_ms) = now;
+
+          // Increment volume by 5%
+          float new_volume = id(optimistic_volume) + 0.05;
+          if (new_volume > 1.0) new_volume = 1.0;
+          id(optimistic_volume) = new_volume;
+
+          ESP_LOGI("media", "Volume up to %.0f%% for: %s", new_volume * 100, id(active_player_entity).c_str());
+
+      - component.update: volume_level_display
+
+      - lambda: |-
+          ESP_LOGI("media", "Calling service: media_player.volume_set (%.0f%%) for %s",
+                   id(optimistic_volume) * 100, id(active_player_entity).c_str());
+
+      - homeassistant.service:
+          service: media_player.volume_set
+          data:
+            entity_id: !lambda 'return id(active_player_entity);'
+            volume_level: !lambda 'return id(optimistic_volume);'
+
+  # Volume down (decrement by 5%)
+  - id: media_volume_down
+    mode: single
+    then:
+      - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Volume down ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
+          uint32_t now = millis();
+          uint32_t elapsed = now - id(last_media_button_press_ms);
+
+          if (elapsed < ${media_button_debounce_ms}) {
+            ESP_LOGD("media", "Volume down debounced - %dms since last press", elapsed);
+            return;
+          }
+          id(last_media_button_press_ms) = now;
+
+          // Decrement volume by 5%
+          float new_volume = id(optimistic_volume) - 0.05;
+          if (new_volume < 0.0) new_volume = 0.0;
+          id(optimistic_volume) = new_volume;
+
+          ESP_LOGI("media", "Volume down to %.0f%% for: %s", new_volume * 100, id(active_player_entity).c_str());
+
+      - component.update: volume_level_display
+
+      - lambda: |-
+          ESP_LOGI("media", "Calling service: media_player.volume_set (%.0f%%) for %s",
+                   id(optimistic_volume) * 100, id(active_player_entity).c_str());
+
+      - homeassistant.service:
+          service: media_player.volume_set
+          data:
+            entity_id: !lambda 'return id(active_player_entity);'
+            volume_level: !lambda 'return id(optimistic_volume);'
+
+  # Set active player entity
+  - id: set_active_player
+    mode: single
+    parameters:
+      player_entity_id: string
+    then:
+      - lambda: |-
+          ESP_LOGI("media", "Switching active player from '%s' to '%s'",
+                   id(active_player_entity).c_str(),
+                   player_entity_id.c_str());
+
+          id(active_player_entity) = player_entity_id;
+
+          // Reset optimistic state when changing players
+          id(optimistic_update_pending) = false;
+          id(optimistic_media_state) = 0;
+          id(optimistic_volume) = 0.5;
+          id(cached_media_position) = 0;
+          id(position_update_timestamp_ms) = 0;
+          id(is_volume_muted) = false;
+
+      - component.update: active_player_display
+      - component.update: media_state_display
+
+  # Toggle mute state
+  - id: media_mute_toggle
+    mode: single
+    then:
+      - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Mute toggle ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
+          uint32_t now = millis();
+          uint32_t elapsed = now - id(last_media_button_press_ms);
+
+          if (elapsed < ${media_button_debounce_ms}) {
+            ESP_LOGD("media", "Mute toggle debounced - %dms since last press", elapsed);
+            return;
+          }
+          id(last_media_button_press_ms) = now;
+
+          // Optimistic toggle mute state
+          id(is_volume_muted) = !id(is_volume_muted);
+
+          ESP_LOGI("media", "Mute toggled to %s for: %s",
+                   id(is_volume_muted) ? "muted" : "unmuted",
+                   id(active_player_entity).c_str());
+
+      # Update volume icon (centralized)
+      - script.execute: update_volume_icon
+
+      - lambda: |-
+          ESP_LOGI("media", "Calling service: media_player.volume_mute for %s", id(active_player_entity).c_str());
+
+      - homeassistant.service:
+          service: media_player.volume_mute
+          data:
+            entity_id: !lambda 'return id(active_player_entity);'
+            is_volume_muted: !lambda 'return id(is_volume_muted);'
+
+  # Centralized volume icon update script (H2 fix)
+  # Call this whenever mute state or volume changes to avoid race conditions
+  - id: update_volume_icon
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: 'return id(is_volume_muted);'
+          then:
+            - lvgl.label.update:
+                id: lbl_volume_icon
+                text: "\U000F0581"  # mdi:volume-mute
+          else:
+            - lvgl.label.update:
+                id: lbl_volume_icon
+                text: "\U000F057E"  # mdi:volume-high
+
+  # Seek to position in current track (H1 fix)
+  # Called from progress slider on_release
+  - id: media_seek
+    mode: restart
+    parameters:
+      seek_percent: float
+    then:
+      - lambda: |-
+          // Gate control when offline (T104)
+          if (id(system_state) != 2) {
+            ESP_LOGW("media", "Seek ignored - system not ready (state=%d)", id(system_state));
+            return;
+          }
+
+          // Get media duration
+          float duration = 0;
+          if (id(ha_media_duration).has_state()) {
+            duration = id(ha_media_duration).state;
+          }
+
+          if (duration <= 0) {
+            ESP_LOGW("media", "Cannot seek - no duration available");
+            return;
+          }
+
+          // Calculate target position in seconds
+          float target_position = (seek_percent / 100.0) * duration;
+
+          // Update cached position immediately for smooth UI
+          id(cached_media_position) = target_position;
+          id(position_update_timestamp_ms) = millis();
+
+          ESP_LOGI("media", "Seek requested to %.1f seconds (%.0f%%) for: %s",
+                   target_position, seek_percent, id(active_player_entity).c_str());
+
+      - homeassistant.service:
+          service: media_player.media_seek
+          data:
+            entity_id: !lambda 'return id(active_player_entity);'
+          data_template:
+            seek_position: !lambda |-
+              float duration = 0;
+              if (id(ha_media_duration).has_state()) {
+                duration = id(ha_media_duration).state;
+              }
+              return (seek_percent / 100.0) * duration;
+
+# =============================================================================
+# Number Component for Volume Slider
+# =============================================================================
+
+number:
+  # Volume control slider (0-100%)
+  - platform: template
+    id: volume_slider
+    name: "Volume"
+    icon: "mdi:volume-medium"
+    min_value: 0
+    max_value: 100
+    step: 1
+    unit_of_measurement: "%"
+    optimistic: true
+
+    # Restore last volume on boot
+    restore_value: true
+
+    set_action:
+      - script.execute:
+          id: media_volume_set
+          volume_percent: !lambda 'return (int)x;'
+
+# =============================================================================
+# Button Components for Media Control
+# =============================================================================
+
+button:
+  # Play button
+  - platform: template
+    id: btn_media_play
+    name: "Play"
+    icon: "mdi:play"
+    on_press:
+      - script.execute: media_play
+
+  # Pause button
+  - platform: template
+    id: btn_media_pause
+    name: "Pause"
+    icon: "mdi:pause"
+    on_press:
+      - script.execute: media_pause
+
+  # Play/Pause toggle button
+  - platform: template
+    id: btn_media_play_pause
+    name: "Play/Pause"
+    icon: "mdi:play-pause"
+    on_press:
+      - script.execute: media_play_pause
+
+  # Next track button
+  - platform: template
+    id: btn_media_next
+    name: "Next Track"
+    icon: "mdi:skip-next"
+    on_press:
+      - script.execute: media_next_track
+
+  # Previous track button
+  - platform: template
+    id: btn_media_previous
+    name: "Previous Track"
+    icon: "mdi:skip-previous"
+    on_press:
+      - script.execute: media_previous_track
+
+  # Volume up button
+  - platform: template
+    id: btn_volume_up
+    name: "Volume Up"
+    icon: "mdi:volume-plus"
+    on_press:
+      - script.execute: media_volume_up
+
+  # Volume down button
+  - platform: template
+    id: btn_volume_down
+    name: "Volume Down"
+    icon: "mdi:volume-minus"
+    on_press:
+      - script.execute: media_volume_down
+
+  # Mute toggle button
+  - platform: template
+    id: btn_media_mute
+    name: "Mute"
+    icon: "mdi:volume-mute"
+    on_press:
+      - script.execute: media_mute_toggle
+
+# =============================================================================
+# Interval: Position Tracking Update
+# =============================================================================
+
+interval:
+  # Periodically update media position display and progress bar UI
+  # Only active interpolation happens in the sensor lambda
+  - interval: ${media_position_poll_interval}
+    then:
+      - lambda: |-
+          // Get current position and duration
+          float position = 0;
+          float duration = 0;
+
+          // Calculate interpolated position if playing
+          if (id(optimistic_media_state) == 1 && id(position_update_timestamp_ms) > 0) {
+            float elapsed_seconds = (millis() - id(position_update_timestamp_ms)) / 1000.0;
+            position = id(cached_media_position) + elapsed_seconds;
+          } else {
+            position = id(cached_media_position);
+          }
+
+          if (id(ha_media_duration).has_state()) {
+            duration = id(ha_media_duration).state;
+          }
+
+          // Clamp position to duration
+          if (duration > 0 && position > duration) {
+            position = duration;
+          }
+
+          // Update progress slider (0-100%)
+          int progress_percent = 0;
+          if (duration > 0) {
+            progress_percent = (int)((position / duration) * 100.0);
+            if (progress_percent > 100) progress_percent = 100;
+            if (progress_percent < 0) progress_percent = 0;
+          }
+          lv_slider_set_value(id(progress_slider), progress_percent, LV_ANIM_OFF);
+
+          // Format elapsed time as MM:SS
+          int elapsed_min = (int)position / 60;
+          int elapsed_sec = (int)position % 60;
+          char elapsed_str[8];
+          snprintf(elapsed_str, sizeof(elapsed_str), "%d:%02d", elapsed_min, elapsed_sec);
+          lv_label_set_text(id(lbl_elapsed_time), elapsed_str);
+
+          // Format total time as MM:SS
+          int total_min = (int)duration / 60;
+          int total_sec = (int)duration % 60;
+          char total_str[8];
+          snprintf(total_str, sizeof(total_str), "%d:%02d", total_min, total_sec);
+          lv_label_set_text(id(lbl_total_time), total_str);
+
+# =============================================================================
+# Notes on Usage
+# =============================================================================
+#
+# To use this package in your main.yaml:
+#
+# packages:
+#   media_player: !include packages/media_player.yaml
+#
+# To change the default media player, add this substitution in main.yaml:
+#   substitutions:
+#     default_media_player: "media_player.your_player_entity"
+#
+# To change the active player at runtime (e.g., from a UI action):
+#   - script.execute:
+#       id: set_active_player
+#       player_entity_id: "media_player.other_player"
+#
+# Available scripts for UI integration:
+#   - media_play           : Start playback
+#   - media_pause          : Pause playback
+#   - media_play_pause     : Toggle play/pause
+#   - media_next_track     : Skip to next track
+#   - media_previous_track : Go to previous track
+#   - media_volume_set     : Set volume (0-100)
+#   - media_volume_up      : Increase volume by 5%
+#   - media_volume_down    : Decrease volume by 5%
+#   - media_mute_toggle    : Toggle mute state
+#   - set_active_player    : Change active player entity
+#
+# Available sensors for UI display:
+#   - media_state_display    : Current playback state
+#   - media_title_display    : Current track title
+#   - media_artist_display   : Current track artist
+#   - media_album_display    : Current track album
+#   - media_position_display : Current position (seconds)
+#   - media_duration_display : Track duration (seconds)
+#   - volume_level_display   : Current volume (%)
+#   - active_player_display  : Active player entity_id
+#
+# Binary sensors:
+#   - media_is_playing     : True if currently playing
+#   - media_is_paused      : True if currently paused
+#   - ha_is_volume_muted   : True if volume is muted (from HA)
+#
+# Global variables:
+#   - is_volume_muted      : Current mute state (bool)
+#

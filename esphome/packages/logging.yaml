@@ -1,0 +1,241 @@
+# =============================================================================
+# Package: Logging Infrastructure (T134)
+# Purpose: Centralized logging configuration per Constitution Section 10
+# Dependencies: None
+# Exposes: Logging utilities and debug mode management
+# =============================================================================
+
+# This package implements:
+# - T134: Logging infrastructure per constitution Section 10
+# - Constitution §10.1: Log Standards (tags, levels, content rules)
+# - Constitution §10.2: Debug Mode (switch, auto-disable, verbosity)
+
+# =============================================================================
+# Approved Log Tags (Constitution §1.5 Observability)
+# =============================================================================
+#
+# Tag Reference - Use these tags in all ESP_LOG* calls:
+#   wifi     - Network events
+#   ha       - Home Assistant API events
+#   ui       - UI state changes
+#   touch    - Touch input events
+#   media    - Music Assistant / media_player events
+#   perf     - Performance metrics
+#
+# Additional tags used in this codebase:
+#   navigation   - Screen navigation events
+#   idle         - Idle timer and dimming events
+#   settings     - Settings changes
+#   browse       - Library browsing events
+#   grouping     - Speaker grouping events
+#   album_art    - Album art loading events
+#   player       - Player management events
+#   error_handler - Error display events
+#   heap_monitor - Memory monitoring
+#
+# =============================================================================
+
+# =============================================================================
+# Debug Mode Configuration (Constitution §10.2)
+# =============================================================================
+
+globals:
+  # Debug mode enable flag (also defined in settings.yaml but referenced here)
+  # This controls whether debug-level logging is active
+  - id: debug_mode_enabled
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # Debug mode auto-disable timestamp (30 minutes per Constitution §10.2)
+  - id: debug_mode_start_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+  # Debug mode auto-disable timeout (30 minutes = 1800000ms)
+  - id: debug_mode_timeout_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '1800000'  # 30 minutes
+
+# =============================================================================
+# Debug Mode Switch (Constitution §10.2)
+# =============================================================================
+
+switch:
+  # Debug mode switch exposed to Home Assistant
+  # Entity ID: switch.<device_name>_debug_mode
+  - platform: template
+    id: sw_debug_mode
+    name: "Debug Mode"
+    icon: "mdi:bug"
+    optimistic: false
+    restore_mode: ALWAYS_OFF  # Always start with debug off
+    lambda: |-
+      return id(debug_mode_enabled);
+    turn_on_action:
+      - lambda: |-
+          id(debug_mode_enabled) = true;
+          id(debug_mode_start_ms) = millis();
+          ESP_LOGI("settings", "Debug mode ENABLED - will auto-disable in 30 minutes");
+      # Increase log verbosity
+      - logger.log:
+          level: INFO
+          format: "Debug mode enabled - verbose logging active"
+          tag: "settings"
+    turn_off_action:
+      - lambda: |-
+          id(debug_mode_enabled) = false;
+          ESP_LOGI("settings", "Debug mode DISABLED");
+      - logger.log:
+          level: INFO
+          format: "Debug mode disabled - normal logging restored"
+          tag: "settings"
+
+# =============================================================================
+# Debug Mode Auto-Disable (Constitution §10.2)
+# =============================================================================
+
+interval:
+  # Check debug mode timeout every 60 seconds
+  - interval: 60s
+    then:
+      - lambda: |-
+          if (id(debug_mode_enabled)) {
+            uint32_t now = millis();
+            uint32_t elapsed = now - id(debug_mode_start_ms);
+
+            if (elapsed >= id(debug_mode_timeout_ms)) {
+              ESP_LOGW("settings", "Debug mode auto-disabled after 30 minutes");
+              id(debug_mode_enabled) = false;
+            } else {
+              // Log remaining time (in minutes)
+              uint32_t remaining_ms = id(debug_mode_timeout_ms) - elapsed;
+              uint32_t remaining_min = remaining_ms / 60000;
+              ESP_LOGD("settings", "Debug mode: %d minutes remaining", remaining_min);
+            }
+          }
+
+# =============================================================================
+# Log Helper Scripts
+# =============================================================================
+
+script:
+  # ---------------------------------------------------------------------------
+  # Log UI State Change (Constitution §1.5)
+  # ---------------------------------------------------------------------------
+  # Helper script for logging state transitions at INFO level
+  - id: log_state_change
+    mode: single
+    parameters:
+      from_state: string
+      to_state: string
+    then:
+      - lambda: |-
+          ESP_LOGI("ui", "State transition: %s -> %s",
+                   from_state.c_str(), to_state.c_str());
+
+  # ---------------------------------------------------------------------------
+  # Log Media Event
+  # ---------------------------------------------------------------------------
+  - id: log_media_event
+    mode: single
+    parameters:
+      event: string
+      details: string
+    then:
+      - lambda: |-
+          if (details.empty()) {
+            ESP_LOGI("media", "%s", event.c_str());
+          } else {
+            ESP_LOGI("media", "%s: %s", event.c_str(), details.c_str());
+          }
+
+  # ---------------------------------------------------------------------------
+  # Log Performance Metric
+  # ---------------------------------------------------------------------------
+  - id: log_perf_metric
+    mode: single
+    parameters:
+      metric: string
+      value: int
+      unit: string
+    then:
+      - lambda: |-
+          ESP_LOGI("perf", "%s: %d %s", metric.c_str(), value, unit.c_str());
+
+  # ---------------------------------------------------------------------------
+  # Log Warning (Transient Failure)
+  # ---------------------------------------------------------------------------
+  - id: log_warning
+    mode: single
+    parameters:
+      tag: string
+      message: string
+    then:
+      - lambda: |-
+          ESP_LOGW(tag.c_str(), "%s", message.c_str());
+
+  # ---------------------------------------------------------------------------
+  # Log Error (Persistent Failure)
+  # ---------------------------------------------------------------------------
+  - id: log_error
+    mode: single
+    parameters:
+      tag: string
+      message: string
+    then:
+      - lambda: |-
+          ESP_LOGE(tag.c_str(), "%s", message.c_str());
+
+# =============================================================================
+# Boot Logging
+# =============================================================================
+
+esphome:
+  on_boot:
+    priority: 900  # Very early, before most components
+    then:
+      - lambda: |-
+          ESP_LOGI("main", "==============================================");
+          ESP_LOGI("main", "ESPHome CYD Music Remote - Boot Started");
+          ESP_LOGI("main", "==============================================");
+
+# =============================================================================
+# Log Level Reference (Constitution §10.1)
+# =============================================================================
+#
+# DEBUG - Verbose info, disabled by default
+#   Use for: Variable values, intermediate states, flow tracing
+#   Example: ESP_LOGD("ui", "Button state: pressed=%d", is_pressed);
+#
+# INFO - State changes, successful operations
+#   Use for: State transitions, successful commands, normal events
+#   Example: ESP_LOGI("media", "Playback started: %s", track_title.c_str());
+#
+# WARN - Transient failures, retries, degraded states
+#   Use for: Temporary errors that may recover, retry attempts
+#   Example: ESP_LOGW("wifi", "Connection lost, attempting reconnect");
+#
+# ERROR - Persistent failures, requires attention
+#   Use for: Failures that won't auto-recover, configuration errors
+#   Example: ESP_LOGE("ha", "API authentication failed");
+#
+# =============================================================================
+# Content Rules (Constitution §10.1)
+# =============================================================================
+#
+# Logs MUST NOT contain:
+#   - Secrets or credentials (API keys, passwords, tokens)
+#   - Full API responses (use summaries instead)
+#   - High-frequency spam (>10 messages/second sustained)
+#
+# Good:
+#   ESP_LOGI("media", "Track changed: %s by %s", title, artist);
+#
+# Bad:
+#   ESP_LOGI("ha", "API response: %s", full_json_response.c_str());  // Too verbose
+#   ESP_LOGI("touch", "Touch at %d,%d", x, y);  // If called every 10ms = spam
+#
+# =============================================================================

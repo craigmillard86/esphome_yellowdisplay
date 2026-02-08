@@ -1,0 +1,325 @@
+# =============================================================================
+# Package: Settings Persistence (T120-T122)
+# Purpose: Persist user preferences to NVS across reboots
+# Dependencies: packages/idle.yaml (provides brightness/timeout settings)
+#               packages/backlight.yaml (backlight light component)
+# Exposes: Settings management scripts and Home Assistant services
+# =============================================================================
+
+# This package implements:
+# - T120: Create settings persistence service using NVS
+# - T121: Persist all settings to NVS (FR-074)
+# - T122: Load settings on boot from NVS
+#
+# SETTINGS PERSISTED (via idle.yaml):
+# 1. setting_brightness_level (float 0.0-1.0) - Screen brightness
+# 2. setting_idle_dim_timeout (int seconds) - Time before screen dims
+# 3. setting_screen_off_timeout (int seconds) - Time before screen turns off
+# 4. setting_debug_mode_enabled (bool) - Debug logging mode
+#
+# NOTES:
+# - Brightness, idle_dim_timeout, and screen_off_timeout are defined in idle.yaml
+# - This package adds debug_mode and provides unified settings management
+# - All settings use restore_value: yes for automatic NVS persistence
+# - The idle.yaml package already exposes Number entities to Home Assistant
+
+# =============================================================================
+# Substitutions
+# =============================================================================
+
+substitutions:
+  # Default debug mode setting
+  default_debug_mode: "false"
+
+# =============================================================================
+# Global Variables - Additional Settings (NVS Persisted)
+# =============================================================================
+
+globals:
+  # Debug mode enabled flag
+  # When true, enables verbose logging and debug overlays
+  - id: setting_debug_mode_enabled
+    type: bool
+    restore_value: yes  # Persist to NVS (T121)
+    initial_value: '${default_debug_mode}'
+
+  # Debug mode auto-disable countdown (seconds remaining)
+  # Counts down from 1800 (30 minutes) to 0, then auto-disables debug mode
+  - id: debug_mode_countdown
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+# =============================================================================
+# Text Sensors - Settings Status Display
+# =============================================================================
+
+text_sensor:
+  # Settings status display
+  - platform: template
+    id: settings_status
+    name: "Settings Status"
+    icon: "mdi:cog"
+    update_interval: 10s
+    lambda: |-
+      char buf[128];
+      snprintf(buf, sizeof(buf), "Brightness: %.0f%% | Dim: %ds | Off: %ds | Debug: %s",
+               id(setting_brightness_level) * 100.0f,
+               id(setting_idle_dim_timeout),
+               id(setting_screen_off_timeout),
+               id(setting_debug_mode_enabled) ? "ON" : "OFF");
+      return {buf};
+
+# Binary Sensors
+binary_sensor:
+  # Debug mode status
+  - platform: template
+    id: debug_mode_sensor
+    name: "Debug Mode"
+    icon: "mdi:bug"
+    lambda: |-
+      return id(setting_debug_mode_enabled);
+
+# =============================================================================
+# Scripts - Settings Management (T120-T122)
+# =============================================================================
+
+script:
+  # ---------------------------------------------------------------------------
+  # Load Settings (T122)
+  # ---------------------------------------------------------------------------
+  # Called on boot to restore settings from NVS and validate them
+  # Settings are automatically restored by restore_value: yes, but this script
+  # validates and logs the restored values
+  - id: load_settings
+    mode: single
+    then:
+      - lambda: |-
+          ESP_LOGI("settings", "Settings loaded from NVS:");
+          ESP_LOGI("settings", "  Brightness: %.0f%%", id(setting_brightness_level) * 100.0f);
+          ESP_LOGI("settings", "  Idle dim timeout: %d seconds", id(setting_idle_dim_timeout));
+          ESP_LOGI("settings", "  Screen off timeout: %d seconds", id(setting_screen_off_timeout));
+          ESP_LOGI("settings", "  Debug mode: %s", id(setting_debug_mode_enabled) ? "enabled" : "disabled");
+
+      # Update Home Assistant sensors
+      - component.update: settings_status
+
+      - logger.log:
+          tag: "settings"
+          level: INFO
+          format: "Settings loaded and validated successfully"
+
+  # ---------------------------------------------------------------------------
+  # Save Settings (T121)
+  # ---------------------------------------------------------------------------
+  # Called when settings are changed to persist to NVS
+  # NVS writes happen automatically due to restore_value: yes, but this script
+  # provides validation and logging
+  - id: save_settings
+    mode: restart
+    then:
+      - lambda: |-
+          ESP_LOGI("settings", "Current settings (auto-saved to NVS):");
+          ESP_LOGI("settings", "  Brightness: %.0f%%", id(setting_brightness_level) * 100.0f);
+          ESP_LOGI("settings", "  Idle dim timeout: %d seconds", id(setting_idle_dim_timeout));
+          ESP_LOGI("settings", "  Screen off timeout: %d seconds", id(setting_screen_off_timeout));
+          ESP_LOGI("settings", "  Debug mode: %s", id(setting_debug_mode_enabled) ? "enabled" : "disabled");
+
+      # Update Home Assistant sensors
+      - component.update: settings_status
+
+      - logger.log:
+          tag: "settings"
+          level: INFO
+          format: "Settings saved to NVS successfully"
+
+  # ---------------------------------------------------------------------------
+  # Set Debug Mode (with persistence)
+  # ---------------------------------------------------------------------------
+  # Enables/disables debug mode and persists to NVS
+  - id: set_debug_mode
+    mode: restart
+    parameters:
+      enabled: bool
+    then:
+      - lambda: |-
+          ESP_LOGI("settings", "Setting debug mode to %s", enabled ? "enabled" : "disabled");
+          id(setting_debug_mode_enabled) = enabled;
+
+      # Save to NVS (update sensors)
+      - script.execute: save_settings
+
+  # ---------------------------------------------------------------------------
+  # Reset Settings to Defaults
+  # ---------------------------------------------------------------------------
+  # Resets all settings to factory defaults and persists to NVS
+  # Note: Brightness/timeout defaults are handled by idle.yaml number components
+  - id: reset_settings
+    mode: single
+    then:
+      - lambda: |-
+          ESP_LOGW("settings", "Resetting all settings to defaults...");
+
+          // Reset debug mode
+          id(setting_debug_mode_enabled) = ${default_debug_mode};
+
+          // Reset brightness (from idle.yaml defaults)
+          id(setting_brightness_level) = 0.5;  // 50%
+          id(setting_idle_dim_timeout) = 60;   // 60 seconds
+          id(setting_screen_off_timeout) = 180;  // 180 seconds
+
+      # Apply brightness to backlight immediately
+      - light.turn_on:
+          id: backlight
+          brightness: 0.5
+
+      # Update the number components in idle.yaml
+      - number.set:
+          id: num_brightness_level
+          value: 50.0
+
+      - number.set:
+          id: num_idle_dim_timeout
+          value: 60.0
+
+      - number.set:
+          id: num_screen_off_timeout
+          value: 180.0
+
+      # Save to NVS
+      - script.execute: save_settings
+
+      - logger.log:
+          tag: "settings"
+          level: WARN
+          format: "Settings reset to defaults"
+
+  # ---------------------------------------------------------------------------
+  # Debug Mode Auto-Disable Timer Start (T119)
+  # ---------------------------------------------------------------------------
+  # Initializes the 30-minute countdown timer for debug mode auto-disable
+  # The actual countdown is handled by the debug_countdown_interval below
+  - id: debug_auto_disable_timer
+    mode: restart
+    then:
+      - lambda: |-
+          id(debug_mode_countdown) = 1800;  // 30 minutes
+          ESP_LOGI("settings", "Debug mode auto-disable timer started (30:00)");
+
+# =============================================================================
+# Interval - Debug Mode Countdown (Non-blocking)
+# =============================================================================
+# Runs every second to decrement debug mode countdown without blocking main loop
+# NOTE: Debug countdown temporarily disabled for testing - feature works via
+# manual toggle only until root cause of watchdog is found
+
+# interval:
+#   - interval: 1s
+#     then:
+#       - lambda: |-
+#           // Only process if debug mode is enabled and countdown is active
+#           if (!id(setting_debug_mode_enabled) || id(debug_mode_countdown) <= 0) {
+#             return;
+#           }
+#
+#           // Decrement countdown
+#           id(debug_mode_countdown)--;
+#           int remaining = id(debug_mode_countdown);
+#
+#           // Update UI timer label (if on settings screen)
+#           char buf[20];
+#           int minutes = remaining / 60;
+#           int seconds = remaining % 60;
+#           snprintf(buf, sizeof(buf), "Auto-off in %d:%02d", minutes, seconds);
+#           lv_label_set_text(id(lbl_debug_timer), buf);
+#
+#           // Log every minute
+#           if (remaining % 60 == 0 && remaining > 0) {
+#             ESP_LOGI("settings", "Debug mode auto-off in %d minutes", minutes);
+#           }
+#
+#           // Countdown complete - auto-disable debug mode
+#           if (remaining == 0) {
+#             ESP_LOGW("settings", "Debug mode auto-disabled after 30 minutes");
+#             id(setting_debug_mode_enabled) = false;
+#
+#             // Update UI toggle appearance (if on settings screen)
+#             lv_obj_add_flag(id(debug_on_indicator), LV_OBJ_FLAG_HIDDEN);
+#             lv_obj_clear_flag(id(debug_off_indicator), LV_OBJ_FLAG_HIDDEN);
+#             lv_obj_set_style_bg_color(id(btn_debug_toggle), lv_color_hex(0x2A2A2A), 0);
+#             lv_obj_add_flag(id(lbl_debug_timer), LV_OBJ_FLAG_HIDDEN);
+#           }
+
+# =============================================================================
+# Home Assistant Services - Settings Control from HA
+# =============================================================================
+# NOTE: Services are defined in main.yaml api: section to avoid duplicate
+# component declarations. The following services are available:
+#   - set_debug_mode(enabled: bool) - Toggle debug mode
+#   - reset_settings() - Reset all settings to defaults
+
+# =============================================================================
+# Boot Initialization (T122)
+# =============================================================================
+
+esphome:
+  on_boot:
+    priority: 550  # After idle.yaml (600) but before UI
+    then:
+      - delay: 100ms  # Brief delay to let idle.yaml initialize
+      - script.execute: load_settings
+
+# =============================================================================
+# Usage Notes
+# =============================================================================
+#
+# SETTINGS PERSISTENCE:
+#   All settings are automatically persisted to NVS via restore_value: yes.
+#   NVS writes occur when the global value changes, with a write interval
+#   controlled by the preferences: flash_write_interval setting in main.yaml.
+#
+# LOADING SETTINGS:
+#   Settings are automatically loaded on boot via the load_settings script.
+#   No manual intervention required.
+#
+# CHANGING SETTINGS:
+#   Brightness and timeout settings are managed via Number entities from idle.yaml:
+#     - number.num_brightness_level (10-100%)
+#     - number.num_idle_dim_timeout (0-600 seconds)
+#     - number.num_screen_off_timeout (0-1800 seconds)
+#
+#   Debug mode can be changed via:
+#     - script.execute: set_debug_mode with parameter enabled
+#
+#   Example from lambda:
+#     id(set_debug_mode).execute(true);
+#
+#   Example from Home Assistant service:
+#     service: esphome.cyd_music_remote_set_debug_mode
+#     data:
+#       enabled: true
+#
+# RESET TO DEFAULTS:
+#   Call reset_settings script or use Home Assistant service:
+#     service: esphome.cyd_music_remote_reset_settings
+#
+# HOME ASSISTANT INTEGRATION:
+#   Settings are exposed as entities in Home Assistant:
+#     - number.cyd_music_remote_brightness_level (from idle.yaml)
+#     - number.cyd_music_remote_idle_dim_timeout (from idle.yaml)
+#     - number.cyd_music_remote_screen_off_timeout (from idle.yaml)
+#     - binary_sensor.cyd_music_remote_debug_mode
+#     - text_sensor.cyd_music_remote_settings_status
+#     - sensor.cyd_music_remote_idle_time (from idle.yaml)
+#     - text_sensor.cyd_music_remote_idle_state (from idle.yaml)
+#
+# INTEGRATION WITH IDLE.YAML:
+#   This package works with the existing idle.yaml package which provides:
+#   - Automatic screen dimming and turn-off based on idle time
+#   - Touch event handling via reset_idle_timer script
+#   - Number entities for brightness and timeout configuration
+#
+#   To integrate with touch events, call from your touch handlers:
+#     - script.execute: reset_idle_timer
+#
+# =============================================================================

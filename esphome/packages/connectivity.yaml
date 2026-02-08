@@ -1,0 +1,320 @@
+# =============================================================================
+# Package: Connectivity Management
+# Purpose: Offline detection with debounce and reconnection with exponential backoff
+# Dependencies: state_machine.yaml (for system state management)
+# Exposes: global reconnection state, interval timers for monitoring
+# =============================================================================
+
+# This package implements:
+# - T014: Offline detection with 5-second debounce threshold
+# - T015: Automatic reconnection with exponential backoff (5s to 60s max)
+# - FR-063: Prevent retry storms during connectivity loss
+
+# =============================================================================
+# Binary Sensors
+# =============================================================================
+
+binary_sensor:
+  # Home Assistant API connection status (moved from diagnostics.yaml)
+  - platform: status
+    id: ha_api_connected
+    internal: true  # Don't expose to HA to save memory
+
+# =============================================================================
+# Global Variables
+# =============================================================================
+
+globals:
+  # Track last known WiFi connection state
+  # Used to detect state changes and trigger debounce timer
+  - id: last_wifi_connected
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # Track last known API connection state
+  # Used to detect state changes and trigger debounce timer
+  - id: last_api_connected
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # Timestamp of last connection state change (milliseconds)
+  # Used for 5-second debounce calculation
+  - id: last_connection_change_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+  # Pending offline state flag
+  # Set to true when disconnection detected, cleared if reconnects within debounce
+  - id: pending_offline
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # Reconnection attempt counter
+  # Increments on each failed reconnection, resets on success
+  - id: reconnect_attempt_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Current backoff delay in seconds
+  # Exponential: 5, 10, 20, 40, 60 (capped)
+  - id: reconnect_backoff_seconds
+    type: int
+    restore_value: no
+    initial_value: '5'  # Start at 5 seconds
+
+  # Timestamp of last reconnection attempt (milliseconds)
+  # Prevents retry storms by enforcing minimum delay between attempts
+  - id: last_reconnect_attempt_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+# =============================================================================
+# Configuration Constants (using substitutions for clean code)
+# =============================================================================
+
+substitutions:
+  # Offline detection debounce threshold (milliseconds)
+  offline_debounce_ms: "5000"  # 5 seconds per T014 requirements
+
+  # Reconnection backoff parameters
+  reconnect_initial_backoff: "5"    # Start at 5 seconds
+  reconnect_max_backoff: "60"       # Cap at 60 seconds
+  reconnect_backoff_multiplier: "2" # Double each attempt
+
+  # Connection monitoring interval
+  connection_check_interval: "1s"   # Check every second
+
+# =============================================================================
+# Interval: Connection State Monitor
+# =============================================================================
+
+interval:
+  # Monitor connection state changes and handle debounce
+  # Runs every second to detect state changes and manage debounce timer
+  - interval: ${connection_check_interval}
+    then:
+      - lambda: |-
+          // Get current connection states
+          bool wifi_connected = WiFi.isConnected();
+          bool api_connected = id(ha_api_connected).state;
+          bool currently_connected = wifi_connected && api_connected;
+
+          // Get previous states
+          bool prev_wifi_connected = id(last_wifi_connected);
+          bool prev_api_connected = id(last_api_connected);
+          bool previously_connected = prev_wifi_connected && prev_api_connected;
+
+          // Detect state change
+          bool state_changed = (currently_connected != previously_connected);
+
+          uint32_t now_ms = millis();
+
+          // === CONNECTION STATE CHANGE DETECTION ===
+          if (state_changed) {
+            // Update timestamps and tracking variables
+            id(last_connection_change_ms) = now_ms;
+            id(last_wifi_connected) = wifi_connected;
+            id(last_api_connected) = api_connected;
+
+            if (currently_connected) {
+              // === RECONNECTION SUCCESSFUL ===
+              ESP_LOGI("connectivity", "Connection restored - WiFi: %s, API: %s",
+                       wifi_connected ? "yes" : "no",
+                       api_connected ? "yes" : "no");
+
+              // Clear pending offline flag
+              id(pending_offline) = false;
+
+              // Reset reconnection backoff state
+              id(reconnect_attempt_count) = 0;
+              id(reconnect_backoff_seconds) = ${reconnect_initial_backoff};
+              id(last_reconnect_attempt_ms) = 0;
+
+              ESP_LOGI("connectivity", "Reconnection backoff reset - next attempt will use %ds delay",
+                       id(reconnect_backoff_seconds));
+
+              // State machine will transition to Ready via on_client_connected in state_machine.yaml
+              // Library index sync is triggered there as well
+            } else {
+              // === DISCONNECTION DETECTED ===
+              ESP_LOGW("connectivity", "Connection lost - WiFi: %s, API: %s - starting debounce timer",
+                       wifi_connected ? "yes" : "no",
+                       api_connected ? "yes" : "no");
+
+              // Set pending offline flag - will transition to Offline after debounce
+              id(pending_offline) = true;
+            }
+          }
+
+          // === DEBOUNCE TIMER CHECK ===
+          // If pending offline and debounce period has elapsed, confirm offline state
+          if (id(pending_offline) && !currently_connected) {
+            uint32_t elapsed_ms = now_ms - id(last_connection_change_ms);
+
+            if (elapsed_ms >= ${offline_debounce_ms}) {
+              // Debounce period complete - confirm offline state
+              ESP_LOGW("connectivity", "Offline state confirmed after %dms debounce", elapsed_ms);
+
+              id(pending_offline) = false;
+
+              // Transition to Offline state if not already there
+              if (id(system_state) != 3) {  // 3 = Offline
+                id(system_state_control)->make_call().set_option("Offline").perform();
+              }
+            }
+          }
+
+          // === EXPONENTIAL BACKOFF RECONNECTION ===
+          // Only attempt reconnection if we're offline and enough time has passed
+          if (!currently_connected && id(system_state) == 3) {  // 3 = Offline
+            uint32_t time_since_last_attempt = now_ms - id(last_reconnect_attempt_ms);
+            uint32_t backoff_ms = id(reconnect_backoff_seconds) * 1000;
+
+            // Check if it's time for next reconnection attempt
+            if (id(last_reconnect_attempt_ms) == 0 || time_since_last_attempt >= backoff_ms) {
+              // Record this attempt
+              id(last_reconnect_attempt_ms) = now_ms;
+              id(reconnect_attempt_count)++;
+
+              ESP_LOGW("connectivity", "Reconnection attempt #%d (backoff: %ds)",
+                       id(reconnect_attempt_count),
+                       id(reconnect_backoff_seconds));
+
+              // WiFi reconnection happens automatically via ESPHome WiFi component
+              // We just need to log and update backoff for next attempt
+
+              // Calculate next backoff delay (exponential with cap)
+              int next_backoff = id(reconnect_backoff_seconds) * ${reconnect_backoff_multiplier};
+              if (next_backoff > ${reconnect_max_backoff}) {
+                next_backoff = ${reconnect_max_backoff};
+              }
+
+              ESP_LOGW("connectivity", "Next reconnection attempt in %ds (current max: %ds)",
+                       next_backoff,
+                       ${reconnect_max_backoff});
+
+              id(reconnect_backoff_seconds) = next_backoff;
+            }
+          }
+
+# =============================================================================
+# Notes on WiFi and API Configuration
+# =============================================================================
+# WiFi configuration is in packages/wifi.yaml (fast_connect, reboot_timeout, etc.)
+# API configuration is in main.yaml (encryption, services, reboot_timeout)
+# This package only adds monitoring and reconnection logic without duplicating config
+
+# =============================================================================
+# Diagnostic Sensors for Connectivity Monitoring
+# =============================================================================
+
+sensor:
+  # Reconnection attempt counter sensor
+  # Exposed to Home Assistant for monitoring reconnection behavior
+  - platform: template
+    id: reconnect_attempts
+    name: "Reconnection Attempts"
+    entity_category: diagnostic
+    update_interval: 5s
+    lambda: |-
+      return id(reconnect_attempt_count);
+    accuracy_decimals: 0
+    icon: "mdi:reload"
+
+  # Current backoff delay sensor
+  # Shows current reconnection delay in seconds
+  - platform: template
+    id: reconnect_backoff
+    name: "Reconnection Backoff"
+    entity_category: diagnostic
+    update_interval: 5s
+    lambda: |-
+      return id(reconnect_backoff_seconds);
+    unit_of_measurement: "s"
+    accuracy_decimals: 0
+    icon: "mdi:timer-sand"
+
+# =============================================================================
+# Connection Status Text Sensor
+# =============================================================================
+
+text_sensor:
+  # Detailed connection status for debugging
+  # Shows current connection state and backoff status
+  - platform: template
+    id: connection_status
+    name: "Connection Status"
+    entity_category: diagnostic
+    update_interval: 2s
+    lambda: |-
+      bool wifi_connected = WiFi.isConnected();
+      bool api_connected = id(ha_api_connected).state;
+
+      char buffer[128];
+
+      if (wifi_connected && api_connected) {
+        snprintf(buffer, sizeof(buffer), "Connected (RSSI: %ddBm)", WiFi.RSSI());
+      } else if (id(pending_offline)) {
+        uint32_t elapsed = millis() - id(last_connection_change_ms);
+        uint32_t remaining = ${offline_debounce_ms} - elapsed;
+        snprintf(buffer, sizeof(buffer), "Debouncing (%dms remaining)", remaining);
+      } else if (!wifi_connected) {
+        if (id(reconnect_attempt_count) > 0) {
+          snprintf(buffer, sizeof(buffer), "WiFi offline (attempt #%d, backoff: %ds)",
+                   id(reconnect_attempt_count), id(reconnect_backoff_seconds));
+        } else {
+          snprintf(buffer, sizeof(buffer), "WiFi offline");
+        }
+      } else if (!api_connected) {
+        if (id(reconnect_attempt_count) > 0) {
+          snprintf(buffer, sizeof(buffer), "API offline (attempt #%d, backoff: %ds)",
+                   id(reconnect_attempt_count), id(reconnect_backoff_seconds));
+        } else {
+          snprintf(buffer, sizeof(buffer), "API offline");
+        }
+      } else {
+        snprintf(buffer, sizeof(buffer), "Unknown state");
+      }
+
+      return {buffer};
+    icon: "mdi:connection"
+
+# =============================================================================
+# Scripts for Manual Control
+# =============================================================================
+
+script:
+  # Manual reconnection trigger (for testing or user intervention)
+  # Resets backoff and forces immediate reconnection attempt
+  - id: force_reconnect
+    mode: single
+    then:
+      - logger.log:
+          tag: "connectivity"
+          level: INFO
+          format: "Manual reconnection triggered - resetting backoff"
+
+      - lambda: |-
+          // Reset backoff state
+          id(reconnect_attempt_count) = 0;
+          id(reconnect_backoff_seconds) = ${reconnect_initial_backoff};
+          id(last_reconnect_attempt_ms) = 0;
+
+          // Clear pending offline flag
+          id(pending_offline) = false;
+
+      # Attempt WiFi reconnection
+      - wifi.disable:
+      - delay: 100ms
+      - wifi.enable:
+
+      - logger.log:
+          tag: "connectivity"
+          level: INFO
+          format: "Reconnection sequence initiated"

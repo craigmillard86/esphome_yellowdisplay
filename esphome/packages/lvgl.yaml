@@ -1,0 +1,1027 @@
+# =============================================================================
+# Package: LVGL Graphics Library Configuration
+# Purpose: LVGL initialization and UI framework for CYD display
+# Dependencies: packages/display.yaml (main_display), packages/touch.yaml (touch_controller)
+# Exposes: lvgl component with style definitions
+# Display: 320x240 ILI9341 in landscape orientation
+# =============================================================================
+
+# =============================================================================
+# Font Definitions (must be at root level, not inside lvgl)
+# =============================================================================
+
+font:
+  # Primary text font - 24pt for titles
+  # Reduced glyphs for memory optimization - basic ASCII + curly quotes + ellipsis + degree
+  - file: "gfonts://Roboto@500"
+    id: roboto_24
+    size: 24
+    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~°…\u2018\u2019\u201C\u201D"
+
+  # Body text font - 16pt for buttons, labels
+  # Reduced glyphs for memory optimization - basic ASCII + curly quotes + ellipsis + degree
+  - file: "gfonts://Roboto"
+    id: roboto_16
+    size: 16
+    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~°…\u2018\u2019\u201C\u201D"
+
+  # Small text font - 12pt for metadata, time
+  # Reduced glyphs for memory optimization - basic ASCII + curly quotes + ellipsis + degree
+  - file: "gfonts://Roboto"
+    id: roboto_12
+    size: 12
+    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~°…\u2018\u2019\u201C\u201D"
+
+  # Material Design Icons for UI controls
+  - file: "https://github.com/Templarian/MaterialDesign-Webfont/raw/master/fonts/materialdesignicons-webfont.ttf"
+    id: icons_24
+    size: 24
+    glyphs:
+      - "\U000F040A"  # mdi:play
+      - "\U000F03E4"  # mdi:pause
+      - "\U000F04AD"  # mdi:skip-previous
+      - "\U000F04AE"  # mdi:skip-next
+      - "\U000F057E"  # mdi:volume-high
+      - "\U000F0580"  # mdi:volume-low
+      - "\U000F0581"  # mdi:volume-mute
+      - "\U000F0493"  # mdi:shuffle
+      - "\U000F0456"  # mdi:repeat
+      - "\U000F075A"  # mdi:music (album art placeholder)
+      - "\U000F0772"  # mdi:loading (spinner fallback icon)
+      - "\U000F0251"  # mdi:library-music
+      - "\U000F057F"  # mdi:speaker
+      - "\U000F02D1"  # mdi:heart
+      - "\U000F004D"  # mdi:arrow-left (back button)
+      - "\U000F015A"  # mdi:home (home button)
+      # Player management icons (T055-T069)
+      - "\U000F012C"  # mdi:check-circle (selected player)
+      - "\U000F0765"  # mdi:circle-outline (unselected player)
+      - "\U000F0425"  # mdi:power (power toggle)
+      # Browse icons (T070-T090) - magnify removed for memory optimization
+      - "\U000F0486"  # mdi:playlist-music (playlists)
+      - "\U000F0025"  # mdi:album (albums)
+      - "\U000F0006"  # mdi:account-music (artists)
+      # Grouping icons (T091-T103)
+      - "\U000F0131"  # mdi:checkbox-blank-outline (unchecked)
+      - "\U000F0132"  # mdi:checkbox-marked (checked)
+      - "\U000F0156"  # mdi:close (cancel/close button)
+      - "\U000F0D38"  # mdi:speaker-multiple (group button)
+      - "\U000F04C3"  # mdi:speaker-off (unjoin/solo button)
+      - "\U000F01A5"  # mdi:crown (group leader indicator)
+      - "\U000F0337"  # mdi:link (group member indicator)
+      # Settings icons (T112-T119)
+      # Note: Using mdi:shuffle (\U000F0493) for cog since it's already defined above
+      - "\U000F0140"  # mdi:chevron-down (dropdown indicator)
+
+# =============================================================================
+# LVGL Configuration
+# =============================================================================
+
+lvgl:
+  # Display and touch bindings
+  displays:
+    - main_display
+  touchscreens:
+    - touch_controller
+
+  # Color depth - 16-bit RGB565 for ILI9341
+  color_depth: 16
+
+  # Buffer configuration - Reduced to 5% to save heap memory
+  # 320x240x2 = 153KB full screen, 5% = ~7.6KB buffer (was 10% = ~15KB)
+  # Trade: slightly slower rendering for ~7KB more free heap
+  buffer_size: 5%
+
+  # Update interval for LVGL tasks (4Hz update rate)
+  update_interval: 250ms
+
+  # Optimize LVGL memory usage
+  # task_handler_priority: 10  # Default priority is fine
+
+  # Log level for LVGL debugging
+  log_level: INFO
+
+  # Idle timeout handling
+  on_idle:
+    timeout: 60s
+    then:
+      - logger.log:
+          tag: "ui"
+          level: INFO
+          format: "UI idle detected after 60 seconds"
+
+  # =============================================================================
+  # Style Definitions
+  # =============================================================================
+  style_definitions:
+    # Base screen style - dark background
+    - id: style_screen
+      bg_color: 0x121212
+      bg_opa: COVER
+      border_width: 0
+      shadow_width: 0
+      pad_all: 0
+      radius: 0
+      text_color: 0xFFFFFF
+
+    # Primary buttons (play/pause, main actions)
+    - id: style_btn_primary
+      radius: 8
+      bg_color: 0x00D1FF
+      bg_opa: COVER
+      border_width: 0
+      shadow_width: 0
+      text_color: 0x121212
+      pad_all: 12
+
+    # Secondary buttons
+    - id: style_btn_secondary
+      radius: 8
+      bg_color: 0x1E1E1E
+      bg_opa: COVER
+      border_width: 2
+      border_color: 0x00D1FF
+      shadow_width: 0
+      text_color: 0xFFFFFF
+      pad_all: 12
+
+    # Icon buttons (circular)
+    - id: style_btn_icon
+      radius: 24
+      bg_color: 0x1E1E1E
+      bg_opa: COVER
+      border_width: 0
+      shadow_width: 0
+      pad_all: 16
+
+    # Primary text (song title)
+    - id: style_label_primary
+      text_color: 0xFFFFFF
+      bg_opa: TRANSP
+      border_width: 0
+      pad_all: 4
+
+    # Secondary text (artist, metadata)
+    - id: style_label_secondary
+      text_color: 0xB3B3B3
+      bg_opa: TRANSP
+      border_width: 0
+      pad_all: 4
+
+    # Small text (time indicators)
+    - id: style_label_small
+      text_color: 0xB3B3B3
+      bg_opa: TRANSP
+      border_width: 0
+      pad_all: 2
+
+    # Error text
+    - id: style_label_error
+      text_color: 0xFF6B35
+      bg_opa: TRANSP
+      border_width: 0
+      pad_all: 4
+
+    # Progress bar
+    - id: style_bar_progress
+      bg_color: 0x1E1E1E
+      bg_opa: COVER
+      radius: 4
+      border_width: 0
+
+    # Container card style
+    - id: style_container_card
+      bg_color: 0x1E1E1E
+      bg_opa: COVER
+      radius: 12
+      border_width: 1
+      border_color: 0x2A2A2A
+      pad_all: 16
+
+    # Status bar container
+    - id: style_container_status
+      bg_color: 0x000000
+      bg_opa: 80%
+      radius: 0
+      border_width: 0
+      pad_all: 8
+
+    # Home Dashboard Tile - Normal State (T046)
+    - id: style_tile_normal
+      bg_color: 0x1E1E1E
+      bg_opa: COVER
+      radius: 10
+      border_width: 1
+      border_color: 0x2A2A2A
+      border_opa: COVER
+      pad_all: 0
+      shadow_width: 0
+
+    # Home Dashboard Tile - Pressed State (T047)
+    - id: style_tile_pressed
+      bg_color: 0x1E1E1E
+      bg_opa: COVER
+      radius: 10
+      border_width: 2
+      border_color: 0x00D1FF
+      border_opa: COVER
+      pad_all: 0
+      shadow_width: 0
+
+    # Disabled button style (T105) - Greyed out appearance
+    - id: style_btn_disabled
+      bg_color: 0x2A2A2A
+      bg_opa: COVER
+      text_color: 0x666666
+      border_color: 0x3A3A3A
+
+    # Primary button pressed state (T139 - touch feedback within 100ms)
+    - id: style_btn_primary_pressed
+      bg_color: 0x00A6CC  # Slightly darker cyan
+      bg_opa: COVER
+
+    # Secondary button pressed state (T139 - touch feedback within 100ms)
+    - id: style_btn_secondary_pressed
+      bg_color: 0x2A2A2A
+      bg_opa: COVER
+      border_color: 0x00D1FF
+      border_width: 2
+
+    # Icon button pressed state (T139 - touch feedback within 100ms)
+    - id: style_btn_icon_pressed
+      bg_color: 0x2A2A2A
+      bg_opa: COVER
+
+  # =============================================================================
+  # Pages - UI Screens
+  # =============================================================================
+  pages:
+    # Boot/Loading screen
+    - id: page_boot
+      bg_color: 0x121212
+      border_width: 0
+      shadow_width: 0
+      widgets:
+        - label:
+            align: CENTER
+            text: "Music Remote"
+            text_color: 0xFFFFFF
+            text_font: roboto_24
+
+    # =========================================================================
+    # Home Dashboard - 2x2 Tile Grid Layout (T045-T051)
+    # =========================================================================
+    # Display: 320x240 pixels in landscape orientation
+    # Layout: 2x2 grid with 4 navigation tiles
+    # Tile size: 150x108px each with 10px gaps (4px margin per tile + 2px gap)
+    # Grid calculation:
+    #   - Available width: 320px
+    #   - Available height: 240px
+    #   - Gap between tiles: 8px (4px margin on each tile)
+    #   - Outer margins: 8px
+    #   - Tile width: (320 - 16 - 8) / 2 = 148px
+    #   - Tile height: (240 - 16 - 8) / 2 = 108px
+    - id: page_home
+      # Apply base screen style (dark background #121212)
+      styles: style_screen
+
+      widgets:
+        # =====================================================================
+        # TOP LEFT TILE - NOW PLAYING (T048)
+        # =====================================================================
+        # Shows current track title with music icon
+        # Clickable button that navigates to Now Playing screen
+        - button:
+            id: tile_now_playing
+            x: 8
+            y: 8
+            width: 148
+            height: 108
+            styles: style_tile_normal
+            checkable: false
+            pressed:
+              border_color: 0x00D1FF
+              border_width: 2
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Now Playing tile pressed"
+              # Navigate to Now Playing screen (T054)
+              - script.execute:
+                  id: navigate_to
+                  target_screen: 1  # NOW_PLAYING
+            widgets:
+              # Music icon centered at top
+              - label:
+                  text: "\U000F075A"
+                  text_font: icons_24
+                  text_color: 0x00D1FF
+                  align: TOP_MID
+                  x: 0
+                  y: 16
+
+              # Track title label (scrolling if long)
+              - label:
+                  id: lbl_home_track_title
+                  text: "Now Playing"
+                  text_font: roboto_12
+                  text_color: 0xFFFFFF
+                  text_align: CENTER
+                  align: BOTTOM_MID
+                  x: 0
+                  y: -12
+                  width: 140
+                  long_mode: SCROLL_CIRCULAR
+
+        # =====================================================================
+        # TOP RIGHT TILE - LIBRARY (T049)
+        # =====================================================================
+        # Library/collection browser tile
+        # Shows library icon and "Library" text
+        - button:
+            id: tile_library
+            x: 164
+            y: 8
+            width: 148
+            height: 108
+            styles: style_tile_normal
+            checkable: false
+            pressed:
+              border_color: 0x00D1FF
+              border_width: 2
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Library tile pressed"
+              # Navigate to Library screen (T089)
+              - script.execute:
+                  id: navigate_to
+                  target_screen: 3  # LIBRARY
+            widgets:
+              # Library icon centered at top
+              - label:
+                  text: "\U000F0251"
+                  text_font: icons_24
+                  text_color: 0xFFFFFF
+                  align: TOP_MID
+                  x: 0
+                  y: 16
+
+              # "Library" label
+              - label:
+                  text: "Library"
+                  text_font: roboto_12
+                  text_color: 0xFFFFFF
+                  text_align: CENTER
+                  align: BOTTOM_MID
+                  x: 0
+                  y: -12
+
+        # =====================================================================
+        # BOTTOM LEFT TILE - SPEAKERS (T050)
+        # =====================================================================
+        # Speaker selection tile
+        # Shows speaker icon and dynamic "X Active" count
+        - button:
+            id: tile_speakers
+            x: 8
+            y: 124
+            width: 148
+            height: 108
+            styles: style_tile_normal
+            checkable: false
+            pressed:
+              border_color: 0x00D1FF
+              border_width: 2
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Speakers tile pressed"
+              # Navigate to Players/Speakers screen (T069)
+              - script.execute:
+                  id: navigate_to
+                  target_screen: 2  # PLAYERS
+            widgets:
+              # Speaker icon centered at top
+              - label:
+                  text: "\U000F057F"
+                  text_font: icons_24
+                  text_color: 0xFFFFFF
+                  align: TOP_MID
+                  x: 0
+                  y: 16
+
+              # Dynamic speaker count label
+              - label:
+                  id: lbl_home_speaker_count
+                  text: "1 Active"
+                  text_font: roboto_12
+                  text_color: 0xB3B3B3
+                  text_align: CENTER
+                  align: BOTTOM_MID
+                  x: 0
+                  y: -12
+
+        # =====================================================================
+        # BOTTOM RIGHT TILE - SETTINGS
+        # =====================================================================
+        # Device settings tile
+        # Shows gear icon and "Settings" text
+        - button:
+            id: tile_settings
+            x: 164
+            y: 124
+            width: 148
+            height: 108
+            styles: style_tile_normal
+            checkable: false
+            pressed:
+              border_color: 0x00D1FF
+              border_width: 2
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Settings tile pressed"
+              # Navigate to Settings screen
+              - script.execute:
+                  id: navigate_to
+                  target_screen: 12  # SETTINGS
+            widgets:
+              # Gear icon centered at top
+              - label:
+                  text: "\U000F0493"
+                  text_font: icons_24
+                  text_color: 0xB3B3B3
+                  align: TOP_MID
+                  x: 0
+                  y: 16
+
+              # "Settings" label
+              - label:
+                  text: "Settings"
+                  text_font: roboto_12
+                  text_color: 0xFFFFFF
+                  text_align: CENTER
+                  align: BOTTOM_MID
+                  x: 0
+                  y: -12
+
+    # =========================================================================
+    # Main Now Playing Screen - Split Horizontal Layout
+    # =========================================================================
+    # Layout: Split Horizontal (Left 40% / Right 60%)
+    # - Left Panel (0-128px): Album art placeholder with rounded corners
+    # - Right Panel (128-320px): Track info, progress, and controls
+    # - Bottom (full width): Volume slider spanning entire width
+    # Display: 320x240 pixels in landscape orientation
+    - id: page_main
+      # Apply base screen style (dark background #121212, white text)
+      styles: style_screen
+
+      widgets:
+        # =====================================================================
+        # BACK BUTTON (T052-T053) - Top Left Corner
+        # =====================================================================
+        # Navigates back to previous screen using navigation stack
+        # Minimum 44x44px touch target per accessibility guidelines
+        - button:
+            id: btn_back
+            x: 0
+            y: 0
+            width: 44
+            height: 44
+            bg_opa: TRANSP
+            border_width: 0
+            shadow_width: 0
+            pad_all: 0
+            on_click:
+              - logger.log:
+                  tag: "navigation"
+                  level: INFO
+                  format: "Back button pressed - navigating back"
+              - script.execute: navigate_back
+            widgets:
+              - label:
+                  text: "\U000F004D"
+                  text_font: icons_24
+                  text_color: 0xB3B3B3
+                  align: CENTER
+
+        # =====================================================================
+        # LEFT PANEL - ALBUM ART AREA (0-128px width)
+        # =====================================================================
+        # Album art placeholder container with rounded corners
+        # Positioned at x=0, vertically centered
+        # Size: 128x128px
+        - obj:
+            id: album_art_container
+            x: 0
+            y: 56
+            width: 128
+            height: 128
+            bg_color: 0x1E1E1E
+            bg_opa: COVER
+            radius: 12
+            border_width: 2
+            border_color: 0x2A2A2A
+            border_opa: COVER
+            pad_all: 0
+            widgets:
+              # Album art placeholder icon (music note)
+              # Shown when no album art is available
+              # Hidden when loading or when album art is displayed (T023-T025)
+              - label:
+                  id: lbl_album_art_placeholder
+                  text: "\U000F075A"
+                  text_font: icons_24
+                  text_color: 0x666666
+                  align: CENTER
+
+              # Loading spinner (T023)
+              # Shown while fetching album art
+              - spinner:
+                  id: spinner_album_art
+                  align: CENTER
+                  width: 48
+                  height: 48
+                  spin_time: 1s
+                  arc_length: 60
+                  arc_width: 4
+                  arc_color: 0x00D1FF
+                  indicator:
+                    arc_color: 0x1E1E1E
+                    arc_width: 4
+                  hidden: true
+
+              # Album art image (T024-T025)
+              - image:
+                  id: img_album_art
+                  align: CENTER
+                  src: album_art_image
+                  hidden: true
+
+        # =====================================================================
+        # RIGHT PANEL - CONTENT AREA (128-320px width = 192px)
+        # =====================================================================
+
+        # ---------------------------------------------------------------------
+        # Status Label (Right Panel Top)
+        # ---------------------------------------------------------------------
+        # Shows connection state: "Connected", "Disconnected", etc.
+        # Positioned at top of right panel
+        - label:
+            id: lbl_status
+            text: "Connected"
+            styles: style_label_secondary
+            text_font: roboto_12
+            text_color: 0x00D1FF            # Vibrant Cyan for connected state
+            text_align: LEFT
+            align: TOP_LEFT
+            x: 136
+            y: 4
+            width: 176
+            bg_opa: TRANSP
+
+        # ---------------------------------------------------------------------
+        # Player Name Label (Right Panel Header - Below Status)
+        # ---------------------------------------------------------------------
+        # Shows the friendly name of the active media player
+        # Positioned below the status label
+        - label:
+            id: lbl_player_name
+            text: "No Player"
+            styles: style_label_secondary
+            text_font: roboto_12
+            text_color: 0xB3B3B3            # Secondary gray text
+            text_align: LEFT
+            align: TOP_LEFT
+            x: 136
+            y: 18
+            width: 176
+            bg_opa: TRANSP
+            long_mode: SCROLL_CIRCULAR       # Scroll if player name is long
+
+        # ---------------------------------------------------------------------
+        # Track Title (Right Panel)
+        # ---------------------------------------------------------------------
+        # Large white text showing current track name
+        # Positioned in right panel below status
+        - label:
+            id: lbl_title
+            text: "No Track Playing"
+            styles: style_label_primary
+            text_font: roboto_16
+            text_color: 0xFFFFFF            # White text
+            text_align: LEFT
+            align: TOP_LEFT
+            x: 136
+            y: 30
+            width: 176
+            bg_opa: TRANSP
+            long_mode: SCROLL_CIRCULAR       # Scroll long text continuously
+
+        # ---------------------------------------------------------------------
+        # Artist Name (Right Panel)
+        # ---------------------------------------------------------------------
+        # Smaller gray text showing artist name
+        # Positioned below track title
+        - label:
+            id: lbl_artist
+            text: "Unknown Artist"
+            styles: style_label_secondary
+            text_font: roboto_12
+            text_color: 0xB3B3B3            # Secondary gray text
+            text_align: LEFT
+            align: TOP_LEFT
+            x: 136
+            y: 54
+            width: 176
+            bg_opa: TRANSP
+            long_mode: SCROLL_CIRCULAR       # Scroll long text continuously
+
+        # ---------------------------------------------------------------------
+        # Album Name (Right Panel)
+        # ---------------------------------------------------------------------
+        # Small gray text showing album name
+        # Positioned below artist name
+        - label:
+            id: lbl_album
+            text: ""
+            styles: style_label_small
+            text_font: roboto_12
+            text_color: 0xB3B3B3            # Secondary gray text
+            text_align: LEFT
+            align: TOP_LEFT
+            x: 136
+            y: 72
+            width: 176
+            bg_opa: TRANSP
+            long_mode: SCROLL_CIRCULAR       # Scroll long text continuously
+
+        # ---------------------------------------------------------------------
+        # Progress Bar Section (Right Panel)
+        # ---------------------------------------------------------------------
+        # Elapsed time label (left side of progress bar) - MM:SS format
+        - label:
+            id: lbl_elapsed_time
+            text: "0:00"
+            styles: style_label_small
+            text_font: roboto_12
+            text_color: 0xB3B3B3
+            align: TOP_LEFT
+            x: 136
+            y: 100
+            width: 35
+            text_align: LEFT
+
+        # Total/Remaining time label (right side of progress bar) - MM:SS format
+        - label:
+            id: lbl_total_time
+            text: "0:00"
+            styles: style_label_small
+            text_font: roboto_12
+            text_color: 0xB3B3B3
+            align: TOP_LEFT
+            x: 277
+            y: 100
+            width: 35
+            text_align: RIGHT
+
+        # Progress slider (touchable for seeking)
+        # Positioned in right panel between time labels
+        - slider:
+            id: progress_slider
+            align: TOP_LEFT
+            x: 174
+            y: 102
+            width: 100
+            height: 8
+            min_value: 0
+            max_value: 100
+            value: 0
+            bg_color: 0x1E1E1E
+            bg_opa: COVER
+            radius: 4
+            indicator:
+              bg_color: 0x00D1FF
+              bg_opa: COVER
+              radius: 4
+            knob:
+              bg_color: 0x00D1FF
+              bg_opa: COVER
+              radius: 6
+              width: 12
+              height: 12
+            on_release:
+              then:
+                - logger.log:
+                    tag: "ui"
+                    level: INFO
+                    format: "Progress slider released: %d%%"
+                    args: ['(int)x']
+                - script.execute:
+                    id: media_seek
+                    seek_percent: !lambda 'return (float)x;'
+
+        # ---------------------------------------------------------------------
+        # Playback Control Buttons (Right Panel - Horizontal Row)
+        # ---------------------------------------------------------------------
+        # Next Track Button (Left position)
+        - button:
+            id: btn_next
+            styles: style_btn_secondary
+            width: 44
+            height: 44
+            align: TOP_LEFT
+            x: 148
+            y: 128
+            disabled:
+              bg_color: 0x2A2A2A
+              border_color: 0x3A3A3A
+            on_click:
+              then:
+                - logger.log:
+                    tag: "ui"
+                    level: INFO
+                    format: "Next button pressed"
+                - script.execute: media_next_track
+            widgets:
+              - label:
+                  id: lbl_next_icon
+                  text: "\U000F04AE"
+                  text_font: icons_24
+                  text_color: 0xFFFFFF
+                  align: CENTER
+
+        # Play/Pause Button (Center)
+        - button:
+            id: btn_play
+            styles: style_btn_primary
+            width: 48
+            height: 48
+            align: TOP_LEFT
+            x: 204
+            y: 126
+            disabled:
+              bg_color: 0x3A3A3A
+            on_click:
+              then:
+                - logger.log:
+                    tag: "ui"
+                    level: INFO
+                    format: "Play/Pause button pressed"
+                - script.execute: media_play_pause
+            widgets:
+              - label:
+                  id: lbl_play_icon
+                  text: "\U000F040A"
+                  text_font: icons_24
+                  text_color: 0x121212
+                  align: CENTER
+
+        # Previous Track Button (Right position)
+        - button:
+            id: btn_prev
+            styles: style_btn_secondary
+            width: 44
+            height: 44
+            align: TOP_LEFT
+            x: 264
+            y: 128
+            disabled:
+              bg_color: 0x2A2A2A
+              border_color: 0x3A3A3A
+            on_click:
+              then:
+                - logger.log:
+                    tag: "ui"
+                    level: INFO
+                    format: "Previous button pressed"
+                - script.execute: media_previous_track
+            widgets:
+              - label:
+                  id: lbl_prev_icon
+                  text: "\U000F04AD"
+                  text_font: icons_24
+                  text_color: 0xFFFFFF
+                  align: CENTER
+
+        # =====================================================================
+        # BOTTOM AREA - VOLUME CONTROLS (Full Width)
+        # =====================================================================
+
+        # ---------------------------------------------------------------------
+        # Mute Toggle Button (Bottom Left)
+        # ---------------------------------------------------------------------
+        # Clickable button to toggle mute state
+        # Icon changes between volume-high and volume-mute based on mute state
+        # Minimum 44x44px touch target per accessibility guidelines
+        - button:
+            id: btn_mute
+            align: BOTTOM_LEFT
+            x: 0
+            y: 0
+            width: 44
+            height: 44
+            bg_opa: TRANSP
+            border_width: 0
+            shadow_width: 0
+            pad_all: 0
+            disabled:
+              bg_opa: TRANSP
+            on_click:
+              then:
+                - logger.log:
+                    tag: "ui"
+                    level: INFO
+                    format: "Mute button pressed"
+                - script.execute: media_mute_toggle
+            widgets:
+              - label:
+                  id: lbl_volume_icon
+                  text: "\U000F057E"
+                  text_font: icons_24
+                  text_color: 0xB3B3B3
+                  align: CENTER
+
+        # ---------------------------------------------------------------------
+        # Volume Slider (Bottom - Full Width)
+        # ---------------------------------------------------------------------
+        # Slim volume slider at very bottom spanning entire width
+        # Only sends volume on release (debounced) to avoid flooding API
+        # Positioned next to mute button (44px width)
+        - slider:
+            id: slider_volume
+            align: BOTTOM_LEFT
+            x: 44
+            y: -12
+            width: 268
+            height: 20
+            min_value: 0
+            max_value: 100
+            value: 50
+            bg_color: 0x1E1E1E
+            bg_opa: COVER
+            radius: 4
+            indicator:
+              bg_color: 0x00D1FF
+              bg_opa: COVER
+              radius: 4
+            knob:
+              bg_color: 0xFFFFFF
+              bg_opa: COVER
+              radius: 8
+              width: 16
+              height: 16
+            on_release:
+              then:
+                - logger.log:
+                    tag: "ui"
+                    level: INFO
+                    format: "Volume slider released: %d"
+                    args: ['(int)x']
+                - script.execute:
+                    id: media_volume_set
+                    volume_percent: !lambda 'return (int)x;'
+                # Update volume icon using centralized script (H2 fix)
+                - script.execute: update_volume_icon
+
+        # =====================================================================
+        # NO PLAYER SELECTED OVERLAY
+        # =====================================================================
+        # Full-screen overlay shown when no player is selected
+        # Hidden when a player is selected
+        - obj:
+            id: no_player_overlay
+            x: 0
+            y: 0
+            width: 320
+            height: 240
+            bg_color: 0x121212
+            bg_opa: COVER
+            border_width: 0
+            shadow_width: 0
+            hidden: false
+            widgets:
+              # Back button on overlay
+              - button:
+                  x: 0
+                  y: 0
+                  width: 44
+                  height: 44
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute: navigate_back
+                  widgets:
+                    - label:
+                        text: "\U000F004D"
+                        text_font: icons_24
+                        text_color: 0xB3B3B3
+                        align: CENTER
+
+              # Speaker icon
+              - label:
+                  text: "\U000F057F"
+                  text_font: icons_24
+                  text_color: 0x666666
+                  align: CENTER
+                  y: -20
+
+              # "No Player Selected" message
+              - label:
+                  id: lbl_no_player_msg
+                  text: "No Player Selected"
+                  text_font: roboto_16
+                  text_color: 0xB3B3B3
+                  text_align: CENTER
+                  align: CENTER
+                  y: 20
+
+              # Hint text
+              - label:
+                  text: "Tap Speakers to select"
+                  text_font: roboto_12
+                  text_color: 0x666666
+                  text_align: CENTER
+                  align: CENTER
+                  y: 45
+
+# =============================================================================
+# Dynamic Update Notes (Now Playing Screen)
+# =============================================================================
+# The following widget IDs are exposed for dynamic updates from state machine:
+#
+# - lbl_status: Update connection state text and color
+#   Example: id(lbl_status).set_text("Disconnected");
+#            id(lbl_status).set_style_text_color(lv_color_hex(0xFF6B35), 0);
+#
+# - lbl_player_name: Update with active media player friendly name
+#   Updated automatically from ha_player_friendly_name sensor in media_player.yaml
+#   Example: lv_label_set_text(id(lbl_player_name), "Living Room Speaker");
+#
+# - lbl_title: Update with current track title from media player
+#   Example: id(lbl_title).set_text(title.c_str());
+#
+# - lbl_artist: Update with current artist name from media player
+#   Example: id(lbl_artist).set_text(artist.c_str());
+#
+# - lbl_album: Update with current album name from media player
+#   Example: id(lbl_album).set_text(album.c_str());
+#
+# Album Art Section (T023-T025):
+# - album_art_container: Container for album art (96x96px at x=16, y=56)
+#
+# - lbl_album_art_placeholder: Music note icon placeholder for when no album art
+#   Hide when album art is loaded: lv_obj_add_flag(id(lbl_album_art_placeholder), LV_OBJ_FLAG_HIDDEN);
+#   Show when no album art:        lv_obj_clear_flag(id(lbl_album_art_placeholder), LV_OBJ_FLAG_HIDDEN);
+#
+# - spinner_album_art: Loading spinner shown while fetching album art (T023)
+#   Initially hidden, controlled by album_art.yaml scripts
+#
+# - img_album_art: LVGL image widget displaying fetched album art (T024-T025)
+#   Initially hidden, updated and shown when album art is downloaded successfully
+#
+# - btn_play: Access play button for visual state updates
+#
+# - lbl_play_icon: Toggle between play/pause icons based on playback state
+#   Playing: id(lbl_play_icon).set_text("\U000F03E4");  // mdi:pause
+#   Paused:  id(lbl_play_icon).set_text("\U000F040A");  // mdi:play
+#
+# - btn_prev / btn_next: Access for enabling/disabling based on playlist position
+#
+# Progress Bar Section:
+# - progress_slider: Progress slider (0-100%), touch-to-seek enabled
+#   Updated automatically via interval in media_player.yaml
+#   On touch release, calls media_player.media_seek to seek to position
+#   Example: lv_slider_set_value(id(progress_slider), percent, LV_ANIM_OFF);
+#
+# - lbl_elapsed_time: Elapsed time label (MM:SS format)
+#   Updated automatically via interval in media_player.yaml
+#   Example: lv_label_set_text(id(lbl_elapsed_time), "2:45");
+#
+# - lbl_total_time: Total duration label (MM:SS format)
+#   Updated automatically via interval in media_player.yaml
+#   Example: lv_label_set_text(id(lbl_total_time), "4:30");
+#
+# Volume Section:
+# - btn_mute: Mute toggle button (44x44px touch target)
+#   On click, calls media_mute_toggle script to toggle mute state
+#
+# - slider_volume: Volume slider (0-100), calls media_volume_set on release
+#   Example: lv_slider_set_value(id(slider_volume), volume_percent, LV_ANIM_ON);
+#
+# - lbl_volume_icon: Volume icon inside btn_mute that changes based on mute state
+#   Muted:   lv_label_set_text(id(lbl_volume_icon), "\U000F0581");  // mdi:volume-mute
+#   Unmuted: lv_label_set_text(id(lbl_volume_icon), "\U000F057E");  // mdi:volume-high
+#
+# Media Player Entity:
+# The buttons call services on "media_player.lards_speaker2" entity.
+# Update this entity_id to match your actual Home Assistant media player entity.
+# =============================================================================

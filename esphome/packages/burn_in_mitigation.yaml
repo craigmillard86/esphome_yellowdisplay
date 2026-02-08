@@ -1,0 +1,251 @@
+# =============================================================================
+# Package: Burn-in Mitigation (T140)
+# Purpose: Prevent LCD burn-in on static elements (Constitution §8.3)
+# Dependencies: packages/lvgl.yaml (Now Playing page elements)
+#               packages/idle.yaml (idle state tracking)
+# Exposes: Pixel shifting for static high-contrast elements
+# =============================================================================
+
+# This package implements:
+# - T140: Burn-in mitigation for Now Playing screen (Constitution §8.3)
+#
+# Constitution §8.3 Requirements:
+# 1. Now Playing screen MUST NOT have permanently static high-contrast elements
+# 2. Recommended mitigations:
+#    - Subtle element position shifting over time
+#    - Progress bar animation prevents static pixels
+#    - Screen-off on extended idle
+#
+# Implementation:
+# - Every 5 minutes, shift static text elements by 1-2 pixels
+# - Random direction: up/down/left/right
+# - Maximum offset of 4 pixels from original position
+# - Only applies when on Now Playing screen and active (not idle)
+# - Progress bar already animates (no mitigation needed)
+# - Screen-off idle timeout handles extended idle (in idle.yaml)
+
+# =============================================================================
+# Global Variables - Burn-in State
+# =============================================================================
+
+globals:
+  # Current horizontal offset for text elements (-4 to +4 pixels)
+  - id: burnin_offset_x
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Current vertical offset for text elements (-4 to +4 pixels)
+  - id: burnin_offset_y
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # Burn-in mitigation enabled flag
+  - id: burnin_mitigation_enabled
+    type: bool
+    restore_value: no
+    initial_value: 'true'
+
+  # Last shift timestamp (for timing)
+  - id: burnin_last_shift_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+  # Shift interval in milliseconds (5 minutes = 300000ms)
+  - id: burnin_shift_interval_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '300000'
+
+# =============================================================================
+# Scripts - Burn-in Mitigation
+# =============================================================================
+
+script:
+  # ---------------------------------------------------------------------------
+  # Apply Pixel Shift to Now Playing Elements
+  # ---------------------------------------------------------------------------
+  # Shifts text elements by current offset values
+  - id: burnin_apply_shift
+    mode: single
+    then:
+      - lambda: |-
+          // Only shift when on Now Playing screen (screen ID 1)
+          if (id(current_screen) != 1) {
+            return;
+          }
+
+          // Only shift when active (not idle/dimmed)
+          if (id(idle_state) != 0) {
+            return;
+          }
+
+          int ox = id(burnin_offset_x);
+          int oy = id(burnin_offset_y);
+
+          // Apply offset to status label (original x=136, y=4)
+          lv_obj_set_x(id(lbl_status), 136 + ox);
+          lv_obj_set_y(id(lbl_status), 4 + oy);
+
+          // Apply offset to player name label (original x=136, y=18)
+          lv_obj_set_x(id(lbl_player_name), 136 + ox);
+          lv_obj_set_y(id(lbl_player_name), 18 + oy);
+
+          // Apply offset to title label (original x=136, y=30)
+          lv_obj_set_x(id(lbl_title), 136 + ox);
+          lv_obj_set_y(id(lbl_title), 30 + oy);
+
+          // Apply offset to artist label (original x=136, y=54)
+          lv_obj_set_x(id(lbl_artist), 136 + ox);
+          lv_obj_set_y(id(lbl_artist), 54 + oy);
+
+          // Apply offset to album label (original x=136, y=72)
+          lv_obj_set_x(id(lbl_album), 136 + ox);
+          lv_obj_set_y(id(lbl_album), 72 + oy);
+
+          ESP_LOGD("burnin", "Applied shift offset: x=%d, y=%d", ox, oy);
+
+  # ---------------------------------------------------------------------------
+  # Calculate Next Shift Offset
+  # ---------------------------------------------------------------------------
+  # Randomly shifts position within bounds
+  - id: burnin_shift
+    mode: single
+    then:
+      - lambda: |-
+          if (!id(burnin_mitigation_enabled)) {
+            return;
+          }
+
+          // Generate pseudo-random direction (0-3)
+          uint32_t direction = (millis() / 1000) % 4;
+
+          int ox = id(burnin_offset_x);
+          int oy = id(burnin_offset_y);
+
+          // Apply shift based on direction
+          switch (direction) {
+            case 0:  // Up
+              if (oy > -4) oy--;
+              break;
+            case 1:  // Down
+              if (oy < 4) oy++;
+              break;
+            case 2:  // Left
+              if (ox > -4) ox--;
+              break;
+            case 3:  // Right
+              if (ox < 4) ox++;
+              break;
+          }
+
+          id(burnin_offset_x) = ox;
+          id(burnin_offset_y) = oy;
+          id(burnin_last_shift_ms) = millis();
+
+          ESP_LOGI("burnin", "Pixel shift: direction=%d, new offset x=%d y=%d",
+                   direction, ox, oy);
+
+      - script.execute: burnin_apply_shift
+
+  # ---------------------------------------------------------------------------
+  # Reset Shift to Center
+  # ---------------------------------------------------------------------------
+  # Called when leaving Now Playing screen to reset positions
+  - id: burnin_reset
+    mode: single
+    then:
+      - lambda: |-
+          id(burnin_offset_x) = 0;
+          id(burnin_offset_y) = 0;
+
+          // Reset element positions to original (no offset)
+          lv_obj_set_x(id(lbl_status), 136);
+          lv_obj_set_y(id(lbl_status), 4);
+
+          lv_obj_set_x(id(lbl_player_name), 136);
+          lv_obj_set_y(id(lbl_player_name), 18);
+
+          lv_obj_set_x(id(lbl_title), 136);
+          lv_obj_set_y(id(lbl_title), 30);
+
+          lv_obj_set_x(id(lbl_artist), 136);
+          lv_obj_set_y(id(lbl_artist), 54);
+
+          lv_obj_set_x(id(lbl_album), 136);
+          lv_obj_set_y(id(lbl_album), 72);
+
+          ESP_LOGD("burnin", "Pixel shift reset to center");
+
+# =============================================================================
+# Interval - Periodic Shift Check
+# =============================================================================
+
+interval:
+  # Check every 30 seconds if shift is needed
+  - interval: 30s
+    then:
+      - if:
+          condition:
+            lambda: |-
+              // Only run when enabled, on Now Playing screen, and active (not idle)
+              if (!id(burnin_mitigation_enabled)) return false;
+              if (id(current_screen) != 1) return false;
+              if (id(idle_state) != 0) return false;
+
+              // Check if enough time has passed since last shift
+              uint32_t elapsed = millis() - id(burnin_last_shift_ms);
+              if (elapsed >= id(burnin_shift_interval_ms)) {
+                ESP_LOGD("burnin", "Shift interval reached (%d ms elapsed)", elapsed);
+                return true;
+              }
+              return false;
+          then:
+            - script.execute: burnin_shift
+
+# =============================================================================
+# Boot Initialization
+# =============================================================================
+
+esphome:
+  on_boot:
+    priority: 400  # After LVGL is initialized
+    then:
+      - lambda: |-
+          id(burnin_last_shift_ms) = millis();
+          ESP_LOGI("burnin", "Burn-in mitigation initialized (shift interval: %d min)",
+                   id(burnin_shift_interval_ms) / 60000);
+
+# =============================================================================
+# Notes on Burn-in Mitigation
+# =============================================================================
+#
+# The Now Playing screen has these static high-contrast elements:
+#
+# 1. Text Labels (mitigated by this package):
+#    - lbl_status: Connection status text
+#    - lbl_player_name: Player name
+#    - lbl_title: Track title
+#    - lbl_artist: Artist name
+#    - lbl_album: Album name
+#
+# 2. Progress Bar (naturally mitigated):
+#    - progress_slider: Constantly changes as track plays
+#    - lbl_elapsed_time: Updates every second
+#    - lbl_total_time: Updates on track change
+#
+# 3. Control Buttons (moderate risk, short dwell time):
+#    - btn_play, btn_prev, btn_next: User interacts frequently
+#    - Lower risk due to interaction frequency
+#
+# 4. Album Art (naturally mitigated):
+#    - Changes with each track
+#    - Loading spinner provides animation
+#
+# Additional protections from other packages:
+# - idle.yaml: Dims screen after 60s, turns off after 3min
+# - Screen-off is the most effective burn-in prevention
+#
+# =============================================================================

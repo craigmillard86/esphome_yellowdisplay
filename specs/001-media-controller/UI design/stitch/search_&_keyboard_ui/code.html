@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Search &amp; Keyboard UI</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#000000",
+                    },
+                    fontFamily: {
+                        "display": ["Be Vietnam Pro"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: "Be Vietnam Pro", sans-serif;
+            width: 320px;
+            height: 240px;
+            overflow: hidden;
+            margin: 0 auto;
+        }
+        .keyboard-key {
+            background-color: #2C2C2E;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 500;
+            border-radius: 4px;
+            transition: background-color 0.1s;
+        }
+        .keyboard-key:active {
+            background-color: #48484A;
+        }
+        .key-special {
+            background-color: #3A3A3C;
+        }
+        .key-primary {
+            background-color: #137fec;
+        }
+        /* Custom scrollbar for small screens */
+        ::-webkit-scrollbar {
+            width: 2px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #92adc9;
+            border-radius: 1px;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-dark text-white selection:bg-primary/30">
+<div class="relative flex h-[240px] w-[320px] flex-col overflow-hidden">
+<!-- Search Header (Top 15%) -->
+<div class="flex items-center gap-2 px-2 py-1 h-[40px] border-b border-white/10">
+<div class="flex flex-1 items-center bg-[#1c1c1e] rounded-lg h-7 px-2">
+<span class="material-symbols-outlined text-[#92adc9] text-[16px]">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-xs w-full px-1 text-white placeholder:text-[#92adc9] font-display" placeholder="Search Music..." type="text" value="Ocean"/>
+<span class="material-symbols-outlined text-[#92adc9] text-[16px]">cancel</span>
+</div>
+<button class="text-primary text-[11px] font-bold">Cancel</button>
+</div>
+<!-- Search Results Overlay (Middle 25%) -->
+<div class="flex-1 overflow-y-auto bg-black/80">
+<!-- Result Item 1 -->
+<div class="flex items-center gap-2 px-3 py-1.5 border-b border-white/5 active:bg-white/10">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded size-8 shrink-0" data-alt="Album art of a blue ocean" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBxGcOnLR92b6FhL2hQ_t1QJjMiRdusc7vLQLmuz6hLot5c7tDb6q8UQ27y0opnQP9D-jd0xrKvH2BaU1ckYfzQXyS8qycU4jhRBkNegjZSvP86naCHx00KNCbuwscwSl55i4YaeMaeDQkqR6pC13-U2n2TChj1VMjl8_BFe8LmCZaZsx_3YcPirCPBdmqfKuSalhBN8tE8OPi9OL5qdduZPvvrbTaXVWsDT9mdiQ924PYzV9nl_nEhjathkNQOXbx2b4dXtRX7JKw_");'></div>
+<div class="flex flex-col min-w-0">
+<p class="text-[11px] font-bold leading-tight truncate">Ocean Eyes</p>
+<p class="text-[#92adc9] text-[10px] leading-tight truncate">Billie Eilish</p>
+</div>
+<div class="ml-auto">
+<span class="material-symbols-outlined text-[#92adc9] text-[14px]">chevron_right</span>
+</div>
+</div>
+<!-- Result Item 2 -->
+<div class="flex items-center gap-2 px-3 py-1.5 border-b border-white/5 active:bg-white/10">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded size-8 shrink-0" data-alt="Worship album cover with water" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuB2IJemMbk3FjSQv7itgvxW-0g1O3HNfhQxfejdbwRzez3BYBoSdohPZ5yTkQpntSAdPp2VSPT7r5g8ITgspN9Y1U7R7eBtmtNhHFDTRnzRROT05wykx27PedAl3jaj0BvzreubtaRkXfJchhGti4IRB61p_RSlHtJZUxhu91mh9D2mD2qBhPtaG06lHIK4HAbbldnbniRbS4UtSMv0QrMHxhm2d2aq4c6VxwB3GK-uotuOMwuu_pDlqJGeEuH3ca9nm2NdsDN390qm");'></div>
+<div class="flex flex-col min-w-0">
+<p class="text-[11px] font-bold leading-tight truncate">Oceans (Where Feet May Fail)</p>
+<p class="text-[#92adc9] text-[10px] leading-tight truncate">Hillsong United</p>
+</div>
+<div class="ml-auto">
+<span class="material-symbols-outlined text-[#92adc9] text-[14px]">chevron_right</span>
+</div>
+</div>
+</div>
+<!-- Integrated iOS Keyboard (Bottom 60%) -->
+<div class="bg-[#1c1c1e]/95 p-1 pb-1.5 h-[144px] flex flex-col gap-1.5">
+<!-- Row 1 -->
+<div class="flex gap-1 justify-center">
+<div class="keyboard-key w-[28px] h-[28px]">Q</div>
+<div class="keyboard-key w-[28px] h-[28px]">W</div>
+<div class="keyboard-key w-[28px] h-[28px]">E</div>
+<div class="keyboard-key w-[28px] h-[28px]">R</div>
+<div class="keyboard-key w-[28px] h-[28px]">T</div>
+<div class="keyboard-key w-[28px] h-[28px]">Y</div>
+<div class="keyboard-key w-[28px] h-[28px]">U</div>
+<div class="keyboard-key w-[28px] h-[28px]">I</div>
+<div class="keyboard-key w-[28px] h-[28px]">O</div>
+<div class="keyboard-key w-[28px] h-[28px]">P</div>
+</div>
+<!-- Row 2 -->
+<div class="flex gap-1 justify-center">
+<div class="keyboard-key w-[28px] h-[28px]">A</div>
+<div class="keyboard-key w-[28px] h-[28px]">S</div>
+<div class="keyboard-key w-[28px] h-[28px]">D</div>
+<div class="keyboard-key w-[28px] h-[28px]">F</div>
+<div class="keyboard-key w-[28px] h-[28px]">G</div>
+<div class="keyboard-key w-[28px] h-[28px]">H</div>
+<div class="keyboard-key w-[28px] h-[28px]">J</div>
+<div class="keyboard-key w-[28px] h-[28px]">K</div>
+<div class="keyboard-key w-[28px] h-[28px]">L</div>
+</div>
+<!-- Row 3 -->
+<div class="flex gap-1 justify-center">
+<div class="keyboard-key key-special w-[38px] h-[28px]">
+<span class="material-symbols-outlined text-[16px]">shift</span>
+</div>
+<div class="keyboard-key w-[28px] h-[28px]">Z</div>
+<div class="keyboard-key w-[28px] h-[28px]">X</div>
+<div class="keyboard-key w-[28px] h-[28px]">C</div>
+<div class="keyboard-key w-[28px] h-[28px]">V</div>
+<div class="keyboard-key w-[28px] h-[28px]">B</div>
+<div class="keyboard-key w-[28px] h-[28px]">N</div>
+<div class="keyboard-key w-[28px] h-[28px]">M</div>
+<div class="keyboard-key key-special w-[38px] h-[28px]">
+<span class="material-symbols-outlined text-[16px]">backspace</span>
+</div>
+</div>
+<!-- Row 4 -->
+<div class="flex gap-1 justify-center">
+<div class="keyboard-key key-special w-[45px] h-[28px]">123</div>
+<div class="keyboard-key w-[140px] h-[28px]">space</div>
+<div class="keyboard-key key-primary w-[70px] h-[28px] font-bold">Search</div>
+</div>
+</div>
+</div>
+</body></html>

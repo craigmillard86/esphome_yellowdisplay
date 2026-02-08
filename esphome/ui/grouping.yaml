@@ -1,0 +1,1192 @@
+# =============================================================================
+# UI Screen: Multi-room Grouping (T091, T093-T096, T099-T100)
+# Purpose: Screen for creating and managing speaker groups
+# Dependencies: packages/lvgl.yaml (LVGL framework, theme, fonts, icons)
+#               packages/grouping.yaml (grouping business logic)
+#               packages/player_manager.yaml (player state)
+#               packages/navigation.yaml (screen navigation)
+# Exposes: page_grouping LVGL page with player checkboxes
+# Display: 320x240 ILI9341 in landscape orientation
+# =============================================================================
+
+# This file implements:
+# - T091: Create Multi-room Grouping screen with checklist layout
+# - T093: Display all players with checkboxes
+# - T094: Pre-check players already in current group
+# - T096: Implement Apply button at bottom
+# - T099: Display which players failed and why
+# - T100: Implement Cancel button to discard changes
+
+# Screen Layout:
+# +--------------------------------------------------+
+# | [<] Create Group / Edit Group              [X]   |  <- Header (44px, dynamic title)
+# +--------------------------------------------------+
+# | +----------------------------------------------+ |
+# | | [x] 👑 Speaker Name               Leader     | |  <- Leader row (gold border)
+# | +----------------------------------------------+ |  <- 44px each
+# | | [x] 👑 Speaker 2                  In Group   | |  <- Member (crown to change leader)
+# | +----------------------------------------------+ |
+# | | [ ]    Speaker 3                  Online     | |  <- Unchecked
+# | +----------------------------------------------+ |
+# +--------------------------------------------------+
+# | Select 2+ players to group                       |  <- Status (28px)
+# | Tap crown to change leader                       |  <- Hint (shown when 2+ checked)
+# +--------------------------------------------------+
+# | [ Cancel ]               [ Create/Update Group ] |  <- Buttons (48px, dynamic text)
+# +--------------------------------------------------+
+
+lvgl:
+  pages:
+    # =========================================================================
+    # Grouping Screen (T091)
+    # =========================================================================
+    - id: page_grouping
+      bg_color: 0x121212
+      border_width: 0
+      shadow_width: 0
+      # Note: Initialization moved to navigation.yaml to avoid boot-time issues
+      # on_load triggers when page is created, which may be at boot
+      widgets:
+        # =====================================================================
+        # HEADER AREA (44px height)
+        # =====================================================================
+
+        # Back/Cancel Button - Top Left (44x44px touch target)
+        - button:
+            id: btn_grouping_back
+            x: 0
+            y: 0
+            width: 44
+            height: 44
+            bg_opa: TRANSP
+            border_width: 0
+            shadow_width: 0
+            pad_all: 0
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Grouping screen back button pressed"
+              - script.execute: grouping_cancel
+            widgets:
+              - label:
+                  text: "\U000F004D"  # mdi:arrow-left
+                  text_font: icons_24
+                  text_color: 0xB3B3B3
+                  align: CENTER
+
+        # Screen Title
+        - label:
+            id: lbl_grouping_title
+            text: "Create Group"
+            text_font: roboto_16
+            text_color: 0xFFFFFF
+            align: TOP_MID
+            x: 0
+            y: 12
+            text_align: CENTER
+
+        # Close/Cancel Button - Top Right (44x44px touch target)
+        - button:
+            id: btn_grouping_close
+            align: TOP_RIGHT
+            x: 0
+            y: 0
+            width: 44
+            height: 44
+            bg_opa: TRANSP
+            border_width: 0
+            shadow_width: 0
+            pad_all: 0
+            on_click:
+              - script.execute: grouping_cancel
+            widgets:
+              - label:
+                  text: "\U000F0156"  # mdi:close
+                  text_font: icons_24
+                  text_color: 0xB3B3B3
+                  align: CENTER
+
+        # Header Divider Line
+        - obj:
+            x: 0
+            y: 43
+            width: 320
+            height: 1
+            bg_color: 0x2A2A2A
+            bg_opa: COVER
+            border_width: 0
+
+        # =====================================================================
+        # SCROLLABLE PLAYER CHECKLIST CONTAINER
+        # =====================================================================
+        # Position: Below header, above status and buttons
+        # Size: 320x116 (240 - 44 header - 28 status - 4 gap - 48 buttons)
+
+        - obj:
+            id: grouping_list_container
+            x: 0
+            y: 44
+            width: 320
+            height: 116
+            bg_color: 0x121212
+            bg_opa: COVER
+            border_width: 0
+            shadow_width: 0
+            pad_all: 4
+            scrollbar_mode: AUTO
+            layout:
+              type: FLEX
+              flex_flow: COLUMN
+              flex_align_main: START
+              flex_align_cross: CENTER
+              flex_align_track: CENTER
+            widgets:
+              # =================================================================
+              # PLAYER CHECKBOX ROW 0
+              # =================================================================
+              - obj:
+                  id: grouping_row_0
+                  width: 304
+                  height: 44
+                  bg_color: 0x1E1E1E
+                  radius: 8
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  hidden: true
+                  widgets:
+                    # Left side: Checkbox toggle area
+                    - button:
+                        id: grouping_0_checkbox_btn
+                        x: 0
+                        y: 0
+                        width: 200
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        shadow_width: 0
+                        pad_all: 0
+                        on_click:
+                          - script.execute:
+                              id: grouping_toggle_checkbox
+                              player_index: 0
+                          - script.execute: grouping_update_checkboxes
+                        widgets:
+                          # Unchecked checkbox icon
+                          - label:
+                              id: grouping_0_unchecked
+                              text: "\U000F0131"  # mdi:checkbox-blank-outline
+                              text_font: icons_24
+                              text_color: 0x666666
+                              x: 12
+                              y: 10
+                          # Checked checkbox icon
+                          - label:
+                              id: grouping_0_checked
+                              text: "\U000F0132"  # mdi:checkbox-marked
+                              text_font: icons_24
+                              text_color: 0x00D1FF
+                              x: 12
+                              y: 10
+                              hidden: true
+                          # Player name
+                          - label:
+                              id: grouping_0_name
+                              text: "Player 0"
+                              text_font: roboto_16
+                              text_color: 0xFFFFFF
+                              x: 44
+                              y: 12
+                              width: 150
+                              long_mode: SCROLL_CIRCULAR
+                    # Right side: Leader selection area (tap to make leader)
+                    - button:
+                        id: grouping_0_leader_btn
+                        align: RIGHT_MID
+                        x: 0
+                        y: 0
+                        width: 100
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        shadow_width: 0
+                        pad_all: 0
+                        on_click:
+                          - script.execute:
+                              id: grouping_set_leader
+                              player_index: 0
+                          - script.execute: grouping_update_checkboxes
+                        widgets:
+                          # Crown icon (shown for leader)
+                          - label:
+                              id: grouping_0_crown
+                              text: "\U000F01A5"  # mdi:crown
+                              text_font: icons_24
+                              text_color: 0xFFD700  # Gold
+                              align: RIGHT_MID
+                              x: -70
+                              y: 0
+                              hidden: true
+                          # Status text
+                          - label:
+                              id: grouping_0_status
+                              text: "Online"
+                              text_font: roboto_12
+                              text_color: 0x666666
+                              align: RIGHT_MID
+                              x: -8
+                              y: 0
+
+              # =================================================================
+              # PLAYER CHECKBOX ROW 1
+              # =================================================================
+              - obj:
+                  id: grouping_row_1
+                  width: 304
+                  height: 44
+                  bg_color: 0x1E1E1E
+                  radius: 8
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  hidden: true
+                  widgets:
+                    - button:
+                        id: grouping_1_checkbox_btn
+                        x: 0
+                        y: 0
+                        width: 200
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        shadow_width: 0
+                        pad_all: 0
+                        on_click:
+                          - script.execute:
+                              id: grouping_toggle_checkbox
+                              player_index: 1
+                          - script.execute: grouping_update_checkboxes
+                        widgets:
+                          - label:
+                              id: grouping_1_unchecked
+                              text: "\U000F0131"
+                              text_font: icons_24
+                              text_color: 0x666666
+                              x: 12
+                              y: 10
+                          - label:
+                              id: grouping_1_checked
+                              text: "\U000F0132"
+                              text_font: icons_24
+                              text_color: 0x00D1FF
+                              x: 12
+                              y: 10
+                              hidden: true
+                          - label:
+                              id: grouping_1_name
+                              text: "Player 1"
+                              text_font: roboto_16
+                              text_color: 0xFFFFFF
+                              x: 44
+                              y: 12
+                              width: 150
+                              long_mode: SCROLL_CIRCULAR
+                    - button:
+                        id: grouping_1_leader_btn
+                        align: RIGHT_MID
+                        x: 0
+                        y: 0
+                        width: 100
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        shadow_width: 0
+                        pad_all: 0
+                        on_click:
+                          - script.execute:
+                              id: grouping_set_leader
+                              player_index: 1
+                          - script.execute: grouping_update_checkboxes
+                        widgets:
+                          - label:
+                              id: grouping_1_crown
+                              text: "\U000F01A5"
+                              text_font: icons_24
+                              text_color: 0xFFD700
+                              align: RIGHT_MID
+                              x: -70
+                              y: 0
+                              hidden: true
+                          - label:
+                              id: grouping_1_status
+                              text: "Online"
+                              text_font: roboto_12
+                              text_color: 0x666666
+                              align: RIGHT_MID
+                              x: -8
+                              y: 0
+
+              # =================================================================
+              # PLAYER CHECKBOX ROW 2
+              # =================================================================
+              - obj:
+                  id: grouping_row_2
+                  width: 304
+                  height: 44
+                  bg_color: 0x1E1E1E
+                  radius: 8
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  hidden: true
+                  widgets:
+                    - button:
+                        id: grouping_2_checkbox_btn
+                        x: 0
+                        y: 0
+                        width: 200
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        shadow_width: 0
+                        pad_all: 0
+                        on_click:
+                          - script.execute:
+                              id: grouping_toggle_checkbox
+                              player_index: 2
+                          - script.execute: grouping_update_checkboxes
+                        widgets:
+                          - label:
+                              id: grouping_2_unchecked
+                              text: "\U000F0131"
+                              text_font: icons_24
+                              text_color: 0x666666
+                              x: 12
+                              y: 10
+                          - label:
+                              id: grouping_2_checked
+                              text: "\U000F0132"
+                              text_font: icons_24
+                              text_color: 0x00D1FF
+                              x: 12
+                              y: 10
+                              hidden: true
+                          - label:
+                              id: grouping_2_name
+                              text: "Player 2"
+                              text_font: roboto_16
+                              text_color: 0xFFFFFF
+                              x: 44
+                              y: 12
+                              width: 150
+                              long_mode: SCROLL_CIRCULAR
+                    - button:
+                        id: grouping_2_leader_btn
+                        align: RIGHT_MID
+                        x: 0
+                        y: 0
+                        width: 100
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        shadow_width: 0
+                        pad_all: 0
+                        on_click:
+                          - script.execute:
+                              id: grouping_set_leader
+                              player_index: 2
+                          - script.execute: grouping_update_checkboxes
+                        widgets:
+                          - label:
+                              id: grouping_2_crown
+                              text: "\U000F01A5"
+                              text_font: icons_24
+                              text_color: 0xFFD700
+                              align: RIGHT_MID
+                              x: -70
+                              y: 0
+                              hidden: true
+                          - label:
+                              id: grouping_2_status
+                              text: "Online"
+                              text_font: roboto_12
+                              text_color: 0x666666
+                              align: RIGHT_MID
+                              x: -8
+                              y: 0
+
+              # =================================================================
+              # PLAYER CHECKBOX ROW 3
+              # =================================================================
+              - obj:
+                  id: grouping_row_3
+                  width: 304
+                  height: 44
+                  bg_color: 0x1E1E1E
+                  radius: 8
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  hidden: true
+                  widgets:
+                    - button:
+                        id: grouping_3_checkbox_btn
+                        x: 0
+                        y: 0
+                        width: 200
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        shadow_width: 0
+                        pad_all: 0
+                        on_click:
+                          - script.execute:
+                              id: grouping_toggle_checkbox
+                              player_index: 3
+                          - script.execute: grouping_update_checkboxes
+                        widgets:
+                          - label:
+                              id: grouping_3_unchecked
+                              text: "\U000F0131"
+                              text_font: icons_24
+                              text_color: 0x666666
+                              x: 12
+                              y: 10
+                          - label:
+                              id: grouping_3_checked
+                              text: "\U000F0132"
+                              text_font: icons_24
+                              text_color: 0x00D1FF
+                              x: 12
+                              y: 10
+                              hidden: true
+                          - label:
+                              id: grouping_3_name
+                              text: "Player 3"
+                              text_font: roboto_16
+                              text_color: 0xFFFFFF
+                              x: 44
+                              y: 12
+                              width: 150
+                              long_mode: SCROLL_CIRCULAR
+                    - button:
+                        id: grouping_3_leader_btn
+                        align: RIGHT_MID
+                        x: 0
+                        y: 0
+                        width: 100
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        shadow_width: 0
+                        pad_all: 0
+                        on_click:
+                          - script.execute:
+                              id: grouping_set_leader
+                              player_index: 3
+                          - script.execute: grouping_update_checkboxes
+                        widgets:
+                          - label:
+                              id: grouping_3_crown
+                              text: "\U000F01A5"
+                              text_font: icons_24
+                              text_color: 0xFFD700
+                              align: RIGHT_MID
+                              x: -70
+                              y: 0
+                              hidden: true
+                          - label:
+                              id: grouping_3_status
+                              text: "Online"
+                              text_font: roboto_12
+                              text_color: 0x666666
+                              align: RIGHT_MID
+                              x: -8
+                              y: 0
+
+              # =================================================================
+              # PLAYER CHECKBOX ROW 4
+              # =================================================================
+              - obj:
+                  id: grouping_row_4
+                  width: 304
+                  height: 44
+                  bg_color: 0x1E1E1E
+                  radius: 8
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  hidden: true
+                  widgets:
+                    - button:
+                        id: grouping_4_checkbox_btn
+                        x: 0
+                        y: 0
+                        width: 200
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        shadow_width: 0
+                        pad_all: 0
+                        on_click:
+                          - script.execute:
+                              id: grouping_toggle_checkbox
+                              player_index: 4
+                          - script.execute: grouping_update_checkboxes
+                        widgets:
+                          - label:
+                              id: grouping_4_unchecked
+                              text: "\U000F0131"
+                              text_font: icons_24
+                              text_color: 0x666666
+                              x: 12
+                              y: 10
+                          - label:
+                              id: grouping_4_checked
+                              text: "\U000F0132"
+                              text_font: icons_24
+                              text_color: 0x00D1FF
+                              x: 12
+                              y: 10
+                              hidden: true
+                          - label:
+                              id: grouping_4_name
+                              text: "Player 4"
+                              text_font: roboto_16
+                              text_color: 0xFFFFFF
+                              x: 44
+                              y: 12
+                              width: 150
+                              long_mode: SCROLL_CIRCULAR
+                    - button:
+                        id: grouping_4_leader_btn
+                        align: RIGHT_MID
+                        x: 0
+                        y: 0
+                        width: 100
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        shadow_width: 0
+                        pad_all: 0
+                        on_click:
+                          - script.execute:
+                              id: grouping_set_leader
+                              player_index: 4
+                          - script.execute: grouping_update_checkboxes
+                        widgets:
+                          - label:
+                              id: grouping_4_crown
+                              text: "\U000F01A5"
+                              text_font: icons_24
+                              text_color: 0xFFD700
+                              align: RIGHT_MID
+                              x: -70
+                              y: 0
+                              hidden: true
+                          - label:
+                              id: grouping_4_status
+                              text: "Online"
+                              text_font: roboto_12
+                              text_color: 0x666666
+                              align: RIGHT_MID
+                              x: -8
+                              y: 0
+
+              # =================================================================
+              # PLAYER CHECKBOX ROW 5
+              # =================================================================
+              - obj:
+                  id: grouping_row_5
+                  width: 304
+                  height: 44
+                  bg_color: 0x1E1E1E
+                  radius: 8
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  hidden: true
+                  widgets:
+                    - button:
+                        id: grouping_5_checkbox_btn
+                        x: 0
+                        y: 0
+                        width: 200
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        shadow_width: 0
+                        pad_all: 0
+                        on_click:
+                          - script.execute:
+                              id: grouping_toggle_checkbox
+                              player_index: 5
+                          - script.execute: grouping_update_checkboxes
+                        widgets:
+                          - label:
+                              id: grouping_5_unchecked
+                              text: "\U000F0131"
+                              text_font: icons_24
+                              text_color: 0x666666
+                              x: 12
+                              y: 10
+                          - label:
+                              id: grouping_5_checked
+                              text: "\U000F0132"
+                              text_font: icons_24
+                              text_color: 0x00D1FF
+                              x: 12
+                              y: 10
+                              hidden: true
+                          - label:
+                              id: grouping_5_name
+                              text: "Player 5"
+                              text_font: roboto_16
+                              text_color: 0xFFFFFF
+                              x: 44
+                              y: 12
+                              width: 150
+                              long_mode: SCROLL_CIRCULAR
+                    - button:
+                        id: grouping_5_leader_btn
+                        align: RIGHT_MID
+                        x: 0
+                        y: 0
+                        width: 100
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        shadow_width: 0
+                        pad_all: 0
+                        on_click:
+                          - script.execute:
+                              id: grouping_set_leader
+                              player_index: 5
+                          - script.execute: grouping_update_checkboxes
+                        widgets:
+                          - label:
+                              id: grouping_5_crown
+                              text: "\U000F01A5"
+                              text_font: icons_24
+                              text_color: 0xFFD700
+                              align: RIGHT_MID
+                              x: -70
+                              y: 0
+                              hidden: true
+                          - label:
+                              id: grouping_5_status
+                              text: "Online"
+                              text_font: roboto_12
+                              text_color: 0x666666
+                              align: RIGHT_MID
+                              x: -8
+                              y: 0
+
+              # =================================================================
+              # PLAYER CHECKBOX ROW 6
+              # =================================================================
+              - obj:
+                  id: grouping_row_6
+                  width: 304
+                  height: 44
+                  bg_color: 0x1E1E1E
+                  radius: 8
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  hidden: true
+                  widgets:
+                    - button:
+                        id: grouping_6_checkbox_btn
+                        x: 0
+                        y: 0
+                        width: 200
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        shadow_width: 0
+                        pad_all: 0
+                        on_click:
+                          - script.execute:
+                              id: grouping_toggle_checkbox
+                              player_index: 6
+                          - script.execute: grouping_update_checkboxes
+                        widgets:
+                          - label:
+                              id: grouping_6_unchecked
+                              text: "\U000F0131"
+                              text_font: icons_24
+                              text_color: 0x666666
+                              x: 12
+                              y: 10
+                          - label:
+                              id: grouping_6_checked
+                              text: "\U000F0132"
+                              text_font: icons_24
+                              text_color: 0x00D1FF
+                              x: 12
+                              y: 10
+                              hidden: true
+                          - label:
+                              id: grouping_6_name
+                              text: "Player 6"
+                              text_font: roboto_16
+                              text_color: 0xFFFFFF
+                              x: 44
+                              y: 12
+                              width: 150
+                              long_mode: SCROLL_CIRCULAR
+                    - button:
+                        id: grouping_6_leader_btn
+                        align: RIGHT_MID
+                        x: 0
+                        y: 0
+                        width: 100
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        shadow_width: 0
+                        pad_all: 0
+                        on_click:
+                          - script.execute:
+                              id: grouping_set_leader
+                              player_index: 6
+                          - script.execute: grouping_update_checkboxes
+                        widgets:
+                          - label:
+                              id: grouping_6_crown
+                              text: "\U000F01A5"
+                              text_font: icons_24
+                              text_color: 0xFFD700
+                              align: RIGHT_MID
+                              x: -70
+                              y: 0
+                              hidden: true
+                          - label:
+                              id: grouping_6_status
+                              text: "Online"
+                              text_font: roboto_12
+                              text_color: 0x666666
+                              align: RIGHT_MID
+                              x: -8
+                              y: 0
+
+              # =================================================================
+              # PLAYER CHECKBOX ROW 7
+              # =================================================================
+              - obj:
+                  id: grouping_row_7
+                  width: 304
+                  height: 44
+                  bg_color: 0x1E1E1E
+                  radius: 8
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  pad_all: 0
+                  scrollbar_mode: "off"
+                  hidden: true
+                  widgets:
+                    - button:
+                        id: grouping_7_checkbox_btn
+                        x: 0
+                        y: 0
+                        width: 200
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        shadow_width: 0
+                        pad_all: 0
+                        on_click:
+                          - script.execute:
+                              id: grouping_toggle_checkbox
+                              player_index: 7
+                          - script.execute: grouping_update_checkboxes
+                        widgets:
+                          - label:
+                              id: grouping_7_unchecked
+                              text: "\U000F0131"
+                              text_font: icons_24
+                              text_color: 0x666666
+                              x: 12
+                              y: 10
+                          - label:
+                              id: grouping_7_checked
+                              text: "\U000F0132"
+                              text_font: icons_24
+                              text_color: 0x00D1FF
+                              x: 12
+                              y: 10
+                              hidden: true
+                          - label:
+                              id: grouping_7_name
+                              text: "Player 7"
+                              text_font: roboto_16
+                              text_color: 0xFFFFFF
+                              x: 44
+                              y: 12
+                              width: 150
+                              long_mode: SCROLL_CIRCULAR
+                    - button:
+                        id: grouping_7_leader_btn
+                        align: RIGHT_MID
+                        x: 0
+                        y: 0
+                        width: 100
+                        height: 44
+                        bg_opa: TRANSP
+                        border_width: 0
+                        shadow_width: 0
+                        pad_all: 0
+                        on_click:
+                          - script.execute:
+                              id: grouping_set_leader
+                              player_index: 7
+                          - script.execute: grouping_update_checkboxes
+                        widgets:
+                          - label:
+                              id: grouping_7_crown
+                              text: "\U000F01A5"
+                              text_font: icons_24
+                              text_color: 0xFFD700
+                              align: RIGHT_MID
+                              x: -70
+                              y: 0
+                              hidden: true
+                          - label:
+                              id: grouping_7_status
+                              text: "Online"
+                              text_font: roboto_12
+                              text_color: 0x666666
+                              align: RIGHT_MID
+                              x: -8
+                              y: 0
+
+              # =================================================================
+              # "No Players" Message (shown when list is empty)
+              # =================================================================
+              - label:
+                  id: lbl_grouping_no_players
+                  text: "No players available"
+                  text_font: roboto_16
+                  text_color: 0x666666
+                  align: CENTER
+                  y: 30
+
+        # =====================================================================
+        # STATUS MESSAGE AREA (T099)
+        # =====================================================================
+        # Shows validation hints and error messages
+        - label:
+            id: lbl_grouping_status
+            text: "Select 2+ players to group"
+            text_font: roboto_12
+            text_color: 0x666666
+            x: 8
+            y: 162
+            width: 304
+            text_align: CENTER
+
+        # Hint label for leader selection (hidden until multiple checked)
+        - label:
+            id: lbl_grouping_hint
+            text: "Tap status to set leader"
+            text_font: roboto_12
+            text_color: 0x666666
+            x: 8
+            y: 174
+            width: 304
+            text_align: CENTER
+            hidden: true
+
+        # =====================================================================
+        # BUTTON AREA (48px height)
+        # =====================================================================
+
+        # Cancel Button (T100)
+        - button:
+            id: btn_grouping_cancel
+            x: 8
+            y: 188
+            width: 100
+            height: 44
+            bg_color: 0x2A2A2A
+            radius: 8
+            border_width: 0
+            shadow_width: 0
+            pressed:
+              bg_color: 0x3A3A3A
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Grouping Cancel button pressed"
+              - script.execute: grouping_cancel
+            widgets:
+              - label:
+                  text: "Cancel"
+                  text_font: roboto_16
+                  text_color: 0xB3B3B3
+                  align: CENTER
+
+        # Apply Button (T096)
+        - button:
+            id: btn_grouping_apply
+            align: TOP_RIGHT
+            x: -8
+            y: 188
+            width: 140
+            height: 44
+            bg_color: 0x00D1FF
+            radius: 8
+            border_width: 0
+            shadow_width: 0
+            pressed:
+              bg_color: 0x00A3CC
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Grouping Apply button pressed"
+              - script.execute: grouping_apply
+            widgets:
+              - label:
+                  id: lbl_apply_btn
+                  text: "Apply Group"
+                  text_font: roboto_16
+                  text_color: 0x121212
+                  align: CENTER
+
+# =============================================================================
+# Scripts - Grouping UI Updates
+# =============================================================================
+
+script:
+  # ---------------------------------------------------------------------------
+  # Update Checkbox Visuals, Crown Icons, and Status Text
+  # ---------------------------------------------------------------------------
+  # Syncs checkbox/crown/status widget visibility with grouping state
+  - id: grouping_update_checkboxes
+    mode: restart
+    then:
+      - lambda: |-
+          // Guard: Only update when grouping screen is active
+          if (!id(grouping_screen_active)) {
+            ESP_LOGD("grouping_ui", "Skipping checkbox update - screen not active");
+            return;
+          }
+
+          ESP_LOGD("grouping_ui", "Updating checkbox visuals...");
+
+          uint8_t states = id(grouping_checkbox_states);
+          int visible_count = 0;
+          std::string designated_leader = id(grouping_designated_leader);
+          int mode = id(grouping_mode);
+          int checked_count = id(grouping_checked_count);
+
+          // Player data arrays for lookup
+          std::string entities[8] = {
+            id(player_0_entity_id), id(player_1_entity_id), id(player_2_entity_id), id(player_3_entity_id),
+            id(player_4_entity_id), id(player_5_entity_id), id(player_6_entity_id), id(player_7_entity_id)
+          };
+          std::string names[8] = {
+            id(player_0_name), id(player_1_name), id(player_2_name), id(player_3_name),
+            id(player_4_name), id(player_5_name), id(player_6_name), id(player_7_name)
+          };
+          bool online[8] = {
+            id(player_0_online), id(player_1_online), id(player_2_online), id(player_3_online),
+            id(player_4_online), id(player_5_online), id(player_6_online), id(player_7_online)
+          };
+          int group_statuses[8] = {
+            id(player_0_group_status), id(player_1_group_status), id(player_2_group_status), id(player_3_group_status),
+            id(player_4_group_status), id(player_5_group_status), id(player_6_group_status), id(player_7_group_status)
+          };
+
+          // UI widget arrays
+          lv_obj_t* rows[8] = {
+            id(grouping_row_0), id(grouping_row_1), id(grouping_row_2), id(grouping_row_3),
+            id(grouping_row_4), id(grouping_row_5), id(grouping_row_6), id(grouping_row_7)
+          };
+          lv_obj_t* unchecked_icons[8] = {
+            id(grouping_0_unchecked), id(grouping_1_unchecked), id(grouping_2_unchecked), id(grouping_3_unchecked),
+            id(grouping_4_unchecked), id(grouping_5_unchecked), id(grouping_6_unchecked), id(grouping_7_unchecked)
+          };
+          lv_obj_t* checked_icons[8] = {
+            id(grouping_0_checked), id(grouping_1_checked), id(grouping_2_checked), id(grouping_3_checked),
+            id(grouping_4_checked), id(grouping_5_checked), id(grouping_6_checked), id(grouping_7_checked)
+          };
+          lv_obj_t* crown_lbls[8] = {
+            id(grouping_0_crown), id(grouping_1_crown), id(grouping_2_crown), id(grouping_3_crown),
+            id(grouping_4_crown), id(grouping_5_crown), id(grouping_6_crown), id(grouping_7_crown)
+          };
+          lv_obj_t* name_lbls[8] = {
+            id(grouping_0_name), id(grouping_1_name), id(grouping_2_name), id(grouping_3_name),
+            id(grouping_4_name), id(grouping_5_name), id(grouping_6_name), id(grouping_7_name)
+          };
+          lv_obj_t* status_lbls[8] = {
+            id(grouping_0_status), id(grouping_1_status), id(grouping_2_status), id(grouping_3_status),
+            id(grouping_4_status), id(grouping_5_status), id(grouping_6_status), id(grouping_7_status)
+          };
+
+          // Update each row
+          for (int idx = 0; idx < 8; idx++) {
+            if (rows[idx] == nullptr) continue;
+
+            if (entities[idx].empty()) {
+              lv_obj_add_flag(rows[idx], LV_OBJ_FLAG_HIDDEN);
+              continue;
+            }
+
+            visible_count++;
+            lv_obj_clear_flag(rows[idx], LV_OBJ_FLAG_HIDDEN);
+
+            // Update player name
+            if (name_lbls[idx]) lv_label_set_text(name_lbls[idx], names[idx].c_str());
+
+            bool is_online = online[idx];
+            bool is_checked = (states & (1 << idx)) != 0;
+            bool is_leader = (entities[idx] == designated_leader);
+
+            // Update online/offline styling
+            if (is_online) {
+              if (name_lbls[idx]) lv_obj_set_style_text_color(name_lbls[idx], lv_color_hex(0xFFFFFF), 0);
+              lv_obj_set_style_bg_opa(rows[idx], LV_OPA_COVER, 0);
+            } else {
+              if (name_lbls[idx]) lv_obj_set_style_text_color(name_lbls[idx], lv_color_hex(0x666666), 0);
+              lv_obj_set_style_bg_opa(rows[idx], LV_OPA_70, 0);
+            }
+
+            // Update checkbox state
+            if (is_checked) {
+              if (unchecked_icons[idx]) lv_obj_add_flag(unchecked_icons[idx], LV_OBJ_FLAG_HIDDEN);
+              if (checked_icons[idx]) lv_obj_clear_flag(checked_icons[idx], LV_OBJ_FLAG_HIDDEN);
+            } else {
+              if (unchecked_icons[idx]) lv_obj_clear_flag(unchecked_icons[idx], LV_OBJ_FLAG_HIDDEN);
+              if (checked_icons[idx]) lv_obj_add_flag(checked_icons[idx], LV_OBJ_FLAG_HIDDEN);
+            }
+
+            // Update crown visibility (show only for designated leader)
+            if (crown_lbls[idx]) {
+              if (is_leader && is_checked) {
+                lv_obj_clear_flag(crown_lbls[idx], LV_OBJ_FLAG_HIDDEN);
+              } else {
+                lv_obj_add_flag(crown_lbls[idx], LV_OBJ_FLAG_HIDDEN);
+              }
+            }
+
+            // Update leader border highlight (gold border for designated leader)
+            if (is_leader && is_checked) {
+              lv_obj_set_style_border_color(rows[idx], lv_color_hex(0xFFD700), 0);  // Gold
+              lv_obj_set_style_border_width(rows[idx], 2, 0);
+            } else {
+              lv_obj_set_style_border_color(rows[idx], lv_color_hex(0x2A2A2A), 0);  // Default
+              lv_obj_set_style_border_width(rows[idx], 1, 0);
+            }
+
+            // Update status text
+            if (status_lbls[idx]) {
+              if (is_leader && is_checked) {
+                lv_label_set_text(status_lbls[idx], "Leader");
+                lv_obj_set_style_text_color(status_lbls[idx], lv_color_hex(0xFFD700), 0);  // Gold
+              } else if (is_checked) {
+                lv_label_set_text(status_lbls[idx], "In Group");
+                lv_obj_set_style_text_color(status_lbls[idx], lv_color_hex(0x00D1FF), 0);  // Cyan
+              } else if (is_online) {
+                lv_label_set_text(status_lbls[idx], "Online");
+                lv_obj_set_style_text_color(status_lbls[idx], lv_color_hex(0x666666), 0);  // Grey
+              } else {
+                lv_label_set_text(status_lbls[idx], "Offline");
+                lv_obj_set_style_text_color(status_lbls[idx], lv_color_hex(0x666666), 0);  // Grey
+              }
+            }
+          }
+
+          // Update title based on mode
+          lv_obj_t* title_lbl = id(lbl_grouping_title);
+          if (title_lbl) {
+            if (mode == 0) {
+              lv_label_set_text(title_lbl, "Create Group");
+            } else {
+              lv_label_set_text(title_lbl, "Edit Group");
+            }
+          }
+
+          // Update Apply button text based on mode
+          lv_obj_t* apply_btn_lbl = id(lbl_apply_btn);
+          if (apply_btn_lbl) {
+            if (mode == 0) {
+              lv_label_set_text(apply_btn_lbl, "Create Group");
+            } else {
+              lv_label_set_text(apply_btn_lbl, "Update Group");
+            }
+          }
+
+          // Show/hide leader hint (show when 2+ players checked)
+          lv_obj_t* hint_lbl = id(lbl_grouping_hint);
+          if (hint_lbl) {
+            if (checked_count >= 2) {
+              lv_obj_clear_flag(hint_lbl, LV_OBJ_FLAG_HIDDEN);
+            } else {
+              lv_obj_add_flag(hint_lbl, LV_OBJ_FLAG_HIDDEN);
+            }
+          }
+
+          // Show/hide "No players" message
+          lv_obj_t* no_players = id(lbl_grouping_no_players);
+          if (no_players) {
+            if (visible_count == 0) {
+              lv_obj_clear_flag(no_players, LV_OBJ_FLAG_HIDDEN);
+            } else {
+              lv_obj_add_flag(no_players, LV_OBJ_FLAG_HIDDEN);
+            }
+          }
+
+          ESP_LOGD("grouping_ui", "Updated %d visible rows, states=0x%02X, mode=%d, leader=%s",
+                   visible_count, states, mode, designated_leader.c_str());
+
+      # Update status and button state
+      - script.execute: grouping_update_ui
+
+# =============================================================================
+# Usage Notes
+# =============================================================================
+#
+# NAVIGATION:
+# Navigate to this screen using:
+#   - script.execute:
+#       id: navigate_to
+#       target_screen: 5  # page_grouping index
+#
+# Or add to navigation.yaml screen list.
+#
+# WORKFLOW:
+# 1. Screen loads → grouping_init populates initial checkbox states
+# 2. User taps rows → grouping_toggle_checkbox toggles bit in bitmask
+# 3. grouping_update_checkboxes syncs widget visuals
+# 4. grouping_update_ui updates status label and Apply button state
+# 5. Apply button → grouping_apply validates and sends group command
+# 6. Cancel button → grouping_cancel restores original states and navigates back
+#
+# LAYOUT:
+# - Header: 44px (back button, title, close button)
+# - Player list: 116px scrollable (up to 8 rows @ 44px each)
+# - Status: 24px (validation messages)
+# - Buttons: 48px (Cancel + Apply)
+# - Total: 232px (fits 240px with 4px margins)
+#
+# =============================================================================

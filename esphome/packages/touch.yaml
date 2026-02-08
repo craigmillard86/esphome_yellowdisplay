@@ -1,0 +1,25 @@
+# =============================================================================
+# Package: Touch Controller Configuration
+# Purpose: XPT2046 resistive touch controller initialization
+# Dependencies: packages/spi.yaml (requires 'touch' spi component)
+# Exposes: touchscreen component 'touch_controller'
+# Hardware: XPT2046 on separate SPI bus from display
+# =============================================================================
+
+touchscreen:
+  - platform: xpt2046
+    id: touch_controller
+    spi_id: touch
+    cs_pin: 33
+    interrupt_pin: 36
+    threshold: 400
+    calibration:
+      x_min: 280
+      x_max: 3860
+      y_min: 340
+      y_max: 3860
+    transform:
+      swap_xy: true
+    # Reset idle timer on any touch (T126)
+    on_touch:
+      - script.execute: reset_idle_timer

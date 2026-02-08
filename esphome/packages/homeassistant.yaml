@@ -1,0 +1,37 @@
+# =============================================================================
+# Package: Home Assistant Integration
+# Purpose: HA-specific integration components (time sync, event handlers)
+# Dependencies: Requires active HA Native API connection (configured in main.yaml)
+# Exposes: time component 'ha_time' and HA event handlers
+# Note: Main API component is configured in main.yaml per constitution §5.1
+# =============================================================================
+
+# Time synchronization from Home Assistant
+# Provides accurate time for UI display and logging timestamps
+# Eliminates need for NTP server configuration
+time:
+  - platform: homeassistant
+    id: ha_time
+
+    # Timezone from secrets (e.g., "America/New_York", "Europe/London")
+    timezone: !secret timezone
+
+    # Event handler for time sync
+    on_time_sync:
+      then:
+        - logger.log:
+            tag: "ha"
+            level: INFO
+            format: "Time synchronized from Home Assistant: %s"
+            args:
+              - 'id(ha_time).now().strftime("%Y-%m-%d %H:%M:%S").c_str()'
+
+# Home Assistant connection state handlers
+# These handlers complement the API component in main.yaml
+# Provides visibility into HA API connection lifecycle
+
+# Note: API component must be defined in main.yaml to use these handlers
+# This file only contains supplementary HA-specific integrations
+
+# Note: ha_api_connected binary sensor is defined in packages/diagnostics.yaml
+# per constitution §3.1 (single responsibility - diagnostics package owns all diagnostic sensors)

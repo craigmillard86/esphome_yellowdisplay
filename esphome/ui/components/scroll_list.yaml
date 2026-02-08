@@ -1,0 +1,115 @@
+# =============================================================================
+# UI Component: Scrollable List Container (T056)
+# Purpose: Reusable scrollable list container component using LVGL flex layout
+# Dependencies: packages/lvgl.yaml (LVGL framework)
+# =============================================================================
+
+# This file documents the scrollable list pattern used in the project.
+# The actual implementation is embedded in screen files (e.g., players.yaml)
+# because LVGL widgets must be defined within a page context.
+
+# =============================================================================
+# Scrollable List Pattern
+# =============================================================================
+#
+# To create a scrollable list in LVGL, use the following pattern:
+#
+# lvgl:
+#   pages:
+#     - id: page_with_list
+#       widgets:
+#         # Scrollable container
+#         - obj:
+#             id: list_container
+#             x: 0
+#             y: 44  # Below header
+#             width: 320
+#             height: 196  # 240 - 44 header
+#             bg_color: 0x121212
+#             bg_opa: COVER
+#             border_width: 0
+#             pad_all: 4
+#             scrollbar_mode: AUTO  # Show scrollbar when needed
+#             layout:
+#               type: FLEX
+#               flex_flow: COLUMN     # Vertical list
+#               flex_align_main: START
+#               flex_align_cross: CENTER
+#               flex_align_track: CENTER
+#             widgets:
+#               # List items go here
+#               - button:
+#                   id: list_item_0
+#                   width: 312
+#                   height: 56
+#                   # ... item content
+#
+# =============================================================================
+# Key Properties
+# =============================================================================
+#
+# scrollbar_mode:
+#   - AUTO: Show scrollbar only when needed
+#   - ACTIVE: Always show scrollbar when scrolling
+#   - ON: Always show scrollbar
+#   - OFF: Never show scrollbar
+#
+# layout.type: FLEX
+#   - Creates a flexbox layout container
+#   - Required for automatic arrangement of child widgets
+#
+# layout.flex_flow:
+#   - COLUMN: Vertical list (items stack top to bottom)
+#   - ROW: Horizontal list (items stack left to right)
+#
+# layout.flex_align_main:
+#   - START: Items align at start (top for COLUMN, left for ROW)
+#   - CENTER: Items center along main axis
+#   - END: Items align at end
+#   - SPACE_BETWEEN: Distribute space between items
+#   - SPACE_AROUND: Distribute space around items
+#
+# layout.flex_align_cross:
+#   - START: Items align at start of cross axis
+#   - CENTER: Items center along cross axis
+#   - END: Items align at end of cross axis
+#
+# =============================================================================
+# Touch Targets
+# =============================================================================
+#
+# Per accessibility requirements, all touch targets must be minimum 44x44px.
+# For list items:
+#   - Minimum height: 44px
+#   - Recommended height: 56px (allows for icon + text + subtitle)
+#   - Button elements inside items: 44x44px minimum
+#
+# =============================================================================
+# Touch Feedback
+# =============================================================================
+#
+# For touch feedback within 100ms, use the 'pressed' state:
+#
+#   - button:
+#       bg_color: 0x1E1E1E
+#       pressed:
+#         bg_color: 0x2A2A2A  # Lighter on press
+#
+# Or use border color change:
+#
+#   - button:
+#       border_color: 0x2A2A2A
+#       pressed:
+#         border_color: 0x00D1FF  # Cyan border on press
+#
+# =============================================================================
+# Memory Considerations
+# =============================================================================
+#
+# For ESP32 with limited memory:
+#   - Limit visible list items to 4-8 rows
+#   - Use hidden: true for unused slots
+#   - Update slots dynamically instead of creating many widgets
+#   - Avoid creating list items in lambdas (use pre-defined widgets)
+#
+# =============================================================================

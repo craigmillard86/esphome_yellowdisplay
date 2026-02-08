@@ -1,0 +1,311 @@
+# =============================================================================
+# UI Screen: Music Library Hub (T070)
+# Purpose: Central hub for browsing music library categories
+# Dependencies: packages/lvgl.yaml (LVGL framework, theme, fonts, icons)
+#               packages/navigation.yaml (screen navigation)
+#               packages/browse.yaml (browse scripts)
+# Exposes: page_library LVGL page with category tiles
+# Display: 320x240 ILI9341 in landscape orientation
+# =============================================================================
+
+# This file implements:
+# - T070: Create Music Library Hub screen with category tiles
+#
+# Screen Layout (Memory Optimized - 2x2 Grid):
+# +--------------------------------------------------+
+# | [<] Music Library                                |  <- Header (44px)
+# +--------------------------------------------------+
+# | +-------------+            +-------------+       |
+# | | Favorites   |            | Playlists   |       |  <- Row 1
+# | +-------------+            +-------------+       |
+# | +-------------+            +-------------+       |
+# | | Albums      |            | Artists     |       |  <- Row 2
+# | +-------------+            +-------------+       |
+# +--------------------------------------------------+
+#
+# Navigation (Recent and Search removed for memory optimization):
+# - Favorites → page_browse_favorites (screen 4)
+# - Playlists → page_browse_playlists (screen 8)
+# - Albums → page_browse_albums (screen 9)
+# - Artists → page_browse_artists (screen 10)
+
+lvgl:
+  pages:
+    # =========================================================================
+    # Music Library Hub Screen (T070)
+    # =========================================================================
+    - id: page_library
+      bg_color: 0x121212
+      border_width: 0
+      shadow_width: 0
+      widgets:
+        # =====================================================================
+        # HEADER AREA (44px height)
+        # =====================================================================
+
+        # Back Button - Top Left (44x44px touch target)
+        - button:
+            id: btn_library_back
+            x: 0
+            y: 0
+            width: 44
+            height: 44
+            bg_opa: TRANSP
+            border_width: 0
+            shadow_width: 0
+            pad_all: 0
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Library screen back button pressed"
+              - script.execute: navigate_back
+            widgets:
+              - label:
+                  text: "\U000F004D"  # mdi:arrow-left
+                  text_font: icons_24
+                  text_color: 0xB3B3B3
+                  align: CENTER
+
+        # Screen Title
+        - label:
+            id: lbl_library_title
+            text: "Music Library"
+            text_font: roboto_16
+            text_color: 0xFFFFFF
+            align: TOP_MID
+            x: 0
+            y: 12
+            text_align: CENTER
+
+        # Header Divider Line
+        - obj:
+            x: 0
+            y: 43
+            width: 320
+            height: 1
+            bg_color: 0x2A2A2A
+            bg_opa: COVER
+            border_width: 0
+
+        # =====================================================================
+        # CATEGORY TILES - 2x2 Grid Layout (Memory Optimized)
+        # =====================================================================
+        # Grid: 2 rows, 2 columns
+        # Tile size: 140x80px each
+        # Positions: x=20/170, y=52/140
+        # Recent and Search tiles removed for memory optimization
+
+        # =====================================================================
+        # ROW 1 - TOP TWO TILES
+        # =====================================================================
+
+        # TOP LEFT TILE - Favorites
+        - button:
+            id: tile_library_favorites
+            x: 20
+            y: 52
+            width: 140
+            height: 80
+            bg_color: 0x1E1E1E
+            bg_opa: COVER
+            radius: 10
+            border_width: 1
+            border_color: 0x2A2A2A
+            shadow_width: 0
+            checkable: false
+            pressed:
+              border_color: 0x00D1FF
+              border_width: 2
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Favorites tile pressed"
+              - script.execute:
+                  id: navigate_to
+                  target_screen: 4  # FAVORITES (same as home tile)
+            widgets:
+              # Icon
+              - label:
+                  text: "\U000F02D1"  # mdi:heart
+                  text_font: icons_24
+                  text_color: 0xFF6B35
+                  align: TOP_MID
+                  x: 0
+                  y: 12
+              # Label
+              - label:
+                  text: "Favorites"
+                  text_font: roboto_12
+                  text_color: 0xFFFFFF
+                  text_align: CENTER
+                  align: BOTTOM_MID
+                  x: 0
+                  y: -8
+
+        # TOP RIGHT TILE - Playlists
+        - button:
+            id: tile_playlists
+            x: 170
+            y: 52
+            width: 140
+            height: 80
+            bg_color: 0x1E1E1E
+            bg_opa: COVER
+            radius: 10
+            border_width: 1
+            border_color: 0x2A2A2A
+            shadow_width: 0
+            checkable: false
+            pressed:
+              border_color: 0x00D1FF
+              border_width: 2
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Playlists tile pressed"
+              - script.execute:
+                  id: navigate_to
+                  target_screen: 8  # BROWSE_PLAYLISTS
+            widgets:
+              # Icon
+              - label:
+                  text: "\U000F0486"  # mdi:playlist-music
+                  text_font: icons_24
+                  text_color: 0x00D1FF
+                  align: TOP_MID
+                  x: 0
+                  y: 12
+              # Label
+              - label:
+                  text: "Playlists"
+                  text_font: roboto_12
+                  text_color: 0xFFFFFF
+                  text_align: CENTER
+                  align: BOTTOM_MID
+                  x: 0
+                  y: -8
+
+        # =====================================================================
+        # ROW 2 - BOTTOM TWO TILES
+        # =====================================================================
+
+        # BOTTOM LEFT TILE - Albums
+        - button:
+            id: tile_albums
+            x: 20
+            y: 140
+            width: 140
+            height: 80
+            bg_color: 0x1E1E1E
+            bg_opa: COVER
+            radius: 10
+            border_width: 1
+            border_color: 0x2A2A2A
+            shadow_width: 0
+            checkable: false
+            pressed:
+              border_color: 0x00D1FF
+              border_width: 2
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Albums tile pressed"
+              - script.execute:
+                  id: navigate_to
+                  target_screen: 9  # BROWSE_ALBUMS
+            widgets:
+              # Icon
+              - label:
+                  text: "\U000F0025"  # mdi:album
+                  text_font: icons_24
+                  text_color: 0x00D1FF
+                  align: TOP_MID
+                  x: 0
+                  y: 12
+              # Label
+              - label:
+                  text: "Albums"
+                  text_font: roboto_12
+                  text_color: 0xFFFFFF
+                  text_align: CENTER
+                  align: BOTTOM_MID
+                  x: 0
+                  y: -8
+
+        # BOTTOM RIGHT TILE - Artists
+        - button:
+            id: tile_artists
+            x: 170
+            y: 140
+            width: 140
+            height: 80
+            bg_color: 0x1E1E1E
+            bg_opa: COVER
+            radius: 10
+            border_width: 1
+            border_color: 0x2A2A2A
+            shadow_width: 0
+            checkable: false
+            pressed:
+              border_color: 0x00D1FF
+              border_width: 2
+            on_click:
+              - logger.log:
+                  tag: "ui"
+                  level: INFO
+                  format: "Artists tile pressed"
+              - script.execute:
+                  id: navigate_to
+                  target_screen: 10  # BROWSE_ARTISTS
+            widgets:
+              # Icon
+              - label:
+                  text: "\U000F0006"  # mdi:account-music
+                  text_font: icons_24
+                  text_color: 0x00D1FF
+                  align: TOP_MID
+                  x: 0
+                  y: 12
+              # Label
+              - label:
+                  text: "Artists"
+                  text_font: roboto_12
+                  text_color: 0xFFFFFF
+                  text_align: CENTER
+                  align: BOTTOM_MID
+                  x: 0
+                  y: -8
+
+# =============================================================================
+# Icon Reference (Material Design Icons)
+# =============================================================================
+# Icons used in this screen (defined in icons_24 font in lvgl.yaml):
+#
+# - "\U000F02D1"  # mdi:heart (Favorites)
+# - "\U000F0486"  # mdi:playlist-music (Playlists)
+# - "\U000F0025"  # mdi:album (Albums)
+# - "\U000F0006"  # mdi:account-music (Artists)
+#
+# Removed for memory optimization:
+# - mdi:music (Recently Played) - screen 7 removed
+# - mdi:magnify (Search) - screen 5 removed
+#
+# =============================================================================
+# Navigation Screen IDs
+# =============================================================================
+# Active screens:
+# - 3 = LIBRARY (this screen - page_library)
+# - 4 = FAVORITES (page_browse_favorites)
+# - 8 = BROWSE_PLAYLISTS (page_browse_playlists)
+# - 9 = BROWSE_ALBUMS (page_browse_albums)
+# - 10 = BROWSE_ARTISTS (page_browse_artists)
+#
+# Removed for memory optimization:
+# - 5 = SEARCH (page_search)
+# - 7 = BROWSE_RECENT (page_browse_recent)
+#
+# =============================================================================

@@ -1,0 +1,152 @@
+# =============================================================================
+# UI Component: Player Row (T057, T058, T059, T062)
+# Purpose: Reusable player row component for the player selection screen
+# Dependencies: packages/lvgl.yaml (LVGL framework, theme, fonts, icons)
+#               packages/player_manager.yaml (player state management)
+# =============================================================================
+
+# This file documents the player row pattern used in the project.
+# The actual implementation is embedded in ui/players.yaml because
+# LVGL widgets must be defined within a page context.
+
+# =============================================================================
+# Player Row Layout (T057)
+# =============================================================================
+#
+# +-------------------------------------------------------------------+
+# | [*] Player Name                          [===volume===] [power]   |
+# |     Online/Offline                                                |
+# +-------------------------------------------------------------------+
+#
+# Component dimensions:
+#   - Total width: 312px (320px - 8px padding)
+#   - Height: 56px (minimum touch target with padding)
+#   - Selection indicator: 28x28px icon
+#   - Player name: 120px width with scroll
+#   - Status text: Below name
+#   - Volume slider: 80px width (T058)
+#   - Power button: 44x44px touch target (T059)
+
+# =============================================================================
+# Widget Structure
+# =============================================================================
+#
+# - button (player_row_N):           # Main row container
+#     width: 312
+#     height: 56
+#     bg_color: 0x1E1E1E
+#     radius: 8
+#     widgets:
+#       - label (player_N_check):    # Selection checkmark (hidden when not selected)
+#           text: mdi:check-circle
+#           text_color: 0x00D1FF
+#           hidden: true
+#
+#       - label (player_N_circle):   # Selection circle (hidden when selected)
+#           text: mdi:circle-outline
+#           text_color: 0x666666
+#
+#       - label (player_N_name_lbl): # Player friendly name
+#           text_color: 0xFFFFFF (online) / 0x666666 (offline)
+#           width: 120
+#           long_mode: SCROLL_CIRCULAR
+#
+#       - label (player_N_status):   # Online/Offline status text
+#           text: "Online" / "Offline"
+#           text_color: 0x00D1FF (online) / 0x666666 (offline)
+#
+#       - slider (player_N_volume_slider):  # Volume control (T058)
+#           width: 80  # 50% of right side space
+#           min_value: 0
+#           max_value: 100
+#           on_release: set_player_volume
+#
+#       - button (player_N_power):   # Power toggle (T059)
+#           width: 44
+#           height: 44
+#           on_click: set_player_power
+#           widgets:
+#             - label (player_N_power_icon):
+#                 text: mdi:power
+#                 text_color: 0x00D1FF (online) / 0x666666 (offline)
+
+# =============================================================================
+# Online/Offline Styling (T062)
+# =============================================================================
+#
+# Online players:
+#   - Player name: 0xFFFFFF (white)
+#   - Status text: 0x00D1FF (cyan)
+#   - Power icon: 0x00D1FF (cyan)
+#   - Selection circle: 0x666666 (grey)
+#   - Row is selectable
+#
+# Offline players (FR-034):
+#   - Player name: 0x666666 (grey)
+#   - Status text: 0x666666 (grey)
+#   - Power icon: 0x666666 (grey)
+#   - Selection circle: 0x444444 (darker grey)
+#   - Row tap is ignored (cannot select offline players)
+
+# =============================================================================
+# Selection Behavior (T063, T064)
+# =============================================================================
+#
+# On row tap:
+#   1. Check if player is online (T064: FR-034)
+#   2. If offline, ignore tap and optionally show feedback
+#   3. If online, call select_player script
+#   4. Update selection indicator (show checkmark, hide circle)
+#   5. Persist selection to NVS (T066)
+#   6. Update active_player_entity global
+#   7. Update header player name (T065)
+
+# =============================================================================
+# Volume Slider (T058)
+# =============================================================================
+#
+# The volume slider is positioned to take approximately 50% of the right
+# side of the row, leaving room for the power button.
+#
+# Properties:
+#   - Width: 80px (about 50% of available space after name)
+#   - Height: 20px (touch-friendly)
+#   - Range: 0-100 percent
+#   - Knob: 12x12px white circle
+#   - Track: Cyan indicator on dark background
+#   - Action: Calls set_player_volume on release (debounced)
+
+# =============================================================================
+# Power Toggle (T059)
+# =============================================================================
+#
+# Power button allows turning individual players on/off.
+#
+# Properties:
+#   - Size: 44x44px (minimum touch target)
+#   - Icon: mdi:power
+#   - Color: Cyan when online, grey when offline
+#   - Action: Calls set_player_power on click
+#   - Behavior: Toggles player power state via HA service call
+
+# =============================================================================
+# Update Script
+# =============================================================================
+#
+# The update_player_rows script in players.yaml updates all row UI elements
+# based on the current player data in player_manager globals.
+#
+# Call this script when:
+#   - Navigating to the players screen
+#   - Player state changes (online/offline)
+#   - Player selection changes
+#   - Volume levels change
+
+# =============================================================================
+# Implementation Example
+# =============================================================================
+#
+# See ui/players.yaml for the full implementation with 4 player row slots.
+# Each slot follows this pattern and is indexed 0-3.
+#
+# =============================================================================

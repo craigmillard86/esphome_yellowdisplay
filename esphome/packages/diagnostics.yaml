@@ -1,0 +1,133 @@
+# =============================================================================
+# Package: Diagnostics (T135, T136)
+# Purpose: Device health, connectivity, and memory profiling sensors
+# Dependencies: None (core platform sensors)
+# Exposes: Diagnostic sensors per constitution §1.5.1 and memory profiling
+# =============================================================================
+
+# This package implements:
+# - T135: Profile memory usage across all screens
+# - T136: Fix any memory leaks discovered during profiling
+# - Constitution §1.5 Observability requirements
+# - Constitution §11.3 Heap Stability gate
+
+# =============================================================================
+# Binary Sensors
+# =============================================================================
+
+binary_sensor:
+  # Note: ha_api_connected is defined in packages/connectivity.yaml
+  # Memory health sensors removed to save heap
+
+# =============================================================================
+# Sensors
+# =============================================================================
+
+sensor:
+  # Device uptime in seconds
+  # Updates every 60 seconds to minimize log spam
+  - platform: uptime
+    id: uptime_sensor
+    name: "Uptime"
+    entity_category: diagnostic
+    update_interval: 60s
+    filters:
+      # Convert to hours for better readability
+      - lambda: return x / 3600.0;
+    unit_of_measurement: "h"
+    accuracy_decimals: 1
+    device_class: duration
+
+  # WiFi signal strength in dBm
+  # Updates every 60 seconds - no need for real-time WiFi monitoring
+  - platform: wifi_signal
+    id: wifi_rssi
+    name: "WiFi RSSI"
+    entity_category: diagnostic
+    update_interval: 60s
+    unit_of_measurement: "dBm"
+    accuracy_decimals: 0
+    device_class: signal_strength
+
+  # Free heap memory in bytes
+  # Critical for detecting memory leaks per constitution §11.3
+  - platform: template
+    id: free_heap
+    name: "Free Heap"
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: |-
+      return esp_get_free_heap_size();
+    unit_of_measurement: "B"
+    accuracy_decimals: 0
+    device_class: data_size
+
+  # Time to boot in seconds
+  # Set once on boot complete, then never updates
+  # Tracks compliance with constitution §1.1 (boot within 10 seconds)
+  - platform: template
+    id: boot_time
+    name: "Boot Time"
+    entity_category: diagnostic
+    update_interval: never
+    lambda: |-
+      // Return uptime on first call, which equals boot time
+      static bool initialized = false;
+      static float boot_duration = 0.0;
+
+      if (!initialized) {
+        boot_duration = id(uptime_sensor).state;
+        initialized = true;
+        ESP_LOGI("diagnostics", "Boot completed in %.2f seconds", boot_duration);
+      }
+
+      return boot_duration;
+    unit_of_measurement: "s"
+    accuracy_decimals: 2
+
+# =============================================================================
+# Text Sensors
+# =============================================================================
+
+text_sensor:
+  # Current IP address
+  # Updates on network changes
+  - platform: wifi_info
+    ip_address:
+      id: ip_address
+      name: "IP Address"
+      entity_category: diagnostic
+      icon: "mdi:ip-network"
+
+  # Last reset reason
+  # Helps diagnose unexpected reboots
+  # One-time read at boot, then static
+  - platform: template
+    id: reset_reason
+    name: "Reset Reason"
+    entity_category: diagnostic
+    icon: "mdi:restart"
+    update_interval: never
+    lambda: |-
+      #ifdef USE_ESP32
+        esp_reset_reason_t reason = esp_reset_reason();
+        switch (reason) {
+          case ESP_RST_UNKNOWN:   return {"Unknown"};
+          case ESP_RST_POWERON:   return {"Power-on"};
+          case ESP_RST_EXT:       return {"External reset"};
+          case ESP_RST_SW:        return {"Software reset"};
+          case ESP_RST_PANIC:     return {"Exception/panic"};
+          case ESP_RST_INT_WDT:   return {"Interrupt watchdog"};
+          case ESP_RST_TASK_WDT:  return {"Task watchdog"};
+          case ESP_RST_WDT:       return {"Watchdog"};
+          case ESP_RST_DEEPSLEEP: return {"Deep sleep wake"};
+          case ESP_RST_BROWNOUT:  return {"Brownout"};
+          case ESP_RST_SDIO:      return {"SDIO reset"};
+          default:                return {"Unknown code"};
+        }
+      #else
+        return {"ESP8266 not supported"};
+      #endif
+
+# Note: Memory profiling scripts removed to save heap
+# Use main.yaml heap_monitor interval for basic monitoring

@@ -1,0 +1,954 @@
+# =============================================================================
+# UI Screen: Unified Browse List
+# Purpose: Single reusable browse page for all categories (memory optimized)
+# Categories: Recent(1), Favorites(2), Playlists(3), Albums(4), Artists(5)
+# =============================================================================
+
+lvgl:
+  pages:
+    - id: page_browse
+      bg_color: 0x121212
+      border_width: 0
+      shadow_width: 0
+      width: 320
+      height: 240
+      scrollable: false
+      widgets:
+        # Header - Back button
+        - button:
+            id: btn_browse_back
+            x: 0
+            y: 0
+            width: 44
+            height: 44
+            bg_opa: TRANSP
+            border_width: 0
+            shadow_width: 0
+            pad_all: 0
+            on_click:
+              - script.execute: navigate_back
+            widgets:
+              - label:
+                  text: "\U000F004D"
+                  text_font: icons_24
+                  text_color: 0xB3B3B3
+                  align: CENTER
+
+        # Header - Title (dynamic)
+        - label:
+            id: lbl_browse_title
+            text: "Browse"
+            text_font: roboto_16
+            text_color: 0xFFFFFF
+            align: TOP_MID
+            y: 12
+
+        # Header - Page indicator
+        - label:
+            id: lbl_browse_page_indicator
+            text: ""
+            text_font: roboto_12
+            text_color: 0x808080
+            align: TOP_RIGHT
+            x: -8
+            y: 14
+
+        # Header divider
+        - obj:
+            x: 0
+            y: 43
+            width: 320
+            height: 1
+            bg_color: 0x2A2A2A
+            bg_opa: COVER
+            border_width: 0
+
+        # Loading indicator
+        - obj:
+            id: browse_loading_indicator
+            align: CENTER
+            width: 200
+            height: 60
+            bg_opa: TRANSP
+            border_width: 0
+            hidden: true
+            widgets:
+              - spinner:
+                  align: TOP_MID
+                  width: 30
+                  height: 30
+                  spin_time: 1s
+                  arc_length: 60deg
+                  arc_color: 0x00D1FF
+                  arc_width: 3
+              - label:
+                  text: "Loading..."
+                  text_font: roboto_12
+                  text_color: 0xB3B3B3
+                  align: BOTTOM_MID
+                  y: -5
+
+        # Empty state
+        - obj:
+            id: browse_empty_state
+            align: CENTER
+            width: 200
+            height: 60
+            bg_opa: TRANSP
+            border_width: 0
+            hidden: true
+            widgets:
+              - label:
+                  text: "\U000F0187"
+                  text_font: icons_24
+                  text_color: 0x4A4A4A
+                  align: TOP_MID
+              - label:
+                  text: "No items found"
+                  text_font: roboto_12
+                  text_color: 0x808080
+                  align: BOTTOM_MID
+                  y: -5
+
+        # List container (width adjusts: 286px normal, 262px with alpha picker)
+        # Height: 152px fits 4 items (4 * 38px spacing)
+        - obj:
+            id: browse_list_container
+            x: 8
+            y: 44
+            width: 286
+            height: 152
+            bg_opa: TRANSP
+            border_width: 0
+            scrollbar_mode: "off"
+            scrollable: false
+            pad_all: 0
+            widgets:
+              # List Item 0
+              - button:
+                  id: browse_item_0
+                  x: 0
+                  y: 0
+                  width: 278
+                  height: 36
+                  pad_all: 0
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_0_media_id);'
+                        item_title: !lambda 'return id(browse_item_0_title);'
+                  widgets:
+                    - label:
+                        id: lbl_browse_item_0_title
+                        text: "Item"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 262
+                        long_mode: DOT
+                    - label:
+                        id: lbl_browse_item_0_subtitle
+                        text: "Subtitle"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 262
+                        long_mode: DOT
+
+              # List Item 1
+              - button:
+                  id: browse_item_1
+                  x: 0
+                  y: 38
+                  width: 278
+                  height: 36
+                  pad_all: 0
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_1_media_id);'
+                        item_title: !lambda 'return id(browse_item_1_title);'
+                  widgets:
+                    - label:
+                        id: lbl_browse_item_1_title
+                        text: "Item"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 262
+                        long_mode: DOT
+                    - label:
+                        id: lbl_browse_item_1_subtitle
+                        text: "Subtitle"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 262
+                        long_mode: DOT
+
+              # List Item 2
+              - button:
+                  id: browse_item_2
+                  x: 0
+                  y: 76
+                  width: 278
+                  height: 36
+                  pad_all: 0
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_2_media_id);'
+                        item_title: !lambda 'return id(browse_item_2_title);'
+                  widgets:
+                    - label:
+                        id: lbl_browse_item_2_title
+                        text: "Item"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 262
+                        long_mode: DOT
+                    - label:
+                        id: lbl_browse_item_2_subtitle
+                        text: "Subtitle"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 262
+                        long_mode: DOT
+
+              # List Item 3
+              - button:
+                  id: browse_item_3
+                  x: 0
+                  y: 114
+                  width: 278
+                  height: 36
+                  pad_all: 0
+                  bg_color: 0x1E1E1E
+                  bg_opa: COVER
+                  radius: 6
+                  border_width: 1
+                  border_color: 0x2A2A2A
+                  shadow_width: 0
+                  checkable: false
+                  hidden: true
+                  pressed:
+                    border_color: 0x00D1FF
+                    border_width: 2
+                  on_click:
+                    - script.execute:
+                        id: play_media_item
+                        media_id: !lambda 'return id(browse_item_3_media_id);'
+                        item_title: !lambda 'return id(browse_item_3_title);'
+                  widgets:
+                    - label:
+                        id: lbl_browse_item_3_title
+                        text: "Item"
+                        text_font: roboto_12
+                        text_color: 0xFFFFFF
+                        align: TOP_LEFT
+                        x: 8
+                        y: 4
+                        width: 262
+                        long_mode: DOT
+                    - label:
+                        id: lbl_browse_item_3_subtitle
+                        text: "Subtitle"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: TOP_LEFT
+                        x: 8
+                        y: 18
+                        width: 262
+                        long_mode: DOT
+
+        # Alphabet Picker Strip (right edge, hidden by default)
+        # Position: x=264, width=48 (ends at 312, 8px from screen edge)
+        # Shows "All" + A-Z buttons, scrollable vertically
+        - obj:
+            id: browse_alpha_picker
+            x: 264
+            y: 44
+            width: 48
+            height: 152
+            bg_color: 0x1A1A1A
+            bg_opa: COVER
+            border_width: 0
+            radius: 4
+            scrollable: true
+            scroll_dir: VER
+            scrollbar_mode: "off"
+            pad_all: 2
+            hidden: true
+            widgets:
+              # Clear filter button
+              - button:
+                  id: browse_alpha_all
+                  x: 0
+                  y: 0
+                  width: 44
+                  height: 26
+                  bg_color: 0x00D1FF
+                  bg_opa: COVER
+                  radius: 2
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: ""
+                  widgets:
+                    - label:
+                        text: "All"
+                        text_font: roboto_12
+                        text_color: 0x000000
+                        align: CENTER
+              # A-Z buttons (20px height each, 22px spacing)
+              - button:
+                  id: btn_alpha_a
+                  x: 0
+                  y: 28
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "A"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_a
+                        text: "A"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 50
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "B"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_b
+                        text: "B"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 72
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "C"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_c
+                        text: "C"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 94
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "D"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_d
+                        text: "D"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 116
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "E"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_e
+                        text: "E"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 138
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "F"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_f
+                        text: "F"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 160
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "G"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_g
+                        text: "G"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 182
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "H"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_h
+                        text: "H"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 204
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "I"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_i
+                        text: "I"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 226
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "J"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_j
+                        text: "J"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 248
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "K"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_k
+                        text: "K"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 270
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "L"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_l
+                        text: "L"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 292
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "M"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_m
+                        text: "M"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 314
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "N"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_n
+                        text: "N"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 336
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "O"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_o
+                        text: "O"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 358
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "P"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_p
+                        text: "P"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 380
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "Q"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_q
+                        text: "Q"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 402
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "R"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_r
+                        text: "R"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 424
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "S"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_s
+                        text: "S"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 446
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "T"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_t
+                        text: "T"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 468
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "U"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_u
+                        text: "U"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 490
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "V"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_v
+                        text: "V"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 512
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "W"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_w
+                        text: "W"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 534
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "X"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_x
+                        text: "X"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 556
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "Y"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_y
+                        text: "Y"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              - button:
+                  x: 0
+                  y: 578
+                  width: 44
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  clickable: true
+                  on_click:
+                    - script.execute:
+                        id: browse_alpha_jump
+                        letter: "Z"
+                  widgets:
+                    - label:
+                        id: lbl_alpha_z
+                        text: "Z"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+
+        # Pagination Footer (y: 44 + 152 = 196, height: 44 for touch targets)
+        - obj:
+            id: browse_pagination_footer
+            x: 8
+            y: 196
+            width: 286
+            height: 44
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            hidden: true
+            widgets:
+              # Previous button
+              - button:
+                  id: btn_browse_prev
+                  x: 0
+                  y: 4
+                  width: 80
+                  height: 36
+                  bg_color: 0x2A2A2A
+                  bg_opa: COVER
+                  radius: 4
+                  border_width: 0
+                  shadow_width: 0
+                  on_click:
+                    - script.execute: browse_page_prev
+                  widgets:
+                    - label:
+                        text: "< Prev"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER
+              # Next button
+              - button:
+                  id: btn_browse_next
+                  x: 206
+                  y: 4
+                  width: 80
+                  height: 36
+                  bg_color: 0x2A2A2A
+                  bg_opa: COVER
+                  radius: 4
+                  border_width: 0
+                  shadow_width: 0
+                  on_click:
+                    - script.execute: browse_page_next
+                  widgets:
+                    - label:
+                        text: "Next >"
+                        text_font: roboto_12
+                        text_color: 0xB3B3B3
+                        align: CENTER

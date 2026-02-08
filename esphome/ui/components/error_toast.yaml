@@ -1,0 +1,108 @@
+# =============================================================================
+# UI Component: Error Toast Overlay (T129, T131, T132, T133)
+# Purpose: Non-blocking error message display with auto-dismiss and touch-dismiss
+# Dependencies: packages/lvgl.yaml (LVGL framework, theme, fonts)
+# Exposes: Error toast widget and control scripts
+# Display: Bottom overlay bar (320x48) for error messages
+# =============================================================================
+
+# This file implements:
+# - T129: Error banner/toast component
+# - T131: Auto-dismiss errors after 5 seconds (FR-083)
+# - T132: Touch to dismiss errors
+# - T133: Non-blocking error display (FR-081)
+
+# Design Notes:
+# - Toast appears at bottom of screen (y=192-240)
+# - Does not block touch events on underlying UI elements
+# - Auto-dismisses after 5 seconds
+# - Tap anywhere on toast to dismiss immediately
+# - Error icon + message text + optional close icon
+# - Orange/red color scheme for visibility
+
+# =============================================================================
+# LVGL Widget Definition - Error Toast Container
+# =============================================================================
+# This widget is added to the top-level LVGL configuration as a floating overlay
+# that persists across all pages.
+
+lvgl:
+  # Top-level widgets are rendered on top of all pages
+  top_layer:
+    widgets:
+      # =====================================================================
+      # ERROR TOAST OVERLAY (T129)
+      # =====================================================================
+      # Position: Bottom of screen, full width
+      # Size: 320x44px
+      # Initially hidden, shown when error_show script is called
+      - obj:
+          id: error_toast_container
+          x: 0
+          y: 196
+          width: 320
+          height: 44
+          bg_color: 0x2A1A1A  # Dark red-tinted background
+          bg_opa: 95%  # Slightly transparent
+          border_width: 0
+          radius: 0
+          shadow_width: 4
+          shadow_color: 0x000000
+          shadow_opa: 50%
+          shadow_ofs_y: -2
+          hidden: true
+          # Touch anywhere on toast to dismiss (T132)
+          clickable: true
+          on_click:
+            - script.execute: error_dismiss
+          widgets:
+            # Error icon (warning/alert)
+            - label:
+                id: error_toast_icon
+                text: "\U000F0156"  # mdi:close (used as X/error indicator)
+                text_font: icons_24
+                text_color: 0xFF6B35  # Orange-red error color
+                align: LEFT_MID
+                x: 12
+
+            # Error message text
+            - label:
+                id: error_toast_message
+                text: "An error occurred"
+                text_font: roboto_12
+                text_color: 0xFFFFFF
+                align: LEFT_MID
+                x: 44
+                width: 260
+                long_mode: SCROLL_CIRCULAR  # Scroll long messages
+
+            # Dismiss hint (X icon on right)
+            - label:
+                text: "\U000F0156"  # mdi:close
+                text_font: icons_24
+                text_color: 0x666666
+                align: RIGHT_MID
+                x: -8
+
+# =============================================================================
+# Notes on Integration
+# =============================================================================
+#
+# The error_toast_container is added to LVGL's top_layer which renders above
+# all pages. This ensures errors are visible regardless of which screen is active.
+#
+# To show an error, call:
+#   - script.execute:
+#       id: error_show
+#       message: "Your error message here"
+#
+# To manually dismiss:
+#   - script.execute: error_dismiss
+#
+# The toast will auto-dismiss after 5 seconds (T131).
+# Users can also tap the toast to dismiss immediately (T132).
+#
+# The toast does not block underlying UI elements - users can still
+# navigate and interact with the app while an error is displayed (T133).
+#
+# =============================================================================
